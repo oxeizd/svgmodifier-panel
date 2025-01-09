@@ -1,0 +1,44 @@
+changes:
+  - id: "cell-2"
+    attributes:
+      link: "http://example.com/1"
+      tooltip:
+        show: true
+      metrics:
+        - refIds:
+            - { refid: "A" }
+            - { refid: "B", sum: 'sum values'}
+            - { refid: "C", filter: 'cpu' }
+          legends:
+            - { legend: "legendname", filter:"cpu, cpu2", sum: ''}
+          baseColor: "green"
+          decimal: '0'
+          thresholds: 
+            - { color: "red", value: 0.01, condition: "hour === 5 && minute >= 10 && hour === 5 && minute < 47" }
+            - { color: 'orange', value: 20 }
+  - id: 'cell-3'
+    attributes:
+      link: 'http://example.com/1'
+      metrics:
+          - legends:
+            - { legend: "legendname", filter:"cpu, cpu2" }
+            - { legend: "legendname" }
+          displayText: 'cpu'
+          thresholds:
+            - { color: '#ff0000', value: 0.1 }
+            - { color: 'orange', value: 20 }
+            - { color: '#00ff00', value: 40 }
+  - id: "cell-4"
+    attributes:
+      link: "http://example.com/1"
+      tooltip:
+        show: true
+      metrics:
+        - legends:
+            - { legend: "123"}
+            - { legend: "456"}
+          baseColor: "green"
+          decimal: '0'
+          thresholds: 
+            - { color: "red", value: 0.01, condition: "hour === 5 && minute >= 10 && hour === 5 && minute < 47" }
+            - { color: 'orange', value: 20 }
