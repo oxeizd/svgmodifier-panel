@@ -22,13 +22,14 @@ export interface Metric {
   refIds?: RefIds[];
   legends?: Legends[];
   displayText?: string;
+  filling?: string;
   baseColor?: string;
   thresholds?: Threshold[];
   decimal?: number;
 }
 
 export interface Change {
-  id: string;
+  id: string | string[];
   attributes: {
     fillcolor?: string;
     labeltext?: string;

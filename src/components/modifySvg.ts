@@ -23,7 +23,10 @@ export class SvgModifier {
     const tooltipData: Array<{ id: string; label: string; color: string; metric: number | string }> = [];
     const colorMap: Map<
       string,
-      { colors: Array<{ id: string; refId: string; label: string; color: string; metric: number }>; metrics: any[] }
+      {
+        colors: Array<{ id: string; refId: string; label: string; color: string; metric: number; filling?: string }>;
+        metrics: Set<any>;
+      }
     > = new Map();
 
     const dataExtractor = new DataExtractor(this.dataFrame);
@@ -38,32 +41,38 @@ export class SvgModifier {
 
     this.changes.forEach(({ id, attributes }: Change) => {
       const { tooltip, metrics, link } = attributes || {};
-      const element = doc.getElementById(id);
+      const ids = Array.isArray(id) ? id : [id];
+
+      const firstId = ids[0];
+      const element = doc.getElementById(firstId);
       if (!(element instanceof SVGElement)) {
         return;
       }
 
-      if (metrics) {
-        if (!Array.isArray(metrics)) {
-          return;
-        }
-
+      if (metrics && Array.isArray(metrics)) {
         const metricProcessor = new MetricProcessor(element, metrics, extractedValueMap);
         const colorData = metricProcessor.process();
 
-        if (Array.isArray(colorData.color)) {
-          colorData.color.forEach(({ id: colorId, refId, label, color, metric }) => {
-            if (colorMap.has(colorId)) {
-              const existingEntry = colorMap.get(colorId);
-              if (existingEntry) {
-                existingEntry.colors.push({ id: colorId, refId, label, color, metric });
-                existingEntry.metrics.push(...metrics);
-              }
-            } else {
-              colorMap.set(colorId, { colors: [{ id: colorId, refId, label, color, metric }], metrics: [...metrics] });
+        colorData.color.forEach(({ id: colorId, refId, label, color, metric, filling }) => {
+          if (!colorMap.has(colorId)) {
+            colorMap.set(colorId, { colors: [], metrics: new Set() });
+          }
+          const entry = colorMap.get(colorId)!;
+          entry.colors.push({ id: colorId, refId, label, color, metric, filling });
+          metrics.forEach((m) => entry.metrics.add(m));
+        });
+
+        ids.slice(1).forEach((singleId) => {
+          if (!colorMap.has(singleId)) {
+            const firstColorData = colorMap.get(colorData.color[0].id); 
+            if (firstColorData) {
+              colorMap.set(singleId, {
+                colors: [...firstColorData.colors],
+                metrics: new Set(firstColorData.metrics),
+              });
             }
-          });
-        }
+          }
+        });
 
         if (tooltip) {
           this.processTooltip(tooltip, colorData.color, tooltipData);
@@ -80,9 +89,11 @@ export class SvgModifier {
         const validColors = colors.filter((entry) => entry.color !== '');
 
         if (validColors.length > 0) {
-          const maxColorEntry = validColors.reduce((max, entry) => {
-            return entry.metric > max.metric ? entry : max;
-          }, validColors[0]);
+          const maxColorEntry = validColors.reduce(
+            (max, entry) => (entry.metric > max.metric ? entry : max),
+            validColors[0]
+          );
+          const fillingValue = maxColorEntry.filling;
 
           const elements = element.querySelectorAll<SVGElement>('[fill], [stroke]');
           if (maxColorEntry.color !== '') {
@@ -91,8 +102,15 @@ export class SvgModifier {
               el.removeAttribute('fill');
               el.removeAttribute('stroke');
 
-              el.setAttribute('fill', maxColorEntry.color);
-              el.setAttribute('stroke', maxColorEntry.color);
+              if (fillingValue === 'fill') {
+                el.setAttribute('fill', maxColorEntry.color);
+              } else if (fillingValue === 'stroke') {
+                el.setAttribute('stroke', maxColorEntry.color);
+                el.setAttribute('fill', 'none');
+              } else {
+                el.setAttribute('fill', maxColorEntry.color);
+                el.setAttribute('stroke', maxColorEntry.color);
+              }
             });
           }
         }

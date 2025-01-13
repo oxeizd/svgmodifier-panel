@@ -39,7 +39,7 @@ export const Tooltip: React.FC<{ visible: boolean; x: number; y: number; content
 
   return ReactDOM.createPortal(
     <div style={tooltipStyle}>
-      <div style={{ color: '#fff', marginBottom: '5px', textAlign: 'center' }}>{currentDateTime}</div>
+      <div style={{ color: '#fff', marginBottom: '5px' }}>{currentDateTime}</div>
       {content.map((item, index) => (
         <div key={index} style={{ color: item.color }}>
           <span style={{ color: '#fff' }}>{item.label}: </span>

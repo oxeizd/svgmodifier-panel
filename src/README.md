@@ -1,7 +1,7 @@
 # SVG Modifier
 
 **SVG Modifier** is a plugin for Grafana that allows users to visualize data in SVG format. The plugin processes SVG images, changes the colors of elements based on metrics and threshold values, and adds interactive elements such as tooltips and links.
-![image](https://github.com/user-attachments/assets/5157e759-930c-4871-bf3c-1330c692caed)
+![image](https://github.com/oxeizd/svgmodifier-panel/blob/main/src/img/example.png)
 
 ## Functional Features
 
@@ -39,39 +39,39 @@ The ability to add interactive links to SVG elements enables users to navigate t
 
 ##### Example YAML config: [https://github.com/oxeizd/svgmodifier-panel/blob/main/templates/cfg.yaml](https://github.com/oxeizd/svgmodifier-panel/blob/main/templates/cfg.yaml)
 
-| Attributes | Description                                    | Syntax                                                                                                     |
-|------------|------------------------------------------------|------------------------------------------------------------------------------------------------------------|
-| link       | URL to which the cell links                    | `link: "http://example.com/1"`                                                                             |
-| tooltip    | Controls the visibility of the tooltip         | `show: true / false`                                                                                       |
-| metrics    | Collection of metrics associated with the cell | `metrics: [ { refIds: [...], legends: [...], baseColor: "color", decimal: 'number', thresholds: [...] } ]` |
-| refIds     | List of reference IDs for metrics              | `refIds: [ { refid: "A" }, { refid: "B", sum: 'sum values' }, { refid: "C", filter: 'cpu' } ]`             |
-| legends    | Descriptive labels for the metrics             | `legends: [ { legend: "legendname", filter: "cpu, cpu2", sum: '' } ]`                                      |
-| baseColor  | Default color for the metrics display          | `baseColor: "color"`                                                                                       |
-| decimal    | Number of decimal places to display            | `decimal: 'number'`                                                                                        |
-| thresholds | Conditions for color coding based on values    | `thresholds: [ { color: "color", value: number, condition: "condition" } ]`                                |
-| displayText| Text displayed in the cell                     | `displayText: 'text'`                                                                                     |
-| condition  | Condition for applying thresholds               | `condition: "hour === 5 && minute >= 10 && hour === 5 && minute < 47"`                                   |
+| Attributes  | Description                                    | Syntax                                                                                                     |
+| ----------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| link        | URL to which the cell links                    | `link: "http://example.com/1"`                                                                             |
+| tooltip     | Controls the visibility of the tooltip         | `show: true / false`                                                                                       |
+| metrics     | Collection of metrics associated with the cell | `metrics: [ { refIds: [...], legends: [...], baseColor: "color", decimal: 'number', thresholds: [...] } ]` |
+| refIds      | List of reference IDs for metrics              | `refIds: [ { refid: "A" }, { refid: "B", sum: 'sum values' }, { refid: "C", filter: 'cpu' } ]`             |
+| legends     | Descriptive labels for the metrics             | `legends: [ { legend: "legendname", filter: "cpu, cpu2", sum: '' } ]`                                      |
+| baseColor   | Default color for the metrics display          | `baseColor: "color"`                                                                                       |
+| decimal     | Number of decimal places to display            | `decimal: 'number'`                                                                                        |
+| thresholds  | Conditions for color coding based on values    | `thresholds: [ { color: "color", value: number, condition: "condition" } ]`                                |
+| displayText | Text displayed in the cell                     | `displayText: 'text'`                                                                                      |
+| condition   | Condition for applying thresholds              | `condition: "hour === 5 && minute >= 10 && hour === 5 && minute < 47"`                                     |
 
 ### Example Usage:
 
 ```yaml
 changes:
-  - id: "cell-2"
+  - id: 'cell-2'
     attributes:
-      link: "http://example.com/1"
+      link: 'http://example.com/1'
       tooltip:
         show: true
       metrics:
         - refIds:
-            - { refid: "A" }
-            - { refid: "B", sum: 'sum values' }
-            - { refid: "C", filter: 'cpu' }
+            - { refid: 'A' }
+            - { refid: 'B', sum: 'sum values' }
+            - { refid: 'C', filter: 'cpu' }
           legends:
-            - { legend: "legendname", filter: "cpu, cpu2", sum: '' }
-          baseColor: "green"
+            - { legend: 'legendname', filter: 'cpu, cpu2', sum: '' }
+          baseColor: 'green'
           decimal: '0'
           thresholds:
-            - { color: "red", value: 0.01, condition: "hour === 5 && minute >= 10 && hour === 5 && minute < 47" }
+            - { color: 'red', value: 0.01, condition: 'hour === 5 && minute >= 10 && hour === 5 && minute < 47' }
             - { color: 'orange', value: 20 }
 ```
 <!-- To help maximize the impact of your README and improve usability for users, we propose the following loose structure:
@@ -118,4 +118,7 @@ If your project has dedicated documentation available for users, provide links h
 ## Contributing
 Do you want folks to contribute to the plugin or provide feedback through specific means? If so, tell them how!
 -->
+
+```
+
 ```

@@ -1,44 +1,135 @@
 changes:
-  - id: "cell-2"
+  - id: 'cell-s1'
     attributes:
-      link: "http://example.com/1"
+      link: 'http://example.com/1'
       tooltip:
         show: true
       metrics:
         - refIds:
-            - { refid: "A" }
-            - { refid: "B", sum: 'sum values'}
-            - { refid: "C", filter: 'cpu' }
-          legends:
-            - { legend: "legendname", filter:"cpu, cpu2", sum: ''}
-          baseColor: "green"
-          decimal: '0'
-          thresholds: 
-            - { color: "red", value: 0.01, condition: "hour === 5 && minute >= 10 && hour === 5 && minute < 47" }
-            - { color: 'orange', value: 20 }
-  - id: 'cell-3'
+            - { refid: "A", sum: 'CPU' }
+          decimal: 2
+          baseColor: '#00ff00'
+          thresholds:
+            - { color: 'orange', value: 50 }
+            - { color: 'red', value: 60 }
+  - id: 'cell-s2'
     attributes:
       link: 'http://example.com/1'
-      metrics:
-          - legends:
-            - { legend: "legendname", filter:"cpu, cpu2" }
-            - { legend: "legendname" }
-          displayText: 'cpu'
-          thresholds:
-            - { color: '#ff0000', value: 0.1 }
-            - { color: 'orange', value: 20 }
-            - { color: '#00ff00', value: 40 }
-  - id: "cell-4"
-    attributes:
-      link: "http://example.com/1"
       tooltip:
         show: true
       metrics:
-        - legends:
-            - { legend: "123"}
-            - { legend: "456"}
-          baseColor: "green"
-          decimal: '0'
-          thresholds: 
-            - { color: "red", value: 0.01, condition: "hour === 5 && minute >= 10 && hour === 5 && minute < 47" }
-            - { color: 'orange', value: 20 }
+        - refIds:
+            - { refid: "B" }
+          displayText: 'example'
+          decimal: 0
+          baseColor: '#00ff00'
+          thresholds:
+            - { color: 'orange', value: 300 }
+            - { color: 'red', value: 600 }
+  - id: ['cell-l1', 'cell-c1', 'cell-c2']
+    attributes:
+      metrics:
+        - refIds:
+            - { refid: "A", sum: 'CPU' }
+          filling: 'stroke'
+          baseColor: '#00ff00'
+          thresholds:
+            - { color: 'orange', value: 50 }
+            - { color: 'red', value: 60 }
+  - id: 'cell-2s1'
+    attributes:
+      link: 'http://example.com/1'
+      tooltip:
+        show: true
+      metrics:
+        - refIds:
+            - { refid: "B", sum: 'metric 1' }
+            - { refid: "C", sum: 'metric 2' }
+            - { refid: "A", sum: 'metric 3' }
+            - { refid: "D", sum: 'metric 4' }
+            - { refid: "E", sum: 'metric 5' }
+          decimal: 0
+          baseColor: '#00ff00'
+          thresholds:
+            - { color: 'orange', value: 300 }
+            - { color: 'red', value: 600 }
+  - id: 'cell-2s2'
+    attributes:
+      link: 'http://example.com/1'
+      tooltip:
+        show: true
+      metrics:
+        - refIds:
+            - { refid: "B" }
+          decimal: 0
+          displayText: 'example'
+          baseColor: '#00ff00'
+          thresholds:
+            - { color: 'orange', value: 30 }
+            - { color: 'red', value: 600 }
+  - id: 'cell-2s3'
+    attributes:
+      link: 'http://example.com/1'
+      tooltip:
+        show: true
+      metrics:
+        - refIds:
+            - { refid: "C" }
+          decimal: 0
+          displayText: 'example'
+          baseColor: '#00ff00'
+          thresholds:
+            - { color: 'orange', value: 300 }
+            - { color: 'red', value: 600 }
+  - id: 'cell-2s4'
+    attributes:
+      link: 'http://example.com/1'
+      tooltip:
+        show: true
+      metrics:
+        - refIds:
+            - { refid: "C" }
+          decimal: 0
+          displayText: 'example'
+          baseColor: '#00ff00'
+          thresholds:
+            - { color: 'orange', value: 30 }
+            - { color: 'red', value: 600 }
+  - id: ['cell-l2', 'cell-c3', 'cell-c4']
+    attributes:
+      metrics:
+        - refIds:
+            - { refid: "C", sum: 'CPU' }
+          filling: 'stroke'
+          baseColor: '#00ff00'
+          thresholds:
+            - { color: 'orange', value: 500 }
+            - { color: 'red', value: 600 }
+  - id: ['cell-3s1', 'cell-3s2', 'cell-3s3', 'cell-3s4']
+    attributes:
+      link: 'http://example.com/1'
+      tooltip:
+        show: true
+      metrics:
+        - refIds:
+            - { refid: "C" }
+          decimal: 0
+          displayText: 'example'
+          baseColor: '#00ff00'
+          thresholds:
+            - { color: 'orange', value: 300 }
+            - { color: 'red', value: 600 }
+  - id: 'cell-4s1'
+    attributes:
+      link: 'http://example.com/1'
+      tooltip:
+        show: true
+      metrics:
+        - refIds:
+            - { refid: "G" }
+          decimal: 0
+          displayText: 'example'
+          baseColor: '#00ff00'
+          thresholds:
+            - { color: 'orange', value: 500 }
+            - { color: 'red', value: 600 }

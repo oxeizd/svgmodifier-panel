@@ -15,22 +15,31 @@ export class MetricProcessor {
     this.extractedValueMap = extractedValueMap;
   }
 
-  public process(): { color: Array<{ id: string; refId: string; label: string; color: string; metric: number }> } {
+  public process(): {
+    color: Array<{ id: string; refId: string; label: string; color: string; metric: number; filling?: string }>;
+  } {
     const elementId = this.element.id;
-    const colorData: Array<{ id: string; refId: string; label: string; color: string; metric: number }> = [];
+    const colorData: Array<{
+      id: string;
+      refId: string;
+      label: string;
+      color: string;
+      metric: number;
+      filling?: string;
+    }> = [];
 
     if (!Array.isArray(this.metrics)) {
       return { color: [] };
     }
 
     this.metrics.forEach((metric: Metric) => {
-      const { refIds, legends, baseColor, thresholds, displayText, decimal } = metric;
+      const { refIds, legends, baseColor, thresholds, displayText, decimal, filling } = metric;
 
       if (refIds) {
-        this.refIds(elementId, refIds, colorData, thresholds, decimal, baseColor, displayText);
+        this.refIds(elementId, refIds, colorData, thresholds, decimal, baseColor, displayText, filling);
       }
       if (legends) {
-        this.legends(elementId, legends, colorData, thresholds, decimal, baseColor, displayText);
+        this.legends(elementId, legends, colorData, thresholds, decimal, baseColor, displayText, filling);
       }
     });
 
@@ -40,11 +49,19 @@ export class MetricProcessor {
   private refIds(
     elementId: string,
     refIds: RefIds[],
-    colorData: Array<{ id: string; refId: string; label: string | undefined; color: string; metric: number }>,
+    colorData: Array<{
+      id: string;
+      refId: string;
+      label: string | undefined;
+      color: string;
+      metric: number;
+      filling?: string;
+    }>,
     thresholds?: Threshold[] | undefined,
     decimal?: number,
     baseColor?: string,
-    displayText?: string
+    displayText?: string,
+    filling?: string
   ) {
     if (refIds) {
       refIds.forEach((el) => {
@@ -58,7 +75,8 @@ export class MetricProcessor {
               refId: el.refid,
               label: displayText || el.sum,
               color: this.MetricColor(sumValue, thresholds, baseColor) || '',
-              metric: sumValue,
+              metric: decimal !== undefined ? parseFloat(sumValue.toFixed(decimal)) : parseFloat(sumValue.toFixed(3)),
+              filling: filling || '',
             });
           } else {
             this.pushToColorData(elementId, el.refid, data, colorData, thresholds, decimal, baseColor, displayText);
@@ -71,11 +89,19 @@ export class MetricProcessor {
   private legends(
     elementId: string,
     legends: Legends[],
-    colorData: Array<{ id: string; refId: string; label: string | undefined; color: string; metric: number }>,
+    colorData: Array<{
+      id: string;
+      refId: string;
+      label: string | undefined;
+      color: string;
+      metric: number;
+      filling?: string;
+    }>,
     thresholds?: Threshold[] | undefined,
     decimal?: number,
     baseColor?: string,
-    displayText?: string
+    displayText?: string,
+    filling?: string
   ) {
     if (legends) {
       legends.forEach((el) => {
@@ -89,7 +115,8 @@ export class MetricProcessor {
               refId: el.legend,
               label: displayText || el.sum,
               color: this.MetricColor(sumValue, thresholds, baseColor),
-              metric: sumValue,
+              metric: decimal !== undefined ? parseFloat(sumValue.toFixed(decimal)) : parseFloat(sumValue.toFixed(3)),
+              filling: filling || '',
             });
           } else {
             this.pushToColorData(elementId, 'A', data, colorData, thresholds, decimal, baseColor, displayText);
@@ -103,11 +130,19 @@ export class MetricProcessor {
     elementId: string,
     id: string,
     data: Array<{ displayName: string; value: any }>, // Измените тип данных на массив объектов
-    colorData: Array<{ id: string; refId: string; label: string | undefined; color: string; metric: number }>,
+    colorData: Array<{
+      id: string;
+      refId: string;
+      label: string | undefined;
+      color: string;
+      metric: number;
+      filling?: string;
+    }>,
     thresholds?: Threshold[] | undefined,
     decimal?: number,
     baseColor?: string,
-    displayText?: string
+    displayText?: string,
+    filling?: string
   ) {
     if (!Array.isArray(data)) {
       return;
@@ -124,15 +159,14 @@ export class MetricProcessor {
         label: displayText || displayName,
         color: metricColor,
         metric: metricValue,
+        filling: filling || '',
       });
     });
   }
 
-  private calculateSum(values: number[], decimal?: number): number {
-    const decimalPlaces = decimal !== undefined ? decimal : 3;
-
+  private calculateSum(values: number[]): number {
     return values.reduce((sum, value) => {
-      return sum + parseFloat(value.toFixed(decimalPlaces));
+      return sum + value;
     }, 0);
   }
 
