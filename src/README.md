@@ -37,43 +37,28 @@ The ability to add interactive links to SVG elements enables users to navigate t
 
 ### Correct the YAML file for dynamic updates of elements.
 
+| Attributes    | Description                                    | Syntax                                                                                                     |
+| ------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| link?         | URL to which the cell links                    | `link: "http://example.com/1"`                                                                             |
+| tooltip?      | Controls the visibility of the tooltip         | `show: true / false`                                                                                       |
+| metrics?:     | Collection of metrics associated with the cell |                                                                                                            |
+|  refIds?:     | List of reference IDs for metrics              |                                                                                                            |
+|   refid       | refid                                          | `refIds: [ { refid: "A" }, { refid: "B", sum: 'sum values' }, { refid: "C", filter: 'cpu' } ]`             |
+|   filter?     | filter metrics                                 | `filter: "cpu, cpu2"` $date, $date-number                                                                  |
+|   sum?        | sum all metrics                                | `sum: random name`                                                                                         |               
+|  legends?:    | Descriptive labels for the metrics             |                                                                                                            |
+|   legend      | legend name                                    | `legends: [ { legend: "legendname", filter: "cpu, cpu2", sum: '' } ]`                                      |
+|   filter?     | filter metrics                                 | `filter: "cpu, cpu2"` $date, $date-number                                                                  |
+|   sum?        | sum all metrics                                | `sum: random name`                                                                                         |
+|  baseColor?   | Default color for the metrics display          | `baseColor: "color"`                                                                                       |
+|  decimal?     | Number of decimal places to display            | `decimal: 'number'`                                                                                        |
+|  displayText? | Text displayed in the cell                     | `displayText: 'text'`                                                                                      |
+|  thresholds:  | Conditions for color coding based on values    | `thresholds: [ { color: "color", value: number, condition: "condition" } ]`                                |
+|   color       | color svg element                              | `color: "color"`                                                                                           | 
+|   value       |                                                | `value: number`                                                                                            |
+|   condition?  | Condition for applying thresholds              | hour?, minute?, dayOfWeek?, timezone?  example: `condition: "hour === 5 && minute >= 15"`                  |
+
 ##### Example YAML config: [https://github.com/oxeizd/svgmodifier-panel/blob/main/templates/cfg.yaml](https://github.com/oxeizd/svgmodifier-panel/blob/main/templates/cfg.yaml)
-
-| Attributes  | Description                                    | Syntax                                                                                                     |
-| ----------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| link        | URL to which the cell links                    | `link: "http://example.com/1"`                                                                             |
-| tooltip     | Controls the visibility of the tooltip         | `show: true / false`                                                                                       |
-| metrics     | Collection of metrics associated with the cell | `metrics: [ { refIds: [...], legends: [...], baseColor: "color", decimal: 'number', thresholds: [...] } ]` |
-| refIds      | List of reference IDs for metrics              | `refIds: [ { refid: "A" }, { refid: "B", sum: 'sum values' }, { refid: "C", filter: 'cpu' } ]`             |
-| legends     | Descriptive labels for the metrics             | `legends: [ { legend: "legendname", filter: "cpu, cpu2", sum: '' } ]`                                      |
-| baseColor   | Default color for the metrics display          | `baseColor: "color"`                                                                                       |
-| decimal     | Number of decimal places to display            | `decimal: 'number'`                                                                                        |
-| thresholds  | Conditions for color coding based on values    | `thresholds: [ { color: "color", value: number, condition: "condition" } ]`                                |
-| displayText | Text displayed in the cell                     | `displayText: 'text'`                                                                                      |
-| condition   | Condition for applying thresholds              | `condition: "hour === 5 && minute >= 10 && hour === 5 && minute < 47"`                                     |
-
-### Example Usage:
-
-```yaml
-changes:
-  - id: 'cell-2'
-    attributes:
-      link: 'http://example.com/1'
-      tooltip:
-        show: true
-      metrics:
-        - refIds:
-            - { refid: 'A' }
-            - { refid: 'B', sum: 'sum values' }
-            - { refid: 'C', filter: 'cpu' }
-          legends:
-            - { legend: 'legendname', filter: 'cpu, cpu2', sum: '' }
-          baseColor: 'green'
-          decimal: '0'
-          thresholds:
-            - { color: 'red', value: 0.01, condition: 'hour === 5 && minute >= 10 && hour === 5 && minute < 47' }
-            - { color: 'orange', value: 20 }
-```
 <!-- To help maximize the impact of your README and improve usability for users, we propose the following loose structure:
 
 **BEFORE YOU BEGIN**

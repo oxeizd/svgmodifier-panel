@@ -6,7 +6,7 @@ changes:
         show: true
       metrics:
         - refIds:
-            - { refid: "A", sum: 'CPU' }
+            - { refid: 'A', sum: 'CPU' }
           decimal: 2
           baseColor: '#00ff00'
           thresholds:
@@ -19,7 +19,7 @@ changes:
         show: true
       metrics:
         - refIds:
-            - { refid: "B" }
+            - { refid: 'B' }
           displayText: 'example'
           decimal: 0
           baseColor: '#00ff00'
@@ -30,7 +30,7 @@ changes:
     attributes:
       metrics:
         - refIds:
-            - { refid: "A", sum: 'CPU' }
+            - { refid: 'A', sum: 'CPU' }
           filling: 'stroke'
           baseColor: '#00ff00'
           thresholds:
@@ -43,11 +43,11 @@ changes:
         show: true
       metrics:
         - refIds:
-            - { refid: "B", sum: 'metric 1' }
-            - { refid: "C", sum: 'metric 2' }
-            - { refid: "A", sum: 'metric 3' }
-            - { refid: "D", sum: 'metric 4' }
-            - { refid: "E", sum: 'metric 5' }
+            - { refid: 'B', sum: 'metric 1' }
+            - { refid: 'C', sum: 'metric 2' }
+            - { refid: 'A', sum: 'metric 3' }
+            - { refid: 'D', sum: 'metric 4' }
+            - { refid: 'E', sum: 'metric 5' }
           decimal: 0
           baseColor: '#00ff00'
           thresholds:
@@ -60,7 +60,7 @@ changes:
         show: true
       metrics:
         - refIds:
-            - { refid: "B" }
+            - { refid: 'B' }
           decimal: 0
           displayText: 'example'
           baseColor: '#00ff00'
@@ -74,7 +74,7 @@ changes:
         show: true
       metrics:
         - refIds:
-            - { refid: "C" }
+            - { refid: 'C' }
           decimal: 0
           displayText: 'example'
           baseColor: '#00ff00'
@@ -88,7 +88,7 @@ changes:
         show: true
       metrics:
         - refIds:
-            - { refid: "C" }
+            - { refid: 'C' }
           decimal: 0
           displayText: 'example'
           baseColor: '#00ff00'
@@ -99,7 +99,7 @@ changes:
     attributes:
       metrics:
         - refIds:
-            - { refid: "C", sum: 'CPU' }
+            - { refid: 'C', sum: 'CPU' }
           filling: 'stroke'
           baseColor: '#00ff00'
           thresholds:
@@ -112,7 +112,7 @@ changes:
         show: true
       metrics:
         - refIds:
-            - { refid: "C" }
+            - { refid: 'C' }
           decimal: 0
           displayText: 'example'
           baseColor: '#00ff00'
@@ -126,7 +126,7 @@ changes:
         show: true
       metrics:
         - refIds:
-            - { refid: "G" }
+            - { refid: 'G' }
           decimal: 0
           displayText: 'example'
           baseColor: '#00ff00'

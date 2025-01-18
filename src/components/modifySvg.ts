@@ -64,7 +64,7 @@ export class SvgModifier {
 
         ids.slice(1).forEach((singleId) => {
           if (!colorMap.has(singleId)) {
-            const firstColorData = colorMap.get(colorData.color[0].id); 
+            const firstColorData = colorMap.get(colorData.color[0].id);
             if (firstColorData) {
               colorMap.set(singleId, {
                 colors: [...firstColorData.colors],

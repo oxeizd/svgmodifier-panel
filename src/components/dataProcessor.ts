@@ -119,7 +119,7 @@ export class MetricProcessor {
               filling: filling || '',
             });
           } else {
-            this.pushToColorData(elementId, 'A', data, colorData, thresholds, decimal, baseColor, displayText);
+            this.pushToColorData(elementId, el.legend, data, colorData, thresholds, decimal, baseColor, displayText);
           }
         }
       });
