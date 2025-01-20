@@ -1,13 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
   "type": "panel",
-  "name": "Svg Modifier",
-  "id": "oxd-svgmodifier-panel",
+  "name": "Svg modifier",
+  "id": "svgmodifier-panel",
   "info": {
     "keywords": ["panel"],
     "description": "",
     "author": {
-      "name": "Oxd"
+      "name": "oxd"
     },
     "logos": {
       "small": "img/logo.svg",
@@ -28,7 +28,7 @@
     "updated": "%TODAY%"
   },
   "dependencies": {
-    "grafanaDependency": ">=10.4.0",
+    "grafanaDependency": ">=10.0.0",
     "plugins": []
   }
 }
