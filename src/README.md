@@ -37,73 +37,25 @@ The ability to add interactive links to SVG elements enables users to navigate t
 
 ### Correct the YAML file for dynamic updates of elements.
 
-| Attributes    | Description                                    | Syntax                                                                                                     |
-| ------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| link?         | URL to which the cell links                    | `link: "http://example.com/1"`                                                                             |
-| tooltip?      | Controls the visibility of the tooltip         | `show: true / false`                                                                                       |
-| metrics?:     | Collection of metrics associated with the cell |                                                                                                            |
-|  refIds?:     | List of reference IDs for metrics              |                                                                                                            |
-|   refid       | refid                                          | `refIds: [ { refid: "A" }, { refid: "B", sum: 'sum values' }, { refid: "C", filter: 'cpu' } ]`             |
-|   filter?     | filter metrics                                 | `filter: "cpu, cpu2"` $date, $date-number                                                                  |
-|   sum?        | sum all metrics                                | `sum: random name`                                                                                         |               
-|  legends?:    | Descriptive labels for the metrics             |                                                                                                            |
-|   legend      | legend name                                    | `legends: [ { legend: "legendname", filter: "cpu, cpu2", sum: '' } ]`                                      |
-|   filter?     | filter metrics                                 | `filter: "cpu, cpu2"` $date, $date-number                                                                  |
-|   sum?        | sum all metrics                                | `sum: random name`                                                                                         |
-|  baseColor?   | Default color for the metrics display          | `baseColor: "color"`                                                                                       |
-|  decimal?     | Number of decimal places to display            | `decimal: 'number'`                                                                                        |
-|  displayText? | Text displayed in the cell                     | `displayText: 'text'`                                                                                      |
-|  thresholds:  | Conditions for color coding based on values    | `thresholds: [ { color: "color", value: number, condition: "condition" } ]`                                |
-|   color       | color svg element                              | `color: "color"`                                                                                           | 
-|   value       |                                                | `value: number`                                                                                            |
-|   condition?  | Condition for applying thresholds              | hour?, minute?, dayOfWeek?, timezone?  example: `condition: "hour === 5 && minute >= 15"`                  |
+| Attributes   | Description                                    | Syntax                                                                                         |
+| ------------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| link?        | URL to which the cell links                    | `link: "http://example.com/1"`                                                                 |
+| tooltip?     | Controls the visibility of the tooltip         | `show: true / false`                                                                           |
+| metrics?:    | Collection of metrics associated with the cell |                                                                                                |
+| refIds?:     | List of reference IDs for metrics              |                                                                                                |
+| refid        | refid                                          | `refIds: [ { refid: "A" }, { refid: "B", sum: 'sum values' }, { refid: "C", filter: 'cpu' } ]` |
+| filter?      | filter metrics                                 | `filter: "cpu, cpu2"` $date, $date-number                                                      |
+| sum?         | sum all metrics                                | `sum: random name`                                                                             |
+| legends?:    | Descriptive labels for the metrics             |                                                                                                |
+| legend       | legend name                                    | `legends: [ { legend: "legendname", filter: "cpu, cpu2", sum: '' } ]`                          |
+| filter?      | filter metrics                                 | `filter: "cpu, cpu2"` $date, $date-number                                                      |
+| sum?         | sum all metrics                                | `sum: random name`                                                                             |
+| baseColor?   | Default color for the metrics display          | `baseColor: "color"`                                                                           |
+| decimal?     | Number of decimal places to display            | `decimal: 'number'`                                                                            |
+| displayText? | Text displayed in the cell                     | `displayText: 'text'`                                                                          |
+| thresholds:  | Conditions for color coding based on values    | `thresholds: [ { color: "color", value: number, condition: "condition" } ]`                    |
+| color        | color svg element                              | `color: "color"`                                                                               |
+| value        |                                                | `value: number`                                                                                |
+| condition?   | Condition for applying thresholds              | hour?, minute?, dayOfWeek?, timezone? example: `condition: "hour === 5 && minute >= 15"`       |
 
 ##### Example YAML config: [https://github.com/oxeizd/svgmodifier-panel/blob/main/templates/cfg.yaml](https://github.com/oxeizd/svgmodifier-panel/blob/main/templates/cfg.yaml)
-<!-- To help maximize the impact of your README and improve usability for users, we propose the following loose structure:
-
-**BEFORE YOU BEGIN**
-- Ensure all links are absolute URLs so that they will work when the README is displayed within Grafana and Grafana.com
-- Be inspired ✨
-  - [grafana-polystat-panel](https://github.com/grafana/grafana-polystat-panel)
-  - [volkovlabs-variable-panel](https://github.com/volkovlabs/volkovlabs-variable-panel)
-
-**ADD SOME BADGES**
-
-Badges convey useful information at a glance for users whether in the Catalog or viewing the source code. You can use the generator on [Shields.io](https://shields.io/badges/dynamic-json-badge) together with the Grafana.com API
-to create dynamic badges that update automatically when you publish a new version to the marketplace.
-
-- For the URL parameter use `https://grafana.com/api/plugins/your-plugin-id`.
-- Example queries:
-  - Downloads: `$.downloads`
-  - Catalog Version: `$.version`
-  - Grafana Dependency: `$.grafanaDependency`
-  - Signature Type: `$.versionSignatureType`
-- Optionally, for the logo parameter use `grafana`.
-
-Full example: ![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.version&url=https://grafana.com/api/plugins/grafana-polystat-panel&label=Marketplace&prefix=v&color=F47A20)
-
-Consider other [badges](https://shields.io/badges) as you feel appropriate for your project.
-
-## Overview / Introduction
-Provide one or more paragraphs as an introduction to your plugin to help users understand why they should use it.
-
-Consider including screenshots:
-- in [plugin.json](https://grafana.com/developers/plugin-tools/reference/plugin-json#info) include them as relative links.
-- in the README ensure they are absolute URLs.
-
-## Requirements
-List any requirements or dependencies they may need to run the plugin.
-
-## Getting Started
-Provide a quick start on how to configure and use the plugin.
-
-## Documentation
-If your project has dedicated documentation available for users, provide links here. For help in following Grafana's style recommendations for technical documentation, refer to our [Writer's Toolkit](https://grafana.com/docs/writers-toolkit/).
-
-## Contributing
-Do you want folks to contribute to the plugin or provide feedback through specific means? If so, tell them how!
--->
-
-```
-
-```

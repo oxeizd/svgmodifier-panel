@@ -28,12 +28,18 @@ export interface Metric {
   decimal?: number;
 }
 
+export interface LabelMapping {
+  condition: string;
+  value: number;
+  label: string;
+}
+
 export interface Change {
   id: string | string[];
   attributes: {
-    fillcolor?: string;
-    labeltext?: string;
+    label?: string;
     labelColor?: string;
+    labelMapping?: LabelMapping[];
     link?: string;
     tooltip?: Tooltip[];
     metrics?: Metric[];
