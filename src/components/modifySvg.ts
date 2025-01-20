@@ -88,6 +88,10 @@ export class SvgModifier {
     const metricProcessor = new MetricProcessor(element, metrics, extractedValueMap);
     const colorData = metricProcessor.process();
 
+    if (!colorData.color || colorData.color.length === 0) {
+      return;
+    }
+
     colorData.color.forEach(({ id: colorId, refId, label, color, metric, filling }) => {
       if (!colorMap.has(colorId)) {
         colorMap.set(colorId, { colors: [], metrics: new Set() });
