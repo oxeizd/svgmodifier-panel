@@ -5,13 +5,14 @@ import { SvgModifier } from './modifySvg';
 import { Tooltip } from './tooltip';
 import YAML from 'yaml';
 
-interface Props extends PanelProps<PanelOptions> {}
-
-const SvgPanel: React.FC<Props> = ({ options, data }) => {
+const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data }) => {
   const svgContainerRef = useRef<HTMLDivElement>(null);
-  const svgCode =
-    options.jsonData.svgCode ||
-    '<svg width="100%" height="100%" style="background-color:rgba(240, 240, 240, 0);"></svg>';
+  const svgCode = useMemo(
+    () =>
+      options.jsonData.svgCode ||
+      '<svg width="100%" height="100%" style="background-color:rgba(240, 240, 240, 0);"></svg>',
+    [options.jsonData.svgCode]
+  );
   const dataFrame = data.series;
 
   const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; content: TooltipContent[] }>({
@@ -22,9 +23,9 @@ const SvgPanel: React.FC<Props> = ({ options, data }) => {
   });
 
   const [modifiedSvg, setModifiedSvg] = useState<string>('');
-  const [tooltipData, setTooltipData] = useState<
-    Array<{ id: string; label: string; color: string; metric: number | string }>
-  >([]);
+  const [tooltipData, setTooltipData] = useState<Array<{ id: string; label: string; color: string; metric: string }>>(
+    []
+  );
 
   const changes: Change[] = useMemo(() => {
     try {
@@ -35,12 +36,16 @@ const SvgPanel: React.FC<Props> = ({ options, data }) => {
     }
   }, [options.jsonData.metricsMapping]);
 
-  useEffect(() => {
+  const modifySvgAsync = useCallback(async () => {
     const svgModifier = new SvgModifier(svgCode, changes, dataFrame);
-    const { modifiedSvg, tooltipData } = svgModifier.modify();
+    const { modifiedSvg, tooltipData } = await svgModifier.modify(); // Assuming modify() returns a Promise
     setModifiedSvg(modifiedSvg);
     setTooltipData(tooltipData);
-  }, [dataFrame, changes, svgCode]);
+  }, [svgCode, changes, dataFrame]);
+
+  useEffect(() => {
+    modifySvgAsync();
+  }, [modifySvgAsync]); // Теперь modifySvgAsync включен в зависимости
 
   const handleMouseOver = useCallback(
     (event: MouseEvent, tooltipInfo: { id: string }) => {
@@ -56,7 +61,7 @@ const SvgPanel: React.FC<Props> = ({ options, data }) => {
           y: tooltipY,
           content: relatedMetrics.map((metric) => ({
             label: metric.label,
-            metric: typeof metric.metric === 'string' ? parseFloat(metric.metric) : metric.metric,
+            metric: metric.metric,
             color: metric.color,
           })),
         });
@@ -66,8 +71,8 @@ const SvgPanel: React.FC<Props> = ({ options, data }) => {
   );
 
   const handleMouseOut = useCallback(() => {
-    setTooltip({ ...tooltip, visible: false });
-  }, [tooltip]);
+    setTooltip((prevTooltip) => ({ ...prevTooltip, visible: false }));
+  }, []);
 
   useEffect(() => {
     const svgElement = svgContainerRef.current?.querySelector('svg');
@@ -114,9 +119,11 @@ const SvgPanel: React.FC<Props> = ({ options, data }) => {
         dangerouslySetInnerHTML={{ __html: modifiedSvg }}
         style={{ width: '100%', height: '100%', display: 'block' }}
       />
-      {tooltip.visible && <Tooltip visible={tooltip.visible} x={tooltip.x} y={tooltip.y} content={tooltip.content} />}
+      <Tooltip visible={tooltip.visible} x={tooltip.x} y={tooltip.y} content={tooltip.content} />
     </div>
   );
-};
+});
+
+SvgPanel.displayName = 'SvgPanel';
 
 export default SvgPanel;

@@ -10,12 +10,14 @@ export interface RefIds {
   refid: string;
   filter?: string;
   sum?: string;
+  unit?: string;
 }
 
 export interface Legends {
   legend: string;
   filter?: string;
   sum?: string;
+  unit?: string;
 }
 
 export interface Metric {
@@ -48,7 +50,7 @@ export interface Change {
 
 export interface TooltipContent {
   label: string;
-  metric: number;
+  metric: string;
   color: string;
 }
 

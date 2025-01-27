@@ -2,6 +2,7 @@ import { Change } from './types';
 import { LinkManager } from './linkManager';
 import { MetricProcessor } from './dataProcessor';
 import { DataExtractor } from './dataExtractor';
+import { formatValues } from './formatter';
 
 export class SvgModifier {
   private svg: string;
@@ -16,11 +17,11 @@ export class SvgModifier {
 
   public modify(): {
     modifiedSvg: string;
-    tooltipData: Array<{ id: string; label: string; color: string; metric: number | string }>;
+    tooltipData: Array<{ id: string; label: string; color: string; metric: string }>;
   } {
     const parser = new DOMParser();
     const doc = parser.parseFromString(this.svg, 'image/svg+xml');
-    const tooltipData: Array<{ id: string; label: string; color: string; metric: number | string }> = [];
+    const tooltipData: Array<{ id: string; label: string; color: string; metric: string }> = [];
     const colorMap = new Map<
       string,
       {
@@ -273,8 +274,9 @@ export class SvgModifier {
     const validTooltips = toolArray.filter(({ show }) => show);
 
     if (validTooltips.length > 0) {
-      colorData.forEach(({ id: colorId, label, color, metric }) => {
-        tooltipData.push({ id: colorId, label, color, metric });
+      colorData.forEach(({ id: colorId, label, color, metric, unit }) => {
+        const formattedMetric = unit ? formatValues(metric, unit) : metric;
+        tooltipData.push({ id: colorId, label, color, metric: formattedMetric });
       });
     }
   }
