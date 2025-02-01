@@ -45,19 +45,19 @@ export class MetricProcessor {
       const { refIds, legends, baseColor, thresholds, displayText, decimal, filling } = metric;
 
       if (refIds) {
-        this.processRefIds(elementId, refIds, colorData, thresholds, decimal, baseColor, displayText, filling);
+        this.processMetrics(elementId, refIds, colorData, thresholds, decimal, baseColor, displayText, filling);
       }
       if (legends) {
-        this.processLegends(elementId, legends, colorData, thresholds, decimal, baseColor, displayText, filling);
+        this.processMetrics(elementId, legends, colorData, thresholds, decimal, baseColor, displayText, filling);
       }
     });
 
     return { color: colorData };
   }
 
-  private processRefIds(
+  private processMetrics(
     elementId: string,
-    refIds: RefIds[],
+    items: Array<RefIds | Legends>,
     colorData: Array<{
       id: string;
       refId: string;
@@ -73,85 +73,36 @@ export class MetricProcessor {
     displayText?: string,
     filling?: string
   ): void {
-    refIds.forEach((el) => {
-      if (el.refid) {
-        const data = this.getNameAndValue(el.refid, el.filter);
-        const values = data.map((item) => item.value);
-        if (el.sum && el.sum.length > 0) {
-          const sumValue = this.calculateSum(values);
-          colorData.push({
-            id: elementId,
-            refId: el.refid,
-            label: displayText || el.sum,
-            color: this.getMetricColor(sumValue, thresholds, baseColor) || '',
-            metric: this.formatDecimal(sumValue, decimal),
-            filling: filling || '',
-            unit: el.unit,
-          });
-        } else {
-          this.pushToColorData(
-            elementId,
-            el.refid,
-            data,
-            colorData,
-            thresholds,
-            decimal,
-            baseColor,
-            displayText,
-            filling,
-            el.unit
-          );
-        }
-      }
-    });
-  }
+    items.forEach((el) => {
+      const id = 'refid' in el ? el.refid : el.legend;
+      const calculation = el.calculation || 'last';
+      const data = this.getNameAndValue(id, el.filter, calculation);
+      const values = data.map((item) => item.value);
 
-  private processLegends(
-    elementId: string,
-    legends: Legends[],
-    colorData: Array<{
-      id: string;
-      refId: string;
-      label: string | undefined;
-      color: string;
-      metric: number;
-      filling?: string;
-      unit?: string;
-    }>,
-    thresholds?: Threshold[],
-    decimal?: number,
-    baseColor?: string,
-    displayText?: string,
-    filling?: string
-  ): void {
-    legends.forEach((el) => {
-      if (el.legend) {
-        const data = this.getNameAndValue(el.legend, el.filter);
-        const values = data.map((item) => item.value);
-        if (el.sum && el.sum.length > 0) {
-          const sumValue = this.calculateSum(values);
-          colorData.push({
-            id: elementId,
-            refId: el.legend,
-            label: displayText || el.sum,
-            color: this.getMetricColor(sumValue, thresholds, baseColor),
-            metric: this.formatDecimal(sumValue, decimal),
-            filling: filling || '',
-            unit: el.unit,
-          });
-        } else {
-          this.pushToColorData(
-            elementId,
-            el.legend,
-            data,
-            colorData,
-            thresholds,
-            decimal,
-            baseColor,
-            displayText,
-            el.unit
-          );
-        }
+      if (el.sum && el.sum.length > 0) {
+        const sumValue = this.calculateSum(values);
+        colorData.push({
+          id: elementId,
+          refId: id,
+          label: displayText || el.sum,
+          color: this.getMetricColor(sumValue, thresholds, baseColor) || '',
+          metric: this.formatDecimal(sumValue, decimal),
+          filling: filling || '',
+          unit: el.unit,
+        });
+      } else {
+        this.pushToColorData(
+          elementId,
+          id,
+          data,
+          colorData,
+          thresholds,
+          decimal,
+          baseColor,
+          displayText,
+          filling,
+          el.unit
+        );
       }
     });
   }
@@ -195,15 +146,20 @@ export class MetricProcessor {
     return values.reduce((sum, value) => sum + value, 0);
   }
 
-  private getNameAndValue(id: string, filter?: string): Array<{ displayName: string; value: number }> {
+  private getNameAndValue(
+    id: string,
+    filter?: string,
+    calculation: 'last' | 'total' | 'max' | 'min' | 'count' = 'last'
+  ): Array<{ displayName: string; value: number }> {
     const metricData = this.extractedValueMap.get(id);
     const currentDate = new Date();
 
     const result: Array<{ displayName: string; value: number }> = [];
 
     if (!filter && metricData) {
-      metricData.displayNames.forEach((displayName, index) => {
-        result.push({ displayName, value: metricData.values[index] });
+      const value = this.calculateValue(metricData.values, calculation);
+      metricData.displayNames.forEach((displayName) => {
+        result.push({ displayName, value });
       });
       return result;
     }
@@ -215,9 +171,10 @@ export class MetricProcessor {
           : metricDataEntry.displayNames.includes(id);
 
         if (matches) {
+          const value = this.calculateValue(metricDataEntry.values, calculation);
           metricDataEntry.displayNames.forEach((displayName, index) => {
             if (this.isRegex(id) ? this.matchRegex(id, displayName) : displayName === id) {
-              result.push({ displayName, value: metricDataEntry.values[index] });
+              result.push({ displayName, value });
             }
           });
         }
@@ -258,7 +215,25 @@ export class MetricProcessor {
         }
       }
     }
+
     return result;
+  }
+
+  private calculateValue(values: number[], calculation: 'last' | 'total' | 'max' | 'min' | 'count'): number {
+    switch (calculation) {
+      case 'last':
+        return values[values.length - 1];
+      case 'total':
+        return values.reduce((sum, value) => sum + value, 0);
+      case 'max':
+        return Math.max(...values);
+      case 'min':
+        return Math.min(...values);
+      case 'count':
+        return values.length;
+      default:
+        return values[values.length - 1];
+    }
   }
 
   private isRegex(legend: string): boolean {

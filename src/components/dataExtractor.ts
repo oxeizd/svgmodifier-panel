@@ -20,14 +20,12 @@ export class DataExtractor {
       const displayNameFromDS = metricValueField.config?.displayNameFromDS;
 
       if (refId) {
-        const value = metricValueField.values[metricValueField.values.length - 1];
-        if (value !== undefined) {
-          if (!valueMap.has(refId)) {
-            valueMap.set(refId, { values: [], displayNames: [] });
-          }
-          valueMap.get(refId)?.values.push(value);
-          valueMap.get(refId)?.displayNames.push(displayNameFromDS || refId);
+        const values = metricValueField.values;
+        if (!valueMap.has(refId)) {
+          valueMap.set(refId, { values: [], displayNames: [] });
         }
+        valueMap.get(refId)?.values.push(...values);
+        valueMap.get(refId)?.displayNames.push(displayNameFromDS || refId);
       }
     });
     return valueMap;

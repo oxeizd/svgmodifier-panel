@@ -57,24 +57,48 @@ export class SvgModifier {
     const { id, attributes } = change;
     const { tooltip, metrics, link, label, labelColor } = attributes || {};
     const ids = Array.isArray(id) ? id : [id];
-    const firstId = ids[0];
-    const element = doc.getElementById(firstId);
+    const elements = this.findElementsByIdOrRegex(ids, doc);
 
-    if (!element || !(element instanceof SVGElement)) {
+    if (elements.length === 0) {
       return;
     }
 
-    if (metrics && Array.isArray(metrics)) {
-      this.processMetrics(element, metrics, extractedValueMap, colorMap, tooltipData, tooltip, ids);
+    elements.forEach((element) => {
+      if (metrics && Array.isArray(metrics)) {
+        this.processMetrics(element, metrics, extractedValueMap, colorMap, tooltipData, tooltip, ids);
+      }
+
+      if (link) {
+        LinkManager.addLinkToElement(element, link);
+      }
+
+      if (label) {
+        this.updateLabel(element, label, labelColor, colorMap);
+      }
+    });
+  }
+
+  private findElementsByIdOrRegex(ids: string[], doc: Document): SVGElement[] {
+    const matchingElements: SVGElement[] = [];
+
+    for (const id of ids) {
+      const element = doc.getElementById(id);
+      if (element) {
+        matchingElements.push(element as unknown as SVGElement);
+      } else {
+        try {
+          const regex = new RegExp(id);
+          const allElements = doc.getElementsByTagName('*');
+          for (const el of allElements) {
+            if (regex.test(el.id)) {
+              matchingElements.push(el as unknown as SVGElement);
+            }
+          }
+        } catch (e) {}
+      }
     }
 
-    if (link) {
-      LinkManager.addLinkToElement(element, link);
-    }
-
-    if (label) {
-      this.updateLabel(element, label, labelColor, colorMap);
-    }
+    return matchingElements;
   }
 
   private processMetrics(
@@ -103,6 +127,7 @@ export class SvgModifier {
     });
 
     this.copyColorDataToOtherIds(ids, colorData, colorMap);
+
     if (tooltip) {
       this.processTooltip(tooltip, colorData.color, tooltipData);
     }
@@ -188,38 +213,44 @@ export class SvgModifier {
     labelMapping: Array<{ condition: string; value: number; label: string }>,
     metricValue: number
   ): string | undefined {
+    let bestMatch: { condition: string; value: number; label: string } | undefined;
+
     for (const mapping of labelMapping) {
       const { condition, value, label } = mapping;
       let conditionMet = false;
 
-      switch (condition) {
-        case '>':
-          conditionMet = metricValue > value;
-          break;
-        case '<':
-          conditionMet = metricValue < value;
-          break;
-        case '=':
-          conditionMet = metricValue === value;
-          break;
-        case '>=':
-          conditionMet = metricValue >= value;
-          break;
-        case '<=':
-          conditionMet = metricValue <= value;
-          break;
-        case '!=':
-          conditionMet = metricValue !== value;
-          break;
-        default:
-          continue;
+      if (condition === '>') {
+        conditionMet = metricValue > value;
+      } else if (condition === '<') {
+        conditionMet = metricValue < value;
+      } else if (condition === '=') {
+        conditionMet = metricValue === value;
+        if (conditionMet) {
+          return label;
+        }
+      } else if (condition === '>=') {
+        conditionMet = metricValue >= value;
+      } else if (condition === '<=') {
+        conditionMet = metricValue <= value;
+      } else if (condition === '!=') {
+        conditionMet = metricValue !== value;
+      } else {
+        continue;
       }
 
       if (conditionMet) {
-        return label;
+        if (
+          !bestMatch ||
+          (condition === '>' || condition === '>='
+            ? value > (bestMatch.value ?? -Infinity)
+            : value < (bestMatch.value ?? Infinity))
+        ) {
+          bestMatch = mapping;
+        }
       }
     }
-    return undefined;
+
+    return bestMatch ? bestMatch.label : undefined;
   }
 
   private applyColorMap(doc: Document, colorMap: Map<string, any>) {

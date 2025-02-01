@@ -9,6 +9,7 @@ export interface Threshold {
 export interface RefIds {
   refid: string;
   filter?: string;
+  calculation?: 'last' | 'total' | 'max' | 'min' | 'count';
   sum?: string;
   unit?: string;
 }
@@ -16,6 +17,7 @@ export interface RefIds {
 export interface Legends {
   legend: string;
   filter?: string;
+  calculation?: 'last' | 'total' | 'max' | 'min' | 'count';
   sum?: string;
   unit?: string;
 }
