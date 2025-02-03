@@ -1,4 +1,4 @@
-import { Change } from './types';
+import { Change, ColorDataEntry } from './types';
 import { LinkManager } from './linkManager';
 import { MetricProcessor } from './dataProcessor';
 import { DataExtractor } from './dataExtractor';
@@ -22,13 +22,7 @@ export class SvgModifier {
     const parser = new DOMParser();
     const doc = parser.parseFromString(this.svg, 'image/svg+xml');
     const tooltipData: Array<{ id: string; label: string; color: string; metric: string }> = [];
-    const colorMap = new Map<
-      string,
-      {
-        colors: Array<{ id: string; refId: string; label: string; color: string; metric: number; filling?: string }>;
-        metrics: Set<any>;
-      }
-    >();
+    const colorData: ColorDataEntry[] = [];
 
     const dataExtractor = new DataExtractor(this.dataFrame);
     const extractedValueMap = dataExtractor.extractValues();
@@ -40,9 +34,9 @@ export class SvgModifier {
       svgElement.setAttribute('viewBox', '0 0 100 100');
     }
 
-    this.changes.forEach((change) => this.processChange(change, doc, extractedValueMap, colorMap, tooltipData));
+    this.changes.forEach((change) => this.processChange(change, doc, extractedValueMap, colorData, tooltipData));
 
-    this.applyColorMap(doc, colorMap);
+    this.applyColorData(doc, colorData);
 
     return { modifiedSvg: new XMLSerializer().serializeToString(doc.documentElement), tooltipData };
   }
@@ -51,11 +45,11 @@ export class SvgModifier {
     change: Change,
     doc: Document,
     extractedValueMap: any,
-    colorMap: Map<string, any>,
+    colorData: ColorDataEntry[],
     tooltipData: any[]
   ) {
     const { id, attributes } = change;
-    const { tooltip, metrics, link, label, labelColor } = attributes || {};
+    const { tooltip, metrics, link, label, labelColor, autoConfig } = attributes || {};
     const ids = Array.isArray(id) ? id : [id];
     const elements = this.findElementsByIdOrRegex(ids, doc);
 
@@ -63,17 +57,35 @@ export class SvgModifier {
       return;
     }
 
-    elements.forEach((element) => {
-      if (metrics && Array.isArray(metrics)) {
-        this.processMetrics(element, metrics, extractedValueMap, colorMap, tooltipData, tooltip, ids);
-      }
+    const filteredIdsSet = new Set<string>();
 
+    elements.forEach((element) => {
+      if (element instanceof SVGElement && element.id) {
+        filteredIdsSet.add(element.id);
+      }
+    });
+
+    const filteredIds = Array.from(filteredIdsSet);
+
+    // Обрабатываем метрики только для первого элемента
+    const firstElement = elements[0];
+    if (metrics && Array.isArray(metrics)) {
+      this.processMetrics(firstElement, metrics, extractedValueMap, colorData, filteredIds, autoConfig);
+    }
+
+    elements.forEach((element) => {
       if (link) {
         LinkManager.addLinkToElement(element, link);
       }
 
-      if (label) {
-        this.updateLabel(element, label, labelColor, colorMap);
+      try {
+        if (label) {
+          this.updateLabel(element, label, labelColor, colorData);
+        }
+      } catch {}
+
+      if (tooltip) {
+        this.processTooltip(tooltip, element.id, colorData, tooltipData);
       }
     });
   }
@@ -81,22 +93,23 @@ export class SvgModifier {
   private findElementsByIdOrRegex(ids: string[], doc: Document): SVGElement[] {
     const matchingElements: SVGElement[] = [];
 
-    for (const id of ids) {
-      const element = doc.getElementById(id);
-      if (element) {
-        matchingElements.push(element as unknown as SVGElement);
-      } else {
-        try {
-          const regex = new RegExp(id);
-          const allElements = doc.getElementsByTagName('*');
-          for (const el of allElements) {
-            if (regex.test(el.id)) {
-              matchingElements.push(el as unknown as SVGElement);
-            }
+    ids.forEach((id) => {
+      if (this.isValidRegex(id)) {
+        // Если идентификатор является регулярным выражением, ищем совпадения
+        const allElements = doc.getElementsByTagName('*');
+        for (const el of allElements) {
+          if (this.matchRegex(id, el.id)) {
+            matchingElements.push(el as unknown as SVGElement);
           }
-        } catch (e) {}
+        }
+      } else {
+        // Если идентификатор не является регулярным выражением, ищем по точному совпадению
+        const element = doc.getElementById(id);
+        if (element) {
+          matchingElements.push(element as unknown as SVGElement);
+        }
       }
-    }
+    });
 
     return matchingElements;
   }
@@ -105,55 +118,71 @@ export class SvgModifier {
     element: SVGElement,
     metrics: any[],
     extractedValueMap: any,
-    colorMap: Map<string, any>,
-    tooltipData: any[],
-    tooltip: any,
-    ids: string[]
+    colorData: ColorDataEntry[],
+    ids: string[],
+    autoConfig?: boolean
   ) {
     const metricProcessor = new MetricProcessor(element, metrics, extractedValueMap);
-    const colorData = metricProcessor.process();
+    const processedColorData = metricProcessor.process();
 
-    if (!colorData.color || colorData.color.length === 0) {
-      return;
+    if (!processedColorData.color || processedColorData.color.length === 0) {
+      return; // Возвращаем, если нет данных
     }
 
-    colorData.color.forEach(({ id: colorId, refId, label, color, metric, filling }) => {
-      if (!colorMap.has(colorId)) {
-        colorMap.set(colorId, { colors: [], metrics: new Set() });
+    if (autoConfig && ids.length > 1) {
+      const minLength = Math.min(ids.length, processedColorData.color.length);
+
+      // Применяем данные к colorData
+      for (let i = 0; i < minLength; i++) {
+        const { refId, label, color, metric, filling, unit } = processedColorData.color[i];
+        colorData.push({ id: ids[i], refId, label, color, metric, filling, unit });
       }
-      const entry = colorMap.get(colorId)!;
-      entry.colors.push({ id: colorId, refId, label, color, metric, filling });
-      metrics.forEach((m) => entry.metrics.add(m));
-    });
 
-    this.copyColorDataToOtherIds(ids, colorData, colorMap);
+      // Если есть оставшиеся colorData, применяем их к последнему id, для которого есть метрики
+      if (processedColorData.color.length > ids.length) {
+        const remainingColors = processedColorData.color.slice(minLength);
+        const lastId = ids[ids.length - 1];
 
-    if (tooltip) {
-      this.processTooltip(tooltip, colorData.color, tooltipData);
+        remainingColors.forEach(({ refId, label, color, metric, filling, unit }) => {
+          colorData.push({ id: lastId, refId, label, color, metric, filling, unit });
+        });
+      }
+    } else {
+      // Добавляем данные цвета в colorData
+      processedColorData.color.forEach(({ id, refId, label, color, metric, filling, unit }) => {
+        colorData.push({ id, refId, label, color, metric, filling, unit });
+      });
+
+      if (ids.length > 1) {
+        this.copyColorDataToOtherIds(ids, colorData);
+      }
     }
   }
 
-  private copyColorDataToOtherIds(ids: string[], colorData: any, colorMap: Map<string, any>) {
-    ids.slice(1).forEach((singleId) => {
-      if (!colorMap.has(singleId)) {
-        const firstColorData = colorMap.get(colorData.color[0].id);
-        if (firstColorData) {
-          colorMap.set(singleId, {
-            colors: [...firstColorData.colors],
-            metrics: new Set(firstColorData.metrics),
+  private copyColorDataToOtherIds(ids: string[], colorData: ColorDataEntry[]) {
+    const firstId = ids[0];
+    const firstColorData = colorData.filter((data) => data.id === firstId);
+    if (firstColorData.length > 0) {
+      // Перебираем все элементы, соответствующие firstId
+      firstColorData.forEach((firstColorEntry) => {
+        ids.slice(1).forEach((singleId) => {
+          colorData.push({
+            id: singleId,
+            refId: firstColorEntry.refId,
+            label: firstColorEntry.label,
+            color: firstColorEntry.color,
+            metric: firstColorEntry.metric,
+            filling: firstColorEntry.filling,
+            unit: firstColorEntry.unit,
           });
-        }
-      }
-    });
+        });
+      });
+    }
+    
   }
 
-  private updateLabel(element: SVGElement, label: string, labelColor: string | undefined, colorMap: Map<string, any>) {
-    const metricValues = Array.from(colorMap.values()).flatMap((entry) =>
-      entry.colors.map(
-        (colorEntry: { id: string; refId: string; label: string; color: string; metric: number; filling?: string }) =>
-          colorEntry.metric
-      )
-    );
+  private updateLabel(element: SVGElement, label: string, labelColor: string | undefined, colorData: ColorDataEntry[]) {
+    const metricValues = colorData.map((entry) => entry.metric);
     const metricValue = metricValues.length > 0 ? Math.max(...metricValues) : undefined;
 
     const elementsToUpdate = [
@@ -179,10 +208,9 @@ export class SvgModifier {
           let colorToUse: string | undefined;
 
           if (labelColor === 'metric') {
-            const validColors = Array.from(colorMap.values()).flatMap((entry) => entry.colors);
-            const maxColorEntry = validColors.reduce(
+            const maxColorEntry = colorData.reduce(
               (max, entry) => (entry.metric > max.metric ? entry : max),
-              validColors[0]
+              colorData[0]
             );
             colorToUse = maxColorEntry.color;
           } else {
@@ -253,21 +281,24 @@ export class SvgModifier {
     return bestMatch ? bestMatch.label : undefined;
   }
 
-  private applyColorMap(doc: Document, colorMap: Map<string, any>) {
-    colorMap.forEach(({ colors }, id) => {
+  private applyColorData(doc: Document, colorData: ColorDataEntry[]) {
+    const colorMap = new Map<string, Array<{ color: string; metric: number; filling?: string }>>();
+
+    colorData.forEach(({ id, color, metric, filling }) => {
+      if (!colorMap.has(id)) {
+        colorMap.set(id, []);
+      }
+      colorMap.get(id)!.push({ color, metric, filling });
+    });
+
+    colorMap.forEach((colors, id) => {
       const element = doc.getElementById(id);
       if (element) {
-        const validColors = colors.filter(
-          (entry: { id: string; refId: string; label: string; color: string; metric: number; filling?: string }) =>
-            entry.color !== ''
-        );
+        const validColors = colors.filter((entry) => entry.color !== '');
 
         if (validColors.length > 0) {
           const maxColorEntry = validColors.reduce(
-            (
-              max: { id: string; refId: string; label: string; color: string; metric: number; filling?: string },
-              entry: { id: string; refId: string; label: string; color: string; metric: number; filling?: string }
-            ) => (entry.metric > max.metric ? entry : max),
+            (max, entry) => (entry.metric > max.metric ? entry : max),
             validColors[0]
           );
           const fillingValue = maxColorEntry.filling;
@@ -300,13 +331,41 @@ export class SvgModifier {
     });
   }
 
-  private processTooltip(tooltip: any, colorData: any[], tooltipData: any[]) {
+  private isValidRegex(regexString: string): boolean {
+    if (regexString.length === 0) {
+      return false;
+    } // Проверка на пустую строку
+
+    const regexSpecialChars = /[.*+?^${}()|[\]\\]/;
+    if (!regexSpecialChars.test(regexString)) {
+      return false;
+    } // Проверка на наличие специальных символов
+
+    try {
+      new RegExp(regexString); // Проверка на валидность регулярного выражения
+      return true;
+    } catch (e) {
+      return false; // Если возникла ошибка, значит регулярное выражение не валидно
+    }
+  }
+
+  // Метод для проверки совпадения с регулярным выражением
+  private matchRegex(regexString: string, displayName: string): boolean {
+    const regex = new RegExp(regexString);
+    return regex.test(displayName);
+  }
+
+  private processTooltip(tooltip: any, elementId: string, colorData: ColorDataEntry[], tooltipData: any[]) {
     const toolArray = Array.isArray(tooltip) ? tooltip : [tooltip];
+
     const validTooltips = toolArray.filter(({ show }) => show);
 
     if (validTooltips.length > 0) {
-      colorData.forEach(({ id: colorId, label, color, metric, unit }) => {
+      const relevantColorData = colorData.filter((data) => data.id === elementId);
+
+      relevantColorData.forEach(({ id: colorId, label, color, metric, unit }) => {
         const formattedMetric = unit ? formatValues(metric, unit) : metric;
+
         tooltipData.push({ id: colorId, label, color, metric: formattedMetric });
       });
     }

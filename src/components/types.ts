@@ -41,6 +41,7 @@ export interface LabelMapping {
 export interface Change {
   id: string | string[];
   attributes: {
+    autoConfig?: boolean;
     label?: string;
     labelColor?: string;
     labelMapping?: LabelMapping[];
@@ -54,13 +55,28 @@ export interface TooltipContent {
   label: string;
   metric: string;
   color: string;
+  text?: string;
+  dtime?: boolean;
+  backColor?: string;
+  textColor?: string;
 }
 
 export interface Tooltip {
   show: boolean;
   dTime?: boolean;
   text?: string;
-  backgroundColor?: string;
+  backColor?: string;
+  textColor?: string;
+}
+
+export interface ColorDataEntry {
+  id: string;
+  refId: string;
+  label: string;
+  color: string;
+  metric: number;
+  filling?: string;
+  unit?: string;
 }
 
 export interface PanelOptions {

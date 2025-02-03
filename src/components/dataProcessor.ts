@@ -1,14 +1,14 @@
-import { Legends, Metric, RefIds, Threshold } from './types';
+import { Legends, Metric, RefIds, Threshold, ColorDataEntry } from './types';
 
 export class MetricProcessor {
   private element: SVGElement;
   private metrics: Metric[];
-  private extractedValueMap: Map<string, { values: number[]; displayNames: string[] }>;
+  private extractedValueMap: Map<string, { values: Map<string, number[]> }>;
 
   constructor(
     element: SVGElement,
     metrics: Metric[],
-    extractedValueMap: Map<string, { values: number[]; displayNames: string[] }>
+    extractedValueMap: Map<string, { values: Map<string, number[]> }>
   ) {
     this.element = element;
     this.metrics = metrics;
@@ -16,26 +16,10 @@ export class MetricProcessor {
   }
 
   public process(): {
-    color: Array<{
-      id: string;
-      refId: string;
-      label: string;
-      color: string;
-      metric: number;
-      filling?: string;
-      unit?: string;
-    }>;
+    color: ColorDataEntry[];
   } {
     const elementId = this.element.id;
-    const colorData: Array<{
-      id: string;
-      refId: string;
-      label: string;
-      color: string;
-      metric: number;
-      filling?: string;
-      unit?: string;
-    }> = [];
+    const colorData: ColorDataEntry[] = [];
 
     if (!Array.isArray(this.metrics)) {
       return { color: [] };
@@ -45,64 +29,100 @@ export class MetricProcessor {
       const { refIds, legends, baseColor, thresholds, displayText, decimal, filling } = metric;
 
       if (refIds) {
-        this.processMetrics(elementId, refIds, colorData, thresholds, decimal, baseColor, displayText, filling);
+        this.processRefIds(elementId, refIds, colorData, thresholds, decimal, baseColor, displayText, filling);
       }
       if (legends) {
-        this.processMetrics(elementId, legends, colorData, thresholds, decimal, baseColor, displayText, filling);
+        this.processLegends(elementId, legends, colorData, thresholds, decimal, baseColor, displayText, filling);
       }
     });
-
+    console.log(colorData);
     return { color: colorData };
   }
 
-  private processMetrics(
+  private processRefIds(
     elementId: string,
-    items: Array<RefIds | Legends>,
-    colorData: Array<{
-      id: string;
-      refId: string;
-      label: string | undefined;
-      color: string;
-      metric: number;
-      filling?: string;
-      unit?: string;
-    }>,
+    refIds: RefIds[],
+    colorData: ColorDataEntry[],
     thresholds?: Threshold[],
     decimal?: number,
     baseColor?: string,
     displayText?: string,
     filling?: string
   ): void {
-    items.forEach((el) => {
-      const id = 'refid' in el ? el.refid : el.legend;
-      const calculation = el.calculation || 'last';
-      const data = this.getNameAndValue(id, el.filter, calculation);
-      const values = data.map((item) => item.value);
+    refIds.forEach((el) => {
+      if (el.refid) {
+        const calculation = el.calculation || 'last';
+        const data = this.getNameAndValueRef(el.refid, el.filter, calculation);
+        const values = data.map((item) => item.value);
+        if (el.sum && el.sum.length > 0) {
+          const sumValue = this.calculateSum(values);
+          colorData.push({
+            id: elementId,
+            refId: el.refid,
+            label: displayText || el.sum,
+            color: this.getMetricColor(sumValue, thresholds, baseColor) || '',
+            metric: this.formatDecimal(sumValue, decimal),
+            filling: filling || '',
+            unit: el.unit,
+          });
+        } else {
+          this.pushToColorData(
+            elementId,
+            el.refid,
+            data,
+            colorData,
+            thresholds,
+            decimal,
+            baseColor,
+            displayText,
+            filling,
+            el.unit
+          );
+        }
+      }
+    });
+  }
 
-      if (el.sum && el.sum.length > 0) {
-        const sumValue = this.calculateSum(values);
-        colorData.push({
-          id: elementId,
-          refId: id,
-          label: displayText || el.sum,
-          color: this.getMetricColor(sumValue, thresholds, baseColor) || '',
-          metric: this.formatDecimal(sumValue, decimal),
-          filling: filling || '',
-          unit: el.unit,
-        });
-      } else {
-        this.pushToColorData(
-          elementId,
-          id,
-          data,
-          colorData,
-          thresholds,
-          decimal,
-          baseColor,
-          displayText,
-          filling,
-          el.unit
-        );
+  private processLegends(
+    elementId: string,
+    legends: Legends[],
+    colorData: ColorDataEntry[],
+    thresholds?: Threshold[],
+    decimal?: number,
+    baseColor?: string,
+    displayText?: string,
+    filling?: string
+  ): void {
+    legends.forEach((el) => {
+      if (el.legend) {
+        const calculation = el.calculation || 'last';
+        const data = this.getNameAndValueLegend(el.legend, el.filter, calculation);
+        const values = data.map((item) => item.value);
+        if (el.sum && el.sum.length > 0) {
+          const sumValue = this.calculateSum(values);
+          colorData.push({
+            id: elementId,
+            refId: el.legend,
+            label: displayText || el.sum,
+            color: this.getMetricColor(sumValue, thresholds, baseColor),
+            metric: this.formatDecimal(sumValue, decimal),
+            filling: filling || '',
+            unit: el.unit,
+          });
+        } else {
+          this.pushToColorData(
+            elementId,
+            el.legend,
+            data,
+            colorData,
+            thresholds,
+            decimal,
+            baseColor,
+            displayText,
+            filling,
+            el.unit
+          );
+        }
       }
     });
   }
@@ -111,15 +131,7 @@ export class MetricProcessor {
     elementId: string,
     id: string,
     data: Array<{ displayName: string; value: number }>,
-    colorData: Array<{
-      id: string;
-      refId: string;
-      label: string | undefined;
-      color: string;
-      metric: number;
-      filling?: string;
-      unit?: string;
-    }>,
+    colorData: ColorDataEntry[],
     thresholds?: Threshold[],
     decimal?: number,
     baseColor?: string,
@@ -142,76 +154,170 @@ export class MetricProcessor {
     });
   }
 
-  private calculateSum(values: number[]): number {
-    return values.reduce((sum, value) => sum + value, 0);
-  }
-
-  private getNameAndValue(
+  private getNameAndValueRef(
     id: string,
     filter?: string,
     calculation: 'last' | 'total' | 'max' | 'min' | 'count' = 'last'
   ): Array<{ displayName: string; value: number }> {
-    const metricData = this.extractedValueMap.get(id);
+    
     const currentDate = new Date();
 
     const result: Array<{ displayName: string; value: number }> = [];
 
-    if (!filter && metricData) {
-      const value = this.calculateValue(metricData.values, calculation);
-      metricData.displayNames.forEach((displayName) => {
-        result.push({ displayName, value });
-      });
+    // Получаем все значения с помощью getDisplayNamesWithValues
+    const dataRef = this.getDataForRef(id, calculation);
+
+    // Если фильтр не задан, просто возвращаем все значения
+    if (!filter) {
+      result.push(...dataRef);
       return result;
     }
 
-    if (!filter && !metricData) {
-      for (const [_, metricDataEntry] of this.extractedValueMap.entries()) {
-        const matches = this.isRegex(id)
-          ? metricDataEntry.displayNames.some((displayName) => this.matchRegex(id, displayName))
-          : metricDataEntry.displayNames.includes(id);
+    // Обработка фильтров
+    const names = filter.split(',').map((name) => name.trim());
 
-        if (matches) {
-          const value = this.calculateValue(metricDataEntry.values, calculation);
-          metricDataEntry.displayNames.forEach((displayName, index) => {
-            if (this.isRegex(id) ? this.matchRegex(id, displayName) : displayName === id) {
-              result.push({ displayName, value });
-            }
-          });
+    const addEntriesForName = (name: string) => {
+      if (name.startsWith('$date')) {
+        const daysToSubtract = parseInt(name.replace('$date', '').trim(), 10);
+        const targetDate = new Date(currentDate);
+        if (!isNaN(daysToSubtract)) {
+          targetDate.setDate(currentDate.getDate() - daysToSubtract);
         }
-      }
-      return result;
-    }
+        const formattedDate = this.formatDate(targetDate);
 
-    if (filter) {
-      const names = filter.split(',').map((name) => name.trim());
-
-      const addEntriesForName = (name: string, metricData: { displayNames: string[]; values: number[] }) => {
-        if (name.startsWith('$date')) {
-          const daysToSubtract = parseInt(name.replace('$date', '').trim(), 10);
-          const targetDate = new Date(currentDate);
-          if (!isNaN(daysToSubtract)) {
-            targetDate.setDate(currentDate.getDate() - daysToSubtract);
-          }
-          const formattedDate = this.formatDate(targetDate);
-          metricData.displayNames.forEach((displayName, index) => {
-            if (displayName === formattedDate) {
-              result.push({ displayName, value: metricData.values[index] });
-            }
-          });
-        } else {
-          metricData.displayNames.forEach((displayName, index) => {
-            if (displayName === name) {
-              result.push({ displayName, value: metricData.values[index] });
-            }
-          });
-        }
-      };
-
-      if (metricData) {
-        names.forEach((name) => addEntriesForName(name, metricData));
+        // Проверяем, если отформатированная дата есть в displayNamesWithValues
+        const matchingEntries = dataRef.filter((entry) => entry.displayName === formattedDate);
+        result.push(...matchingEntries); // Добавляем все совпадения
       } else {
-        for (const [_, metricDataEntry] of this.extractedValueMap.entries()) {
-          names.forEach((name) => addEntriesForName(name, metricDataEntry));
+        // Проверяем, если name есть в displayNamesWithValues
+        const matchingEntries = dataRef.filter((entry) => {
+          return this.isRegex(name) ? this.matchRegex(name, entry.displayName) : entry.displayName === name;
+        });
+        result.push(...matchingEntries); // Добавляем все совпадения
+      }
+    };
+
+    // Проходим по всем именам и добавляем соответствующие записи
+    names.forEach((name) => addEntriesForName(name));
+
+    return result;
+  }
+
+  private getNameAndValueLegend(
+    id: string,
+    filter?: string,
+    calculation: 'last' | 'total' | 'max' | 'min' | 'count' = 'last'
+  ): Array<{ displayName: string; value: number }> {
+    const currentDate = new Date();
+    const result: Array<{ displayName: string; value: number }> = [];
+
+    // Получаем все значения с помощью getDisplayNamesWithValues
+    const dataRef = this.getDataForLegend(id, calculation);
+
+    // Если фильтр не задан, просто возвращаем все значения
+    if (!filter) {
+      result.push(...dataRef);
+      return result;
+    }
+
+    // Обработка фильтров
+    const names = filter.split(',').map((name) => name.trim());
+
+    const addEntriesForName = (name: string) => {
+      if (name.startsWith('$date')) {
+        const daysToSubtract = parseInt(name.replace('$date', '').trim(), 10);
+        const targetDate = new Date(currentDate);
+        if (!isNaN(daysToSubtract)) {
+          targetDate.setDate(currentDate.getDate() - daysToSubtract);
+        }
+        const formattedDate = this.formatDate(targetDate);
+
+        // Проверяем, если отформатированная дата есть в displayNamesWithValues
+        const matchingEntries = dataRef.filter((entry) => entry.displayName === formattedDate);
+        result.push(...matchingEntries); // Добавляем все совпадения
+      } else {
+        // Проверяем, если name есть в displayNamesWithValues
+        const matchingEntries = dataRef.filter((entry) => {
+          return this.isRegex(name) ? this.matchRegex(name, entry.displayName) : entry.displayName === name;
+        });
+        result.push(...matchingEntries); // Добавляем все совпадения
+      }
+    };
+
+    // Проходим по всем именам и добавляем соответствующие записи
+    names.forEach((name) => addEntriesForName(name));
+
+    return result;
+  }
+
+  private getDataForRef(
+    id: string,
+    calculation: 'last' | 'total' | 'max' | 'min' | 'count' = 'last'
+  ): Array<{ displayName: string; value: number }> {
+    const result: Array<{ displayName: string; value: number }> = [];
+
+    // Получаем данные для указанного metricId
+    const metricData = this.extractedValueMap.get(id);
+    if (!metricData) {
+      return result; // Возвращаем пустой массив, если данных нет
+    }
+
+    // Итерация по значениям в metricData.values
+    for (const [key, values] of metricData.values.entries()) {
+      const numericValuesArray = values.map((value) => Number(value));
+
+      const value = this.calculateValue(numericValuesArray, calculation);
+
+      const suffixPattern = /_\d+$/;
+
+      if (key.startsWith('absent')) {
+        result.push({ displayName: id, value });
+      } else if (suffixPattern.test(key)) {
+        const name = key.replace(suffixPattern, '');
+
+        result.push({ displayName: name, value });
+      } else {
+        result.push({ displayName: key, value });
+      }
+    }
+
+    return result;
+  }
+
+  private getDataForLegend(
+    id: string,
+    calculation: 'last' | 'total' | 'max' | 'min' | 'count' = 'last'
+  ): Array<{ displayName: string; value: number }> {
+    const result: Array<{ displayName: string; value: number }> = [];
+    const suffixPattern = /_\d+$/; // Паттерн для удаления суффиксов
+
+    for (const [_, values] of this.extractedValueMap.entries()) {
+      // Проверяем, что values является Map и содержит данные
+      if (values && values.values) {
+        // Проходим по всем ключам в values
+        for (const [valueKey, valueArray] of values.values.entries()) {
+          // Удаляем суффикс из valueKey для сравнения
+          const baseKey = valueKey.replace(suffixPattern, '');
+
+          // Проверяем соответствие с id
+          const matches = this.isRegex(id) ? this.matchRegex(id, baseKey) : baseKey === id;
+
+          if (matches) {
+            const numericValuesArray = valueArray.map((value) => Number(value)); // Преобразуем в числа
+
+            // Проверяем, что массив не пустой перед расчетом
+            if (numericValuesArray.length > 0) {
+              const value = this.calculateValue(numericValuesArray, calculation); // Выполняем расчет
+
+              let displayName = baseKey; // Используем базовый ключ как имя по умолчанию
+
+              if (valueKey.startsWith('absent')) {
+                displayName = id; // Если ключ начинается с 'absent', используем id
+              }
+
+              result.push({ displayName, value }); // Добавляем в результат
+            }
+          }
         }
       }
     }
@@ -220,6 +326,10 @@ export class MetricProcessor {
   }
 
   private calculateValue(values: number[], calculation: 'last' | 'total' | 'max' | 'min' | 'count'): number {
+    if (values.length === 0) {
+      return 0; // или любое другое значение по умолчанию, если массив пуст
+    }
+
     switch (calculation) {
       case 'last':
         return values[values.length - 1];
@@ -230,9 +340,9 @@ export class MetricProcessor {
       case 'min':
         return Math.min(...values);
       case 'count':
-        return values.length;
+        return values.length; // если вам нужно количество, но это не одно значение
       default:
-        return values[values.length - 1];
+        return values[values.length - 1]; // по умолчанию возвращаем последнее значение
     }
   }
 
@@ -331,6 +441,10 @@ export class MetricProcessor {
 
   private formatDecimal(value: number, decimal?: number): number {
     return decimal !== undefined ? parseFloat(value.toFixed(decimal)) : parseFloat(value.toFixed(3));
+  }
+
+  private calculateSum(values: number[]): number {
+    return values.reduce((sum, value) => sum + value, 0);
   }
 
   private formatDate(date: Date): string {

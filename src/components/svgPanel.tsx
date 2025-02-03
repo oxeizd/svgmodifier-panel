@@ -38,14 +38,14 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
 
   const modifySvgAsync = useCallback(async () => {
     const svgModifier = new SvgModifier(svgCode, changes, dataFrame);
-    const { modifiedSvg, tooltipData } = await svgModifier.modify(); // Assuming modify() returns a Promise
+    const { modifiedSvg, tooltipData } = await svgModifier.modify();
     setModifiedSvg(modifiedSvg);
     setTooltipData(tooltipData);
   }, [svgCode, changes, dataFrame]);
 
   useEffect(() => {
     modifySvgAsync();
-  }, [modifySvgAsync]); // Теперь modifySvgAsync включен в зависимости
+  }, [modifySvgAsync]);
 
   const handleMouseOver = useCallback(
     (event: MouseEvent, tooltipInfo: { id: string }) => {
