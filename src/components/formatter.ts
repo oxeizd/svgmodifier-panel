@@ -1,16 +1,5 @@
 type DecimalCount = number;
 
-export enum Interval {
-  Year = 'year',
-  Month = 'month',
-  Week = 'week',
-  Day = 'day',
-  Hour = 'hour',
-  Minute = 'minute',
-  Second = 'second',
-  Millisecond = 'millisecond',
-}
-
 function roundToFixed(value: number, decimals: DecimalCount = 2): number {
   const factor = Math.pow(10, decimals);
   return Math.round(value * factor) / factor;
@@ -37,7 +26,7 @@ export function formatValues(value: number, unit?: string, decimals?: DecimalCou
         return toBytes(value, decimals);
       case 'percent':
         return toPercent(value, decimals);
-      case 'percentUnit':
+      case 'percent(0-1)':
         return toPercentUnit(value, decimals);
     }
   }
@@ -52,7 +41,7 @@ export function toPercent(value: number, decimals?: DecimalCount): string {
     return '';
   }
 
-  return formatScaled(value, decimals, ' %');
+  return formatScaled(value, decimals, '%');
 }
 
 export function toPercentUnit(value: number, decimals?: DecimalCount): string {
@@ -60,7 +49,8 @@ export function toPercentUnit(value: number, decimals?: DecimalCount): string {
     return '';
   }
 
-  return formatScaled(value * 100, decimals, ' %');
+  let formattedValue = roundToFixed(value * 100, decimals);
+  return formatScaled(formattedValue, decimals, '%');
 }
 
 export function toBytes(size: number, decimals?: DecimalCount): string {

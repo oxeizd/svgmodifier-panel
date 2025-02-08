@@ -64,7 +64,7 @@ export const Tooltip: React.FC<{
     pointerEvents: 'none',
     boxShadow: 'none',
     zIndex: 1000,
-    maxWidth: '450px',
+    maxWidth: '500px',
     overflow: 'hidden',
     wordWrap: 'break-word',
   };

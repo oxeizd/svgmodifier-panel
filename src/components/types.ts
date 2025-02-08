@@ -1,7 +1,7 @@
 export interface Threshold {
   color: string;
   value: number;
-  status?: 'b' | 'w' | 'c';
+  lvl?: number;
   operator?: '=' | '>' | '<' | '>=' | '!=' | '<=';
   condition?: string;
 }
@@ -9,7 +9,8 @@ export interface Threshold {
 export interface RefIds {
   refid: string;
   filter?: string;
-  calculation?: 'last' | 'total' | 'max' | 'min' | 'count';
+  calculation?: 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
+  label?: string;
   sum?: string;
   unit?: string;
 }
@@ -17,7 +18,8 @@ export interface RefIds {
 export interface Legends {
   legend: string;
   filter?: string;
-  calculation?: 'last' | 'total' | 'max' | 'min' | 'count';
+  calculation?: 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
+  label?: string;
   sum?: string;
   unit?: string;
 }
@@ -74,6 +76,7 @@ export interface ColorDataEntry {
   refId: string;
   label: string;
   color: string;
+  lvl: number;
   metric: number;
   filling?: string;
   unit?: string;

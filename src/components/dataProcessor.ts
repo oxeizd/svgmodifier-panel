@@ -1,408 +1,230 @@
 import { Legends, Metric, RefIds, Threshold, ColorDataEntry } from './types';
 
+type CalculationMethod = 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
+
 export class MetricProcessor {
-  private element: SVGElement;
-  private metrics: Metric[];
-  private extractedValueMap: Map<string, { values: Map<string, number[]> }>;
-
   constructor(
-    element: SVGElement,
-    metrics: Metric[],
-    extractedValueMap: Map<string, { values: Map<string, number[]> }>
-  ) {
-    this.element = element;
-    this.metrics = metrics;
-    this.extractedValueMap = extractedValueMap;
-  }
+    private element: SVGElement,
+    private metrics: Metric[],
+    private extractedValueMap: Map<string, { values: Map<string, number[]> }>
+  ) {}
 
-  public process(): {
-    color: ColorDataEntry[];
-  } {
-    const elementId = this.element.id;
+  public process(): { color: ColorDataEntry[] } {
     const colorData: ColorDataEntry[] = [];
-
     if (!Array.isArray(this.metrics)) {
       return { color: [] };
     }
 
-    this.metrics.forEach((metric: Metric) => {
-      const { refIds, legends, baseColor, thresholds, displayText, decimal, filling } = metric;
-
-      if (refIds) {
-        this.processRefIds(elementId, refIds, colorData, thresholds, decimal, baseColor, displayText, filling);
-      }
-      if (legends) {
-        this.processLegends(elementId, legends, colorData, thresholds, decimal, baseColor, displayText, filling);
-      }
+    this.metrics.forEach((metric) => {
+      metric.refIds?.forEach((ref) => this.processRef(ref, metric, colorData));
+      metric.legends?.forEach((legend) => this.processLegend(legend, metric, colorData));
     });
-    console.log(colorData);
     return { color: colorData };
   }
 
-  private processRefIds(
-    elementId: string,
-    refIds: RefIds[],
-    colorData: ColorDataEntry[],
-    thresholds?: Threshold[],
-    decimal?: number,
-    baseColor?: string,
-    displayText?: string,
-    filling?: string
-  ): void {
-    refIds.forEach((el) => {
-      if (el.refid) {
-        const calculation = el.calculation || 'last';
-        const data = this.getNameAndValueRef(el.refid, el.filter, calculation);
-        const values = data.map((item) => item.value);
-        if (el.sum && el.sum.length > 0) {
-          const sumValue = this.calculateSum(values);
-          colorData.push({
-            id: elementId,
-            refId: el.refid,
-            label: displayText || el.sum,
-            color: this.getMetricColor(sumValue, thresholds, baseColor) || '',
-            metric: this.formatDecimal(sumValue, decimal),
-            filling: filling || '',
-            unit: el.unit,
-          });
-        } else {
-          this.pushToColorData(
-            elementId,
-            el.refid,
-            data,
-            colorData,
-            thresholds,
-            decimal,
-            baseColor,
-            displayText,
-            filling,
-            el.unit
-          );
-        }
-      }
-    });
-  }
-
-  private processLegends(
-    elementId: string,
-    legends: Legends[],
-    colorData: ColorDataEntry[],
-    thresholds?: Threshold[],
-    decimal?: number,
-    baseColor?: string,
-    displayText?: string,
-    filling?: string
-  ): void {
-    legends.forEach((el) => {
-      if (el.legend) {
-        const calculation = el.calculation || 'last';
-        const data = this.getNameAndValueLegend(el.legend, el.filter, calculation);
-        const values = data.map((item) => item.value);
-        if (el.sum && el.sum.length > 0) {
-          const sumValue = this.calculateSum(values);
-          colorData.push({
-            id: elementId,
-            refId: el.legend,
-            label: displayText || el.sum,
-            color: this.getMetricColor(sumValue, thresholds, baseColor),
-            metric: this.formatDecimal(sumValue, decimal),
-            filling: filling || '',
-            unit: el.unit,
-          });
-        } else {
-          this.pushToColorData(
-            elementId,
-            el.legend,
-            data,
-            colorData,
-            thresholds,
-            decimal,
-            baseColor,
-            displayText,
-            filling,
-            el.unit
-          );
-        }
-      }
-    });
-  }
-
-  private pushToColorData(
-    elementId: string,
-    id: string,
-    data: Array<{ displayName: string; value: number }>,
-    colorData: ColorDataEntry[],
-    thresholds?: Threshold[],
-    decimal?: number,
-    baseColor?: string,
-    displayText?: string,
-    filling?: string,
-    unit?: string
-  ): void {
-    data.forEach((item) => {
-      const metricValue = this.formatDecimal(item.value, decimal);
-      const metricColor = this.getMetricColor(metricValue, thresholds, baseColor);
-      colorData.push({
-        id: elementId,
-        refId: id,
-        label: displayText || item.displayName,
-        color: metricColor,
-        metric: metricValue,
-        filling: filling || '',
-        unit: unit,
-      });
-    });
-  }
-
-  private getNameAndValueRef(
-    id: string,
-    filter?: string,
-    calculation: 'last' | 'total' | 'max' | 'min' | 'count' = 'last'
-  ): Array<{ displayName: string; value: number }> {
-    
-    const currentDate = new Date();
-
-    const result: Array<{ displayName: string; value: number }> = [];
-
-    // Получаем все значения с помощью getDisplayNamesWithValues
-    const dataRef = this.getDataForRef(id, calculation);
-
-    // Если фильтр не задан, просто возвращаем все значения
-    if (!filter) {
-      result.push(...dataRef);
-      return result;
+  private processRef(ref: RefIds, metric: Metric, colorData: ColorDataEntry[]): void {
+    if (!ref.refid) {
+      return;
     }
 
-    // Обработка фильтров
-    const names = filter.split(',').map((name) => name.trim());
-
-    const addEntriesForName = (name: string) => {
-      if (name.startsWith('$date')) {
-        const daysToSubtract = parseInt(name.replace('$date', '').trim(), 10);
-        const targetDate = new Date(currentDate);
-        if (!isNaN(daysToSubtract)) {
-          targetDate.setDate(currentDate.getDate() - daysToSubtract);
-        }
-        const formattedDate = this.formatDate(targetDate);
-
-        // Проверяем, если отформатированная дата есть в displayNamesWithValues
-        const matchingEntries = dataRef.filter((entry) => entry.displayName === formattedDate);
-        result.push(...matchingEntries); // Добавляем все совпадения
-      } else {
-        // Проверяем, если name есть в displayNamesWithValues
-        const matchingEntries = dataRef.filter((entry) => {
-          return this.isRegex(name) ? this.matchRegex(name, entry.displayName) : entry.displayName === name;
-        });
-        result.push(...matchingEntries); // Добавляем все совпадения
-      }
-    };
-
-    // Проходим по всем именам и добавляем соответствующие записи
-    names.forEach((name) => addEntriesForName(name));
-
-    return result;
-  }
-
-  private getNameAndValueLegend(
-    id: string,
-    filter?: string,
-    calculation: 'last' | 'total' | 'max' | 'min' | 'count' = 'last'
-  ): Array<{ displayName: string; value: number }> {
-    const currentDate = new Date();
-    const result: Array<{ displayName: string; value: number }> = [];
-
-    // Получаем все значения с помощью getDisplayNamesWithValues
-    const dataRef = this.getDataForLegend(id, calculation);
-
-    // Если фильтр не задан, просто возвращаем все значения
-    if (!filter) {
-      result.push(...dataRef);
-      return result;
-    }
-
-    // Обработка фильтров
-    const names = filter.split(',').map((name) => name.trim());
-
-    const addEntriesForName = (name: string) => {
-      if (name.startsWith('$date')) {
-        const daysToSubtract = parseInt(name.replace('$date', '').trim(), 10);
-        const targetDate = new Date(currentDate);
-        if (!isNaN(daysToSubtract)) {
-          targetDate.setDate(currentDate.getDate() - daysToSubtract);
-        }
-        const formattedDate = this.formatDate(targetDate);
-
-        // Проверяем, если отформатированная дата есть в displayNamesWithValues
-        const matchingEntries = dataRef.filter((entry) => entry.displayName === formattedDate);
-        result.push(...matchingEntries); // Добавляем все совпадения
-      } else {
-        // Проверяем, если name есть в displayNamesWithValues
-        const matchingEntries = dataRef.filter((entry) => {
-          return this.isRegex(name) ? this.matchRegex(name, entry.displayName) : entry.displayName === name;
-        });
-        result.push(...matchingEntries); // Добавляем все совпадения
-      }
-    };
-
-    // Проходим по всем именам и добавляем соответствующие записи
-    names.forEach((name) => addEntriesForName(name));
-
-    return result;
-  }
-
-  private getDataForRef(
-    id: string,
-    calculation: 'last' | 'total' | 'max' | 'min' | 'count' = 'last'
-  ): Array<{ displayName: string; value: number }> {
-    const result: Array<{ displayName: string; value: number }> = [];
-
-    // Получаем данные для указанного metricId
-    const metricData = this.extractedValueMap.get(id);
+    const globalKey = ref.refid;
+    const metricData = this.extractedValueMap.get(globalKey);
     if (!metricData) {
-      return result; // Возвращаем пустой массив, если данных нет
+      return;
     }
 
-    // Итерация по значениям в metricData.values
-    for (const [key, values] of metricData.values.entries()) {
-      const numericValuesArray = values.map((value) => Number(value));
+    const items = Array.from(metricData.values.entries()).map(([innerKey, values]) => ({
+      displayName: innerKey,
+      value: this.calculateValue(values.map(Number), ref.calculation || 'last'),
+      globalKey,
+    }));
 
-      const value = this.calculateValue(numericValuesArray, calculation);
-
-      const suffixPattern = /_\d+$/;
-
-      if (key.startsWith('absent')) {
-        result.push({ displayName: id, value });
-      } else if (suffixPattern.test(key)) {
-        const name = key.replace(suffixPattern, '');
-
-        result.push({ displayName: name, value });
-      } else {
-        result.push({ displayName: key, value });
-      }
-    }
-
-    return result;
+    this.processItems({
+      data: this.applyFilter(items, ref.filter),
+      metric,
+      config: ref,
+      colorData,
+      isLegend: false,
+      parentKey: globalKey,
+    });
   }
 
-  private getDataForLegend(
-    id: string,
-    calculation: 'last' | 'total' | 'max' | 'min' | 'count' = 'last'
+  private processLegend(legend: Legends, metric: Metric, colorData: ColorDataEntry[]): void {
+    if (!legend.legend) {
+      return;
+    }
+
+    // Собираем все внутренние ключи по всем глобальным ключам, соответствующие шаблону легенды
+    const filteredItems = Array.from(this.extractedValueMap.entries()).flatMap(([globalKey, metricData]) => {
+      return Array.from(metricData.values.entries())
+        .filter(([innerKey]) => this.matchPattern(legend.legend, innerKey)) // Используем matchPattern
+        .map(([innerKey, values]) => ({
+          displayName: innerKey, // Используем внутренний ключ как идентификатор
+          value: this.calculateValue(values.map(Number), legend.calculation || 'last'),
+          globalKey,
+        }));
+    });
+
+    // Применяем дополнительный фильтр если указан
+    const filteredData = this.applyFilter(filteredItems, legend.filter);
+
+    if (filteredData.length === 0) {
+      return;
+    }
+
+    this.processItems({
+      data: filteredData,
+      metric,
+      config: legend,
+      colorData,
+      isLegend: true,
+    });
+  }
+
+  private processItems(params: {
+    data: Array<{ displayName: string; value: number; globalKey?: string }>;
+    metric: Metric;
+    config: RefIds | Legends;
+    colorData: ColorDataEntry[];
+    isLegend: boolean;
+    parentKey?: string;
+  }): void {
+    const { data, metric, config, colorData, isLegend, parentKey } = params;
+    const { thresholds, baseColor, displayText, decimal, filling } = metric;
+
+    const sumMode = 'sum' in config && config.sum;
+
+    if (sumMode) {
+      if (data.length === 0) {
+        return;
+      } // Не создаем сумму если нет данных
+
+      const sumValue = data.reduce((acc, item) => acc + item.value, 0);
+      const metricColor = this.getMetricColor(sumValue, thresholds, baseColor);
+      colorData.push({
+        id: this.element.id,
+        refId: isLegend ? config.sum! : parentKey || '',
+        label: config.label || displayText || config.sum!,
+        color: metricColor.color,
+        lvl: metricColor.lvl,
+        metric: this.formatDecimal(sumValue, decimal),
+        filling: filling || '',
+        unit: config.unit,
+      });
+    } else {
+      data.forEach((item) => {
+        const metricColor = this.getMetricColor(item.value, thresholds, baseColor);
+        colorData.push({
+          id: this.element.id,
+          refId: isLegend ? item.displayName : parentKey || '',
+          label: config.label || displayText || item.displayName,
+          color: metricColor.color,
+          lvl: metricColor.lvl,
+          metric: this.formatDecimal(item.value, decimal),
+          filling: filling || '',
+          unit: config.unit,
+        });
+      });
+    }
+  }
+
+  private applyFilter(
+    data: Array<{ displayName: string; value: number }>,
+    filter?: string
   ): Array<{ displayName: string; value: number }> {
-    const result: Array<{ displayName: string; value: number }> = [];
-    const suffixPattern = /_\d+$/; // Паттерн для удаления суффиксов
-
-    for (const [_, values] of this.extractedValueMap.entries()) {
-      // Проверяем, что values является Map и содержит данные
-      if (values && values.values) {
-        // Проходим по всем ключам в values
-        for (const [valueKey, valueArray] of values.values.entries()) {
-          // Удаляем суффикс из valueKey для сравнения
-          const baseKey = valueKey.replace(suffixPattern, '');
-
-          // Проверяем соответствие с id
-          const matches = this.isRegex(id) ? this.matchRegex(id, baseKey) : baseKey === id;
-
-          if (matches) {
-            const numericValuesArray = valueArray.map((value) => Number(value)); // Преобразуем в числа
-
-            // Проверяем, что массив не пустой перед расчетом
-            if (numericValuesArray.length > 0) {
-              const value = this.calculateValue(numericValuesArray, calculation); // Выполняем расчет
-
-              let displayName = baseKey; // Используем базовый ключ как имя по умолчанию
-
-              if (valueKey.startsWith('absent')) {
-                displayName = id; // Если ключ начинается с 'absent', используем id
-              }
-
-              result.push({ displayName, value }); // Добавляем в результат
-            }
-          }
-        }
-      }
+    if (!filter) {
+      return data;
     }
 
-    return result;
+    const currentDate = new Date();
+    return data.filter((item) =>
+      filter.split(',').some((f) => {
+        const trimmed = f.trim();
+
+        if (trimmed.startsWith('$date')) {
+          const days = parseInt(trimmed.replace('$date', ''), 10) || 0;
+          const targetDate = new Date(currentDate);
+          targetDate.setDate(currentDate.getDate() - days);
+          return item.displayName === this.formatDate(targetDate);
+        }
+
+        return this.matchPattern(trimmed, item.displayName);
+      })
+    );
   }
 
-  private calculateValue(values: number[], calculation: 'last' | 'total' | 'max' | 'min' | 'count'): number {
+  private calculateValue(values: number[], method: CalculationMethod): number {
     if (values.length === 0) {
-      return 0; // или любое другое значение по умолчанию, если массив пуст
+      return 0;
     }
 
-    switch (calculation) {
+    switch (method) {
       case 'last':
         return values[values.length - 1];
       case 'total':
-        return values.reduce((sum, value) => sum + value, 0);
+        return values.reduce((a, b) => a + b, 0);
       case 'max':
         return Math.max(...values);
       case 'min':
         return Math.min(...values);
       case 'count':
-        return values.length; // если вам нужно количество, но это не одно значение
+        return values.length;
+      case 'delta':
+        return values[values.length - 1] - values[0];
       default:
-        return values[values.length - 1]; // по умолчанию возвращаем последнее значение
+        return values[values.length - 1];
     }
   }
 
-  private isRegex(legend: string): boolean {
+  private matchPattern(pattern: string, target: string): boolean {
+    // Проверяем, содержит ли pattern специальные символы регулярного выражения
     const regexSpecialChars = /[.*+?^${}()|[\]\\]/;
-    return legend.length > 0 && regexSpecialChars.test(legend) && this.isValidRegex(legend);
-  }
 
-  private isValidRegex(regexString: string): boolean {
-    try {
-      new RegExp(regexString);
-      return true;
-    } catch (e) {
-      return false;
+    if (regexSpecialChars.test(pattern)) {
+      try {
+        return new RegExp(pattern).test(target);
+      } catch {
+        return false; // Если регулярное выражение некорректно, возвращаем false
+      }
+    } else {
+      return pattern === target; // Если специальных символов нет, выполняем точное совпадение
     }
   }
 
-  private matchRegex(regexString: string, displayName: string): boolean {
-    const regex = new RegExp(regexString);
-    return regex.test(displayName);
-  }
+  private getMetricColor(value: number, thresholds?: Threshold[], baseColor?: string) {
+    let color = baseColor || '';
+    let lvl = 0;
 
-  private getMetricColor(
-    metricValue: number,
-    thresholds: Threshold[] | undefined,
-    baseColor: string | undefined
-  ): string {
-    if (!thresholds) {
-      return baseColor !== 'none' ? baseColor ?? '' : '';
-    }
+    thresholds?.forEach((t, index) => {
+      if (t.condition && !this.evaluateCondition(t.condition)) {
+        return;
+      }
 
-    let selectedColor: string | undefined;
-    let bestThresholdValue: number | undefined;
-    let bestThresholdColor: string | undefined;
+      const operator = t.operator || '>=';
+      const compareResult = this.compareValues(value, t.value, operator);
 
-    for (const threshold of thresholds) {
-      const condition = threshold.condition ? this.evaluateCondition(threshold.condition) : true;
-
-      if (condition) {
-        const thresholdValue = threshold.value;
-        const operator = threshold.operator || '>=';
-
-        const conditionMetForThreshold = this.compareValues(metricValue, thresholdValue, operator);
-
-        if (conditionMetForThreshold) {
-          if (operator === '=') {
-            return threshold.color;
-          } else if (operator === '!=') {
-            selectedColor = threshold.color;
-          } else {
-            if (bestThresholdValue === undefined || this.compareValues(thresholdValue, bestThresholdValue, operator)) {
-              bestThresholdValue = thresholdValue;
-              bestThresholdColor = threshold.color;
-            }
-          }
+      if (compareResult) {
+        color = t.color;
+        lvl = index + 1;
+        if (t.lvl) {
+          lvl = t.lvl;
         }
       }
-    }
+    });
 
-    return selectedColor || bestThresholdColor || (baseColor !== 'none' ? baseColor ?? '' : '');
+    return { color, lvl };
+  }
+
+  private evaluateCondition(condition: string): boolean {
+    try {
+      const now = new Date();
+      const timezone = parseInt(condition.match(/timezone\s*=\s*(-?\d+)/)?.[1] || '3', 10);
+      const hour = (now.getUTCHours() + timezone + 24) % 24;
+
+      return new Function('hour', 'minute', 'day', `return ${condition}`)(hour, now.getUTCMinutes(), now.getUTCDay());
+    } catch {
+      return false;
+    }
   }
 
   private compareValues(a: number, b: number, operator: string): boolean {
@@ -424,27 +246,8 @@ export class MetricProcessor {
     }
   }
 
-  private evaluateCondition(condition: string): boolean {
-    const currentTime = new Date();
-    const utcHour = currentTime.getUTCHours();
-    const utcMinute = currentTime.getUTCMinutes();
-    const dayOfWeek = currentTime.getDay();
-
-    const timezoneMatch = condition.match(/timezone\s*=\s*([-+]?\d{1,2})/);
-    const timezoneOffset = timezoneMatch ? parseInt(timezoneMatch[1], 10) : 3;
-
-    const hour = (utcHour + timezoneOffset + 24) % 24;
-    const minute = utcMinute;
-
-    return new Function('hour', 'minute', 'dayOfWeek', `return ${condition};`)(hour, minute, dayOfWeek);
-  }
-
-  private formatDecimal(value: number, decimal?: number): number {
-    return decimal !== undefined ? parseFloat(value.toFixed(decimal)) : parseFloat(value.toFixed(3));
-  }
-
-  private calculateSum(values: number[]): number {
-    return values.reduce((sum, value) => sum + value, 0);
+  private formatDecimal(value: number, decimals = 3): number {
+    return parseFloat(value.toFixed(decimals));
   }
 
   private formatDate(date: Date): string {
