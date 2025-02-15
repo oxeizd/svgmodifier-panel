@@ -135,27 +135,27 @@ export class MetricProcessor {
     if (!filter) {
       return data;
     }
-  
+
     const currentDate = new Date();
     return data.filter((item) => {
       const matchesFilter = filter.split(',').some((f) => {
         const trimmed = f.trim();
-  
+
         // Проверяем на наличие префикса '-'
         const isExclusion = trimmed.startsWith('-');
         const filterValue = isExclusion ? trimmed.slice(1) : trimmed;
-  
+
         if (filterValue.startsWith('$date')) {
           const days = parseInt(filterValue.replace('$date', ''), 10) || 0;
           const targetDate = new Date(currentDate);
           targetDate.setDate(currentDate.getDate() - days);
           return item.displayName === this.formatDate(targetDate);
         }
-  
+
         const matches = this.matchPattern(filterValue, item.displayName);
         return isExclusion ? !matches : matches; // Исключаем или включаем в зависимости от префикса
       });
-  
+
       return matchesFilter; // Возвращаем true, если элемент соответствует фильтру
     });
   }

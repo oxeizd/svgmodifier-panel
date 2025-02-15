@@ -25,13 +25,13 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel).setPanelOptions((b
         maxLength: 10000,
       },
     });
-    // .addTextInput({
-    //   path: 'jsonData.Alias',
-    //   name: 'Aliases',
-    //   defaultValue: '',
-    //   settings: {
-    //     rows: 2,
-    //     useTextarea: true,
-    //   },
-    // });
+  // .addTextInput({
+  //   path: 'jsonData.Alias',
+  //   name: 'Aliases',
+  //   defaultValue: '',
+  //   settings: {
+  //     rows: 2,
+  //     useTextarea: true,
+  //   },
+  // });
 });
