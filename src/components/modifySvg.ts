@@ -24,7 +24,6 @@ export class SvgModifier {
     const tooltipData: TooltipItem[] = [];
     const colorData: ColorDataEntry[] = [];
     const tooltipChanges: tooltipChanges[] = [];
-
     this.initializeSvgElement(doc);
     this.processAllChanges(doc, colorData, tooltipChanges);
     this.applyColorData(doc, colorData);
@@ -205,9 +204,9 @@ export class SvgModifier {
       return;
     }
 
-    const metricValue = this.getMaxMetricValue(colorData);
+    const metricValue = this.getMetricValue(colorData, element.id);
     this.updateLabelContent(labelElements, label, metricValue, element.id);
-    this.applyLabelColor(labelElements, labelColor, colorData);
+    this.applyLabelColor(labelElements, labelColor, colorData, element.id);
   }
 
   private getLabelElements(element: SVGElement): Array<SVGTextElement | HTMLElement> {
@@ -216,15 +215,14 @@ export class SvgModifier {
     ) as Array<SVGTextElement | HTMLElement>;
   }
 
-  private getMaxMetricValue(colorData: ColorDataEntry[]): number | undefined {
-    if (colorData.length === 0) {
+  private getMetricValue(colorData: ColorDataEntry[], elementId: string): number | undefined {
+    const entriesForId = colorData.filter((entry) => entry.id === elementId);
+    if (entriesForId.length === 0) {
       return undefined;
     }
-
-    return colorData.reduce((max: number, entry) => {
-      return entry.metric > max ? entry.metric : max;
-    }, -Infinity);
+    return entriesForId.reduce((max, entry) => (entry.metric > max ? entry.metric : max), -Infinity);
   }
+  
 
   private updateLabelContent(
     elements: Array<SVGTextElement | HTMLElement>,
@@ -295,39 +293,60 @@ export class SvgModifier {
   private applyLabelColor(
     elements: Array<SVGTextElement | HTMLElement>,
     colorSetting: string | undefined,
-    colorData: ColorDataEntry[]
+    colorData: ColorDataEntry[],
+    elementId: string // Новый параметр для фильтрации данных
   ): void {
     if (!colorSetting) {
       return;
     }
-
-    const color =
-      colorSetting === 'metric'
-        ? colorData.reduce((max, entry) => (entry.metric > (max?.metric ?? -Infinity) ? entry : max))?.color
-        : colorSetting;
-
+  
+    const relevantEntries = colorData.filter(entry => entry.id === elementId);
+    if (relevantEntries.length === 0) {
+      return;
+    }
+  
+    let color = colorSetting;
+    if (color === 'metric') {
+      const maxEntry = relevantEntries.reduce((maxEntry, current) => 
+        current.metric > maxEntry.metric ? current : maxEntry, 
+        relevantEntries[0]
+      );
+      color = maxEntry.color;
+    }
+  
     elements.forEach((el) => {
       if (el instanceof SVGTextElement) {
-        el.setAttribute('fill', color || '');
+        el.setAttribute('fill', color);
       } else {
-        (el as HTMLElement).style.color = color || '';
+        (el as HTMLElement).style.color = color;
       }
     });
   }
+
 
   private applyColorData(doc: Document, colorData: ColorDataEntry[]): void {
     const colorMap = this.createColorMap(colorData);
+    const bestEntries: ColorDataEntry[] = []; // Создаем массив для хранения лучших записей
 
+    // Группируем записи по id
+    const groupedEntries: { [key: string]: ColorDataEntry[] } = {};
     colorMap.forEach((entries, id) => {
-      const element = doc.getElementById(id);
-      if (!element) {
-        return;
-      }
-
-      const bestEntry = this.findBestColorEntry(entries);
-      this.applyEntryStyles(element, bestEntry);
+        groupedEntries[id] = entries;
     });
-  }
+
+    // Находим лучшую запись для каждого id
+    for (const id in groupedEntries) {
+        const entries = groupedEntries[id];
+        const bestEntry = this.findBestColorEntry(entries);
+        if (bestEntry) {
+            bestEntries.push(bestEntry);
+            const element = doc.getElementById(id);
+            if (element) {
+                this.applyEntryStyles(element, bestEntry);
+            }
+        }
+    }
+}
 
   private createColorMap(colorData: ColorDataEntry[]): Map<string, ColorDataEntry[]> {
     return colorData.reduce((map, entry) => {
@@ -362,6 +381,7 @@ export class SvgModifier {
       }
 
       const defStyle = el.getAttribute('style');
+      const strokeValue = el.getAttribute('stroke');
       el.removeAttribute('style');
 
       if (entry.filling) {
@@ -396,8 +416,10 @@ export class SvgModifier {
           }
         }
       } else {
+        if (strokeValue != 'none'){
+          el.setAttribute('stroke', entry.color);
+        }
         el.setAttribute('fill', entry.color);
-        el.setAttribute('stroke', entry.color);
       }
     });
   }

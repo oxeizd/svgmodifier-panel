@@ -37,25 +37,4 @@ The ability to add interactive links to SVG elements enables users to navigate t
 
 ### Correct the YAML file for dynamic updates of elements.
 
-| Attributes   | Description                                    | Syntax                                                                                         |
-| ------------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| link?        | URL to which the cell links                    | `link: "http://example.com/1"`                                                                 |
-| tooltip?     | Controls the visibility of the tooltip         | `show: true / false`                                                                           |
-| metrics?:    | Collection of metrics associated with the cell |                                                                                                |
-| refIds?:     | List of reference IDs for metrics              |                                                                                                |
-| refid        | refid                                          | `refIds: [ { refid: "A" }, { refid: "B", sum: 'sum values' }, { refid: "C", filter: 'cpu' } ]` |
-| filter?      | filter metrics                                 | `filter: "cpu, cpu2"` $date, $date-number                                                      |
-| sum?         | sum all metrics                                | `sum: random name`                                                                             |
-| legends?:    | Descriptive labels for the metrics             |                                                                                                |
-| legend       | legend name                                    | `legends: [ { legend: "legendname", filter: "cpu, cpu2", sum: '' } ]`                          |
-| filter?      | filter metrics                                 | `filter: "cpu, cpu2"` $date, $date-number                                                      |
-| sum?         | sum all metrics                                | `sum: random name`                                                                             |
-| baseColor?   | Default color for the metrics display          | `baseColor: "color"`                                                                           |
-| decimal?     | Number of decimal places to display            | `decimal: 'number'`                                                                            |
-| displayText? | Text displayed in the cell                     | `displayText: 'text'`                                                                          |
-| thresholds:  | Conditions for color coding based on values    | `thresholds: [ { color: "color", value: number, condition: "condition" } ]`                    |
-| color        | color svg element                              | `color: "color"`                                                                               |
-| value        |                                                | `value: number`                                                                                |
-| condition?   | Condition for applying thresholds              | hour?, minute?, dayOfWeek?, timezone? example: `condition: "hour === 5 && minute >= 15"`       |
-
 ##### Example YAML config: [https://github.com/oxeizd/svgmodifier-panel/blob/main/templates/cfg.yaml](https://github.com/oxeizd/svgmodifier-panel/blob/main/templates/cfg.yaml)
