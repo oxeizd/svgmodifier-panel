@@ -13,6 +13,7 @@ export interface RefIds {
   label?: string;
   sum?: string;
   unit?: string;
+  thresholds: Threshold[];
 }
 
 export interface Legends {
@@ -22,6 +23,7 @@ export interface Legends {
   label?: string;
   sum?: string;
   unit?: string;
+  thresholds: Threshold[];
 }
 
 export interface Metric {
@@ -87,5 +89,6 @@ export interface PanelOptions {
     svgCode: string;
     metricsMapping: string;
     build: boolean;
+    editMode?: boolean; // Добавлено поле для режима редактирования
   };
 }
