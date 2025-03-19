@@ -316,28 +316,6 @@ export const configSchema = [
     ],
   },
   {
-    key: 'tableConfig',
-    condition: (ctx: EditorContext) =>
-      isConditionMet(ctx, 3) && ruleExistsInIdBlock(ctx.model, ctx.position, 'changes', 'above', Infinity, true),
-    items: [
-      {
-        label: 'tableConfig',
-        insertText: `- id: ''
-  attributes:
-    label: 'replace'
-    labelColor: 'metric'
-    metrics:
-      - refIds:
-        - { refid: '' }
-        baseColor: '#00ff00'
-        filling: 'none'
-        thresholds:
-          - { color: 'orange', value: 10 }
-          - { color: 'red', value: 20 }`,
-      },
-    ],
-  },
-  {
     key: 'thresholds',
     condition: (ctx: EditorContext) =>
       isConditionMet(ctx, 1) &&
@@ -353,20 +331,5 @@ export const configSchema = [
   - { color: 'red', value: 20 }`,
       },
     ],
-  },
-  {
-    key: 'add threshold',
-    condition: (ctx: EditorContext) =>
-      isConditionMet(ctx, 3) &&
-      ruleExistsInIdBlock(ctx.model, ctx.position, 'thresholds', 'above') &&
-      !ruleExistsInIdBlock(ctx.model, ctx.position, 'changes', 'above', Infinity, true),
-    items: [
-      {
-        label: 'add threshold',
-        insertText: `name: &name
-- { color: 'orange', value: 10 }
-- { color: 'red', value: 20 }`,
-      },
-    ],
-  },
+  }
 ];

@@ -88,47 +88,56 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
     });
   }, []);
 
-  const handleEditorDidMount = useCallback(
-    (editor: monacoEditor.editor.IStandaloneCodeEditor, monaco: typeof monacoEditor) => {
-      editorRef.current = editor;
+// Добавляем переменные для хранения уникальных ключей и подсказок
+let uniqueKeys: Set<string>;
+let uniqueSuggestions: Map<string, monacoEditor.languages.CompletionItem>;
 
-      monaco.languages.registerCompletionItemProvider('yaml', {
-        triggerCharacters: ['\n'],
-        provideCompletionItems: (model, position) => {
-          const context = getEditorContext(model, position);
-          const word = model.getWordUntilPosition(position);
+const handleEditorDidMount = useCallback(
+  (editor: monacoEditor.editor.IStandaloneCodeEditor, monaco: typeof monacoEditor) => {
+    editorRef.current = editor;
 
-          const range = {
-            startLineNumber: position.lineNumber,
-            endLineNumber: position.lineNumber,
-            startColumn: word.startColumn,
-            endColumn: word.endColumn,
-          };
+    // Инициализируем uniqueKeys и uniqueSuggestions
+    uniqueKeys = new Set<string>();
+    uniqueSuggestions = new Map<string, monacoEditor.languages.CompletionItem>();
 
-          // Собираем уникальные подсказки
-          const uniqueSuggestions = new Map<string, monacoEditor.languages.CompletionItem>();
+    monaco.languages.registerCompletionItemProvider('yaml', {
+      triggerCharacters: ['\n'],
+      provideCompletionItems: (model, position) => {
+        const context = getEditorContext(model, position);
+        const word = model.getWordUntilPosition(position);
 
-          const uniqueKeys = new Set<string>();
+        const range = {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: word.startColumn,
+          endColumn: word.endColumn,
+        };
 
-          configSchema.forEach(({ condition, items }) => {
-            if (condition(context)) {
-              const resolvedItems = typeof items === 'function' ? items(context) : items;
-              resolvedItems.forEach((item) => {
-                const uniqueKey = `${item.label}-${item.insertText}`;
-                if (!uniqueKeys.has(uniqueKey)) {
-                  uniqueKeys.add(uniqueKey);
-                  uniqueSuggestions.set(uniqueKey, createSuggestion(item, range));
-                }
-              });
-            }
-          });
+        // Очищаем уникальные ключи и подсказки при каждом вызове
+        uniqueKeys.clear();
+        uniqueSuggestions.clear();
 
-          return { suggestions: Array.from(uniqueSuggestions.values()) };
-        },
-      });
-    },
-    [getEditorContext, createSuggestion]
-  );
+        // Собираем уникальные подсказки
+        configSchema.forEach(({ condition, items }) => {
+          if (condition(context)) {
+            const resolvedItems = typeof items === 'function' ? items(context) : items;
+            resolvedItems.forEach((item) => {
+              const uniqueKey = `${item.label}-${item.insertText}`;
+              if (!uniqueKeys.has(uniqueKey)) {
+                uniqueKeys.add(uniqueKey);
+                uniqueSuggestions.set(uniqueKey, createSuggestion(item, range));
+              }
+            });
+          }
+        });
+
+        return { suggestions: Array.from(uniqueSuggestions.values()) };
+      },
+    });
+  },
+  [getEditorContext, createSuggestion]
+);
+
 
   return (
     <CodeEditor

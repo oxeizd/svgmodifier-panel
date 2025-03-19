@@ -20,10 +20,4 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel).setPanelOptions((b
       description: 'Enter metrics mapping in Yaml format. CTRL+SPACE for tips',
       editor: YamlEditor,
     })
-    .addBooleanSwitch({
-      path: 'jsonData.editMode',
-      name: 'Editor mode',
-      description: 'enable edit mode for SVG ids',
-      defaultValue: false,
-    });
 });
