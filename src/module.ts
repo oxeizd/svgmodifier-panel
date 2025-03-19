@@ -9,8 +9,8 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel).setPanelOptions((b
       path: 'jsonData.svgCode',
       name: 'SVG Code',
       settings: {
-        useTextarea: true,
         rows: 2,
+        useTextarea: true,
       },
     })
     .addCustomEditor({
