@@ -90,17 +90,21 @@ export class MetricProcessor {
     parentKey?: string;
   }): void {
     const { data, metric, config, colorData, isLegend, parentKey } = params;
-    const { thresholds, baseColor, displayText, decimal, filling } = metric;
+    const { baseColor, displayText, decimal, filling } = metric;
 
     const sumMode = 'sum' in config && config.sum;
 
+    // Определяем, какие пороги использовать
+    const thresholdsToUse =
+      'thresholds' in config && config.thresholds.length > 0 ? config.thresholds : metric.thresholds;
+
     if (sumMode) {
       if (data.length === 0) {
-        return;
-      } // Не создаем сумму если нет данных
+        return; // Не создаем сумму если нет данных
+      }
 
       const sumValue = data.reduce((acc, item) => acc + item.value, 0);
-      const metricColor = this.getMetricColor(sumValue, thresholds, baseColor);
+      const metricColor = this.getMetricColor(sumValue, thresholdsToUse, baseColor);
       colorData.push({
         id: this.element.id,
         refId: isLegend ? config.sum! : parentKey || '',
@@ -113,7 +117,7 @@ export class MetricProcessor {
       });
     } else {
       data.forEach((item) => {
-        const metricColor = this.getMetricColor(item.value, thresholds, baseColor);
+        const metricColor = this.getMetricColor(item.value, thresholdsToUse, baseColor);
         colorData.push({
           id: this.element.id,
           refId: isLegend ? item.displayName : parentKey || '',
@@ -200,7 +204,7 @@ export class MetricProcessor {
 
   private getMetricColor(value: number, thresholds?: Threshold[], baseColor?: string) {
     let color = baseColor || '';
-    let lvl = 0;
+    let lvl = 1;
 
     thresholds?.forEach((t, index) => {
       if (t.condition && !this.evaluateCondition(t.condition)) {
@@ -209,16 +213,16 @@ export class MetricProcessor {
 
       const operator = t.operator || '>=';
       const compareResult = this.compareValues(value, t.value, operator);
-
       if (compareResult) {
         color = t.color;
-        lvl = index + 1;
-        if (t.lvl) {
-          lvl = t.lvl;
-        }
+        lvl = t.lvl || index + 1; // Используем t.lvl, если он задан, иначе используем index + 1
       }
     });
 
+    // Если цвет остался базовым, устанавливаем lvl в 0
+    if (color === baseColor) {
+      lvl = 0;
+    }
     return { color, lvl };
   }
 

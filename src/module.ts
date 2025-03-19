@@ -1,37 +1,23 @@
 import { PanelPlugin } from '@grafana/data';
-import SvgPanel from './components/svgPanel'; // Импортируем SvgPanel
-import { PanelOptions } from './components/types'; // Импортируем PanelOptions из components/types
+import { PanelOptions } from 'components/types';
+import SvgPanel from 'components/svgPanel';
+import YamlEditor from 'components/yamlEditor/yamlEditor';
 
 export const plugin = new PanelPlugin<PanelOptions>(SvgPanel).setPanelOptions((builder) => {
   return builder
     .addTextInput({
       path: 'jsonData.svgCode',
       name: 'SVG Code',
-      description: 'Insert your SVG code here',
-      defaultValue: '',
       settings: {
         rows: 2,
         useTextarea: true,
       },
     })
-    .addTextInput({
+    .addCustomEditor({
+      id: 'metricsMapping',
       path: 'jsonData.metricsMapping',
       name: 'Metrics Mapping',
-      description: 'Enter metrics mapping in Yaml format',
-      defaultValue: 'changes:',
-      settings: {
-        rows: 25,
-        useTextarea: true,
-        maxLength: 10000,
-      },
+      description: 'Enter metrics mapping in Yaml format. CTRL+SPACE for tips',
+      editor: YamlEditor,
     });
-  // .addTextInput({
-  //   path: 'jsonData.Alias',
-  //   name: 'Aliases',
-  //   defaultValue: '',
-  //   settings: {
-  //     rows: 2,
-  //     useTextarea: true,
-  //   },
-  // });
 });
