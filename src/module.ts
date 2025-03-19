@@ -17,7 +17,21 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel).setPanelOptions((b
       id: 'metricsMapping',
       path: 'jsonData.metricsMapping',
       name: 'Metrics Mapping',
-      description: 'Enter metrics mapping in Yaml format. CTRL+SPACE for tips',
-      editor: YamlEditor,
+      description: 'Enter metrics mapping in Yaml format',
+      defaultValue: 'changes:',
+      settings: {
+        rows: 25,
+        useTextarea: true,
+        maxLength: 10000,
+      },
     });
+  // .addTextInput({
+  //   path: 'jsonData.Alias',
+  //   name: 'Aliases',
+  //   defaultValue: '',
+  //   settings: {
+  //     rows: 2,
+  //     useTextarea: true,
+  //   },
+  // });
 });
