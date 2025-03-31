@@ -46,11 +46,12 @@ export interface Change {
   id: string | string[];
   attributes: {
     autoConfig?: boolean;
+    schema?: string;
+    link?: string;
+    tooltip?: Tooltip[];
     label?: string;
     labelColor?: string;
     labelMapping?: LabelMapping[];
-    link?: string;
-    tooltip?: Tooltip[];
     metrics?: Metric[];
   };
 }
@@ -89,6 +90,5 @@ export interface PanelOptions {
     svgCode: string;
     metricsMapping: string;
     build: boolean;
-    editMode?: boolean; // Добавлено поле для режима редактирования
   };
 }

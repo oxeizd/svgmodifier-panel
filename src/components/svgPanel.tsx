@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { PanelOptions, TooltipContent, Change } from './types';
 import { PanelProps } from '@grafana/data';
-import { SvgModifier } from './modifySvg';
+import { SvgModifier } from './svgModifier/MainModifer';
 import { Tooltip } from './tooltip';
 import YAML from 'yaml';
 

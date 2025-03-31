@@ -4,9 +4,9 @@ type CalculationMethod = 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
 
 export class MetricProcessor {
   constructor(
-    private element: SVGElement,
+    private element: string,
     private metrics: Metric[],
-    private extractedValueMap: Map<string, { values: Map<string, number[]> }>
+    private extractedValueMap: Map<string, { values: Map<string, string[]> }>
   ) {}
 
   public process(): { color: ColorDataEntry[] } {
@@ -94,7 +94,6 @@ export class MetricProcessor {
 
     const sumMode = 'sum' in config && config.sum;
 
-    // Определяем, какие пороги использовать
     const thresholdsToUse =
       'thresholds' in config && config.thresholds.length > 0 ? config.thresholds : metric.thresholds;
 
@@ -106,7 +105,7 @@ export class MetricProcessor {
       const sumValue = data.reduce((acc, item) => acc + item.value, 0);
       const metricColor = this.getMetricColor(sumValue, thresholdsToUse, baseColor);
       colorData.push({
-        id: this.element.id,
+        id: this.element,
         refId: isLegend ? config.sum! : parentKey || '',
         label: config.label || displayText || config.sum!,
         color: metricColor.color,
@@ -119,7 +118,7 @@ export class MetricProcessor {
       data.forEach((item) => {
         const metricColor = this.getMetricColor(item.value, thresholdsToUse, baseColor);
         colorData.push({
-          id: this.element.id,
+          id: this.element,
           refId: isLegend ? item.displayName : parentKey || '',
           label: config.label || displayText || item.displayName,
           color: metricColor.color,
@@ -188,17 +187,16 @@ export class MetricProcessor {
   }
 
   private matchPattern(pattern: string, target: string): boolean {
-    // Проверяем, содержит ли pattern специальные символы регулярного выражения
     const regexSpecialChars = /[.*+?^${}()|[\]\\]/;
 
     if (regexSpecialChars.test(pattern)) {
       try {
         return new RegExp(pattern).test(target);
       } catch {
-        return false; // Если регулярное выражение некорректно, возвращаем false
+        return false;
       }
     } else {
-      return pattern === target; // Если специальных символов нет, выполняем точное совпадение
+      return pattern === target;
     }
   }
 
@@ -215,11 +213,10 @@ export class MetricProcessor {
       const compareResult = this.compareValues(value, t.value, operator);
       if (compareResult) {
         color = t.color;
-        lvl = t.lvl || index + 1; // Используем t.lvl, если он задан, иначе используем index + 1
+        lvl = t.lvl || index + 1;
       }
     });
 
-    // Если цвет остался базовым, устанавливаем lvl в 0
     if (color === baseColor) {
       lvl = 0;
     }

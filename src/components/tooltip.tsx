@@ -16,11 +16,9 @@ export const Tooltip: React.FC<{
       const tooltip = tooltipRef.current;
       const rect = tooltip.getBoundingClientRect();
 
-      // Рассчитываем координаты с учётом границ экрана
       let newX = x;
       let newY = y;
 
-      // Корректируем горизонтальную позицию
       if (newX + rect.width > window.innerWidth) {
         newX = window.innerWidth - rect.width - 10;
       }
@@ -28,7 +26,6 @@ export const Tooltip: React.FC<{
         newX = 10;
       }
 
-      // Корректируем вертикальную позицию
       if (newY + rect.height > window.innerHeight) {
         newY = window.innerHeight - rect.height - 10;
       }
@@ -58,24 +55,26 @@ export const Tooltip: React.FC<{
     position: 'fixed',
     left: adjustedCoords.x,
     top: adjustedCoords.y,
-    backgroundColor: '#0A0A0A',
-    padding: '8px',
+    backgroundColor: '#1E1E1E',
+    padding: '12px',
     borderRadius: '8px',
     pointerEvents: 'none',
-    boxShadow: 'none',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
     zIndex: 1000,
-    maxWidth: '500px',
+    maxWidth: '600px',
     overflow: 'hidden',
     wordWrap: 'break-word',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    whiteSpace: 'pre-line',
   };
 
   return ReactDOM.createPortal(
     <div ref={tooltipRef} style={tooltipStyle}>
-      <div style={{ color: '#fff', marginBottom: '5px' }}>{currentDateTime}</div>
+      <div style={{ color: '#A0A0A0', fontSize: '12px', marginBottom: '8px' }}>{currentDateTime}</div>
       {content.map((item, index) => (
-        <div key={index} style={{ color: item.color }}>
-          <span style={{ color: '#fff' }}>{item.label}: </span>
-          <span>{item.metric}</span>
+        <div key={index} style={{ marginBottom: '4px' }}>
+          <span style={{ color: '#FFFFFF', fontWeight: '500' }}>{item.label}: </span>
+          <span style={{ color: item.color || '#FFFFFF', fontWeight: '600' }}>{item.metric}</span>
         </div>
       ))}
     </div>,

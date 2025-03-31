@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { CodeEditor } from '@grafana/ui';
-import { StandardEditorProps } from '@grafana/data';
+import type { StandardEditorProps } from '@grafana/data';
 import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api';
 import { setDiagnosticsOptions } from 'monaco-yaml';
 import { configSchema } from './yamlSchema';
@@ -20,8 +20,8 @@ type EditorContext = {
 
 const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) => {
   const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
-  const uniqueKeys = useRef<Set<string>>(new Set());
-  const uniqueSuggestions = useRef<Map<string, monacoEditor.languages.CompletionItem>>(new Map());
+  // Add a ref to track the completion provider disposal
+  const completionProviderRef = useRef<monacoEditor.IDisposable | null>(null);
 
   const monacoOptions = useMemo(
     () => ({
@@ -84,17 +84,27 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
       enableSchemaRequest: false,
       schemas: [],
     });
+
+    // Cleanup function to dispose of the completion provider when component unmounts
+    return () => {
+      if (completionProviderRef.current) {
+        completionProviderRef.current.dispose();
+        completionProviderRef.current = null;
+      }
+    };
   }, []);
 
   const handleEditorDidMount = useCallback(
     (editor: monacoEditor.editor.IStandaloneCodeEditor, monaco: typeof monacoEditor) => {
       editorRef.current = editor;
 
-      // Clear uniqueKeys and uniqueSuggestions at the start
-      uniqueKeys.current.clear();
-      uniqueSuggestions.current.clear();
+      // Dispose of any existing completion provider before creating a new one
+      if (completionProviderRef.current) {
+        completionProviderRef.current.dispose();
+      }
 
-      monaco.languages.registerCompletionItemProvider('yaml', {
+      // Register the completion provider and store the disposable
+      completionProviderRef.current = monaco.languages.registerCompletionItemProvider('yaml', {
         triggerCharacters: ['\n'],
         provideCompletionItems: (model, position) => {
           const context = getEditorContext(model, position);
@@ -107,24 +117,24 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
             endColumn: word.endColumn,
           };
 
-          // Clear uniqueKeys and uniqueSuggestions at each call
-          uniqueKeys.current.clear();
-          uniqueSuggestions.current.clear();
+          // Clear suggestions for this specific completion request
+          const suggestions: monacoEditor.languages.CompletionItem[] = [];
+          const currentRequestKeys = new Set<string>();
 
           configSchema.forEach(({ condition, items }) => {
             if (condition(context)) {
               const resolvedItems = typeof items === 'function' ? items(context) : items;
               resolvedItems.forEach((item) => {
                 const uniqueKey = `${item.label}-${item.insertText}`;
-                if (!uniqueKeys.current.has(uniqueKey)) {
-                  uniqueKeys.current.add(uniqueKey);
-                  uniqueSuggestions.current.set(uniqueKey, createSuggestion(item, range));
+                if (!currentRequestKeys.has(uniqueKey)) {
+                  currentRequestKeys.add(uniqueKey);
+                  suggestions.push(createSuggestion(item, range));
                 }
               });
             }
           });
 
-          return { suggestions: Array.from(uniqueSuggestions.current.values()) };
+          return { suggestions };
         },
       });
     },
