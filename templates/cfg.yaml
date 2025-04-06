@@ -1,5 +1,5 @@
 changes:
-  - id: [cell-s1,'cell-text:text:l@1']
+  - id: [cell-s1, 'cell-text:text:l@1']
     attributes:
       tooltip:
         show: true
@@ -7,10 +7,10 @@ changes:
         textBelow: '12313'
       metrics:
         - refIds:
-          - { refid: 'A'}
+            - { refid: 'A' }
           legends:
-             - { legend: 'B-series' }
-             - { legend: 'C-series' }
+            - { legend: 'B-series' }
+            - { legend: 'C-series' }
           baseColor: '#00ff00'
           thresholds:
             - { color: 'orange', value: 10 }

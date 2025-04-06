@@ -99,7 +99,7 @@ export const Tooltip: React.FC<{
   return ReactDOM.createPortal(
     <div ref={tooltipRef} style={tooltipStyle}>
       <div style={{ color: '#A0A0A0', fontSize: '12px', marginBottom: '8px' }}>{currentDateTime}</div>
-  
+
       {uniqueTextAbove.length > 0 && (
         <div style={{ marginBottom: '8px' }}>
           {uniqueTextAbove.map((line, index) => (
@@ -109,14 +109,14 @@ export const Tooltip: React.FC<{
           ))}
         </div>
       )}
-  
+
       {content.map((item, index) => (
         <div key={`metric-${index}`} style={{ marginBottom: '4px' }}>
           <span style={{ color: '#FFFFFF', fontWeight: '500' }}>{item.label}: </span>
           <span style={{ color: item.color || '#FFFFFF', fontWeight: '600' }}>{item.metric}</span>
         </div>
       ))}
-  
+
       {uniqueTextBelow.length > 0 && (
         <div style={{ marginTop: '8px' }}>
           {uniqueTextBelow.map((line, index) => (

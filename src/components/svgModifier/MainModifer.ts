@@ -12,11 +12,7 @@ const regexResultCache = new Map<string, string[]>();
 export class SvgModifier {
   private svgElementsMap = new Map<string, SVGElement>();
 
-  constructor(
-    private svg: string,
-    private changes: Change[],
-    private dataFrame: any[]
-  ) {}
+  constructor(private svg: string, private changes: Change[], private dataFrame: any[]) {}
 
   public modify() {
     const { doc, colorData, tooltipData } = this.initProcessing();
@@ -41,11 +37,11 @@ export class SvgModifier {
 
   private parseSvgDocument(): Document {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(this.svg, "image/svg+xml");
+    const doc = parser.parseFromString(this.svg, 'image/svg+xml');
     const svgElement = doc.documentElement;
 
-    svgElement.setAttribute("width", "100%");
-    svgElement.setAttribute("height", "100%");
+    svgElement.setAttribute('width', '100%');
+    svgElement.setAttribute('height', '100%');
 
     const elements = doc.querySelectorAll<SVGElement>('[id^="cell"]');
     for (let i = 0; i < elements.length; i++) {
@@ -54,7 +50,7 @@ export class SvgModifier {
         this.svgElementsMap.set(element.id, element);
       }
     }
-    
+
     return doc;
   }
 
@@ -73,7 +69,9 @@ export class SvgModifier {
         const [elementPattern, schemaName, metricsSelector] = rawId.split(':');
         const matchedElementIds = this.getElementsByIdOrRegex(elementPattern);
 
-        if (matchedElementIds.length === 0) continue;
+        if (matchedElementIds.length === 0) {
+          continue;
+        }
 
         const attributesCopy = this.deepClone(change.attributes);
 
@@ -82,18 +80,18 @@ export class SvgModifier {
 
           if (metricsSelector && attributesCopy.metrics) {
             const selectedIndices = metricsSelector.split('|');
-            const preprocessedSelectors = selectedIndices.map(s => s.split('@'));
+            const preprocessedSelectors = selectedIndices.map((s) => s.split('@'));
             const metricsLength = attributesCopy.metrics.length;
 
             for (let k = 0; k < metricsLength; k++) {
               const metric = attributesCopy.metrics[k];
-              
+
               this.processSelectors(metric, preprocessedSelectors);
             }
           }
         }
 
-        matchedElementIds.forEach(id => allRelevantIds.add(id));
+        matchedElementIds.forEach((id) => allRelevantIds.add(id));
         configurations.push({
           id: matchedElementIds,
           attributes: attributesCopy,
@@ -101,7 +99,7 @@ export class SvgModifier {
       }
     }
 
-    configurations.forEach(config => {
+    configurations.forEach((config) => {
       if (config.attributes.schema) {
         this.applySchema(config.attributes);
       }
@@ -171,11 +169,11 @@ export class SvgModifier {
           matchingIds.push(elementId);
         }
       });
-      
+
       regexResultCache.set(id, matchingIds);
       return matchingIds;
     }
-    
+
     const result = this.svgElementsMap.has(id) ? [id] : [];
     regexResultCache.set(id, result);
     return result;
@@ -230,7 +228,7 @@ export class SvgModifier {
     tooltipData: TooltipContent[]
   ): void {
     const configLength = config.length;
-    
+
     for (let i = 0; i < configLength; i++) {
       const element = config[i];
       const ids = element.id;
@@ -272,7 +270,7 @@ export class SvgModifier {
 
   private getFilteredElementsMap(ids: Set<string>): Map<string, SVGElement> {
     const filteredMap = new Map<string, SVGElement>();
-    ids.forEach(id => {
+    ids.forEach((id) => {
       const element = this.svgElementsMap.get(id);
       if (element) {
         filteredMap.set(id, element);
@@ -289,7 +287,9 @@ export class SvgModifier {
   ): void {
     for (let i = 0; i < colorData.length; i++) {
       const entry = colorData[i];
-      if (!ids.includes(entry.id)) continue;
+      if (!ids.includes(entry.id)) {
+        continue;
+      }
 
       const cleanedLabel = entry.label.replace(/_prfx\d+/g, '');
       const tooltipItem: TooltipContent = {
@@ -330,7 +330,7 @@ export class SvgModifier {
     }
 
     if (ids.length > 1) {
-      const baseEntries = colorData.filter(entry => entry.id === ids[0]);
+      const baseEntries = colorData.filter((entry) => entry.id === ids[0]);
       for (let i = 1; i < ids.length; i++) {
         for (let j = 0; j < baseEntries.length; j++) {
           colorData.push({ ...baseEntries[j], id: ids[i] });
