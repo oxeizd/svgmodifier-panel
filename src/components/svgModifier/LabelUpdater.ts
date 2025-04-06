@@ -1,4 +1,4 @@
-import type { ColorDataEntry } from '../types';
+import { ColorDataEntry, LabelMapping } from '../types';
 
 export class LabelUpdater {
   public static updateElements(
@@ -6,7 +6,7 @@ export class LabelUpdater {
     label: string,
     labelColor?: string,
     colorData: ColorDataEntry[] = [],
-    labelMapping?: any[]
+    labelMapping?: LabelMapping[]
   ): void {
     for (const [id, element] of elementsMap.entries()) {
       if (!element) {

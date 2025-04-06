@@ -23,9 +23,7 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
   });
 
   const [modifiedSvg, setModifiedSvg] = useState<string>('');
-  const [tooltipData, setTooltipData] = useState<Array<{ id: string; label: string; color: string; metric: string }>>(
-    []
-  );
+  const [tooltipData, setTooltipData] = useState<TooltipContent[]>([]);
 
   const changes: Change[] = useMemo(() => {
     try {
@@ -49,21 +47,13 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
 
   const handleMouseOver = useCallback(
     (event: MouseEvent, tooltipInfo: { id: string }) => {
-      const tooltipX = event.clientX + 10;
-      const tooltipY = event.clientY;
-
       const relatedMetrics = tooltipData.filter((item) => item.id === tooltipInfo.id);
-
       if (relatedMetrics.length > 0) {
         setTooltip({
           visible: true,
-          x: tooltipX,
-          y: tooltipY,
-          content: relatedMetrics.map((metric) => ({
-            label: metric.label,
-            metric: metric.metric,
-            color: metric.color,
-          })),
+          x: event.clientX + 10,
+          y: event.clientY,
+          content: relatedMetrics,
         });
       }
     },
@@ -81,7 +71,6 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
     }
 
     const cleanupFunctions: Array<() => void> = [];
-
     tooltipData.forEach((item) => {
       const element = svgElement.querySelector(`g#${item.id}`);
       if (element) {
@@ -98,9 +87,7 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
       }
     });
 
-    return () => {
-      cleanupFunctions.forEach((cleanup) => cleanup());
-    };
+    return () => cleanupFunctions.forEach((cleanup) => cleanup());
   }, [tooltipData, handleMouseOut, handleMouseOver]);
 
   return (

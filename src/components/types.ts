@@ -57,21 +57,18 @@ export interface Change {
 }
 
 export interface TooltipContent {
+  id: string;
   label: string;
   metric: string;
   color: string;
-  text?: string;
-  dtime?: boolean;
-  backColor?: string;
-  textColor?: string;
+  textAbove?: string;
+  textBelow?: string;
 }
 
 export interface Tooltip {
   show: boolean;
-  dTime?: boolean;
-  text?: string;
-  backColor?: string;
-  textColor?: string;
+  textAbove?: string;
+  textBelow?: string;
 }
 
 export interface ColorDataEntry {

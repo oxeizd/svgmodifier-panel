@@ -51,6 +51,34 @@ export const Tooltip: React.FC<{
     hour12: false,
   }).format(new Date());
 
+  const textAbove = content.filter((item) => item.textAbove);
+  const textBelow = content.filter((item) => item.textBelow);
+
+  // Используем Set для уникальных значений
+  const uniqueTextAbove: string[] = Array.from(
+    new Set(
+      textAbove.reduce<string[]>((acc, item) => {
+        if (item.textAbove) {
+          const processedText = item.textAbove.replace(/\\n/g, '\n').split('\n');
+          acc.push(...processedText);
+        }
+        return acc;
+      }, [])
+    )
+  );
+
+  const uniqueTextBelow: string[] = Array.from(
+    new Set(
+      textBelow.reduce<string[]>((acc, item) => {
+        if (item.textBelow) {
+          const processedText = item.textBelow.replace(/\\n/g, '\n').split('\n');
+          acc.push(...processedText);
+        }
+        return acc;
+      }, [])
+    )
+  );
+
   const tooltipStyle: React.CSSProperties = {
     position: 'fixed',
     left: adjustedCoords.x,
@@ -61,22 +89,43 @@ export const Tooltip: React.FC<{
     pointerEvents: 'none',
     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
     zIndex: 1000,
-    maxWidth: '600px',
+    maxWidth: '500px',
     overflow: 'hidden',
     wordWrap: 'break-word',
     border: '1px solid rgba(255, 255, 255, 0.1)',
-    whiteSpace: 'pre-line',
+    whiteSpace: 'normal',
   };
 
   return ReactDOM.createPortal(
     <div ref={tooltipRef} style={tooltipStyle}>
       <div style={{ color: '#A0A0A0', fontSize: '12px', marginBottom: '8px' }}>{currentDateTime}</div>
+  
+      {uniqueTextAbove.length > 0 && (
+        <div style={{ marginBottom: '8px' }}>
+          {uniqueTextAbove.map((line, index) => (
+            <div key={`text-above-${index}`} style={{ color: '#FFFFFF', fontSize: '14px', fontWeight: '600' }}>
+              {line}
+            </div>
+          ))}
+        </div>
+      )}
+  
       {content.map((item, index) => (
-        <div key={index} style={{ marginBottom: '4px' }}>
+        <div key={`metric-${index}`} style={{ marginBottom: '4px' }}>
           <span style={{ color: '#FFFFFF', fontWeight: '500' }}>{item.label}: </span>
           <span style={{ color: item.color || '#FFFFFF', fontWeight: '600' }}>{item.metric}</span>
         </div>
       ))}
+  
+      {uniqueTextBelow.length > 0 && (
+        <div style={{ marginTop: '8px' }}>
+          {uniqueTextBelow.map((line, index) => (
+            <div key={`text-below-${index}`} style={{ color: '#A0A0A0', fontSize: '12px' }}>
+              {line}
+            </div>
+          ))}
+        </div>
+      )}
     </div>,
     document.body
   );

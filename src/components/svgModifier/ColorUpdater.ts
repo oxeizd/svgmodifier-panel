@@ -1,4 +1,4 @@
-import type { ColorDataEntry } from '../types';
+import { ColorDataEntry } from '../types';
 
 export class ColorApplier {
   public static applyToElements(elementsMap: Map<string, SVGElement>, colorData: ColorDataEntry[]): void {
