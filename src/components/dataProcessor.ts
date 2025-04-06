@@ -2,7 +2,15 @@ import { Legends, Metric, RefIds, Threshold, ColorDataEntry } from './types';
 
 type CalculationMethod = 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
 
+// Кэши для часто используемых вычислений
+const calculationCache = new Map<string, number>();
+const colorCache = new Map<string, { color: string; lvl: number }>();
+const conditionCache = new Map<string, boolean>();
+
 export class MetricProcessor {
+  private static readonly DATE_FORMAT_CACHE = new Map<number, string>();
+  private static readonly DECIMAL_CACHE = new Map<number, Map<number, number>>();
+
   constructor(
     private element: string,
     private metrics: Metric[],
@@ -15,11 +23,29 @@ export class MetricProcessor {
       return { color: [] };
     }
 
-    this.metrics.forEach((metric) => {
-      metric.refIds?.forEach((ref) => this.processRef(ref, metric, colorData));
-      metric.legends?.forEach((legend) => this.processLegend(legend, metric, colorData));
-    });
+    // Оптимизация: предварительная обработка метрик
+    for (let i = 0; i < this.metrics.length; i++) {
+      const metric = this.metrics[i];
+      this.processMetric(metric, colorData);
+    }
+
     return { color: colorData };
+  }
+
+  private processMetric(metric: Metric, colorData: ColorDataEntry[]): void {
+    // Обработка refIds с предварительной проверкой
+    if (metric.refIds?.length) {
+      for (let i = 0; i < metric.refIds.length; i++) {
+        this.processRef(metric.refIds[i], metric, colorData);
+      }
+    }
+
+    // Обработка legends с предварительной проверкой
+    if (metric.legends?.length) {
+      for (let i = 0; i < metric.legends.length; i++) {
+        this.processLegend(metric.legends[i], metric, colorData);
+      }
+    }
   }
 
   private processRef(ref: RefIds, metric: Metric, colorData: ColorDataEntry[]): void {
@@ -27,25 +53,19 @@ export class MetricProcessor {
       return;
     }
 
-    const globalKey = ref.refid;
-    const metricData = this.extractedValueMap.get(globalKey);
+    const metricData = this.extractedValueMap.get(ref.refid);
     if (!metricData) {
       return;
     }
 
-    const items = Array.from(metricData.values.entries()).map(([innerKey, values]) => ({
-      displayName: innerKey,
-      value: this.calculateValue(values.map(Number), ref.calculation || 'last'),
-      globalKey,
-    }));
-
+    const items = this.prepareItems(metricData, ref.calculation || 'last');
     this.processItems({
       data: this.applyFilter(items, ref.filter),
       metric,
       config: ref,
       colorData,
       isLegend: false,
-      parentKey: globalKey,
+      parentKey: ref.refid,
     });
   }
 
@@ -54,31 +74,56 @@ export class MetricProcessor {
       return;
     }
 
-    // Собираем все внутренние ключи по всем глобальным ключам, соответствующие шаблону легенды
-    const filteredItems = Array.from(this.extractedValueMap.entries()).flatMap(([globalKey, metricData]) => {
-      return Array.from(metricData.values.entries())
-        .filter(([innerKey]) => this.matchPattern(legend.legend, innerKey)) // Используем matchPattern
-        .map(([innerKey, values]) => ({
-          displayName: innerKey, // Используем внутренний ключ как идентификатор
-          value: this.calculateValue(values.map(Number), legend.calculation || 'last'),
-          globalKey,
-        }));
-    });
+    const filteredItems: Array<{ displayName: string; value: number; globalKey: string }> = [];
 
-    // Применяем дополнительный фильтр если указан
-    const filteredData = this.applyFilter(filteredItems, legend.filter);
+    // Оптимизированный обход extractedValueMap
+    for (const [globalKey, metricData] of this.extractedValueMap) {
+      for (const [innerKey, values] of metricData.values) {
+        if (this.matchPattern(legend.legend, innerKey)) {
+          filteredItems.push({
+            displayName: innerKey,
+            value: this.calculateValue(values.map(Number), legend.calculation || 'last'),
+            globalKey,
+          });
+        }
+      }
+    }
 
-    if (filteredData.length === 0) {
+    if (filteredItems.length === 0) {
       return;
     }
 
     this.processItems({
-      data: filteredData,
+      data: this.applyFilter(filteredItems, legend.filter),
       metric,
       config: legend,
       colorData,
       isLegend: true,
     });
+  }
+
+  private prepareItems(
+    metricData: { values: Map<string, string[]> },
+    calculation: CalculationMethod
+  ): Array<{ displayName: string; value: number }> {
+    const items: Array<{ displayName: string; value: number }> = [];
+
+    for (const [innerKey, values] of metricData.values) {
+      const cacheKey = `${innerKey}_${calculation}_${values.join(',')}`;
+
+      if (calculationCache.has(cacheKey)) {
+        items.push({
+          displayName: innerKey,
+          value: calculationCache.get(cacheKey)!,
+        });
+      } else {
+        const value = this.calculateValue(values.map(Number), calculation);
+        calculationCache.set(cacheKey, value);
+        items.push({ displayName: innerKey, value });
+      }
+    }
+
+    return items;
   }
 
   private processItems(params: {
@@ -93,42 +138,82 @@ export class MetricProcessor {
     const { baseColor, displayText, decimal, filling } = metric;
 
     const sumMode = 'sum' in config && config.sum;
-
-    const thresholdsToUse =
-      'thresholds' in config && config.thresholds.length > 0 ? config.thresholds : metric.thresholds;
+    const thresholdsToUse = this.getThresholds(config, metric);
 
     if (sumMode) {
       if (data.length === 0) {
-        return; // Не создаем сумму если нет данных
+        return;
       }
 
       const sumValue = data.reduce((acc, item) => acc + item.value, 0);
-      const metricColor = this.getMetricColor(sumValue, thresholdsToUse, baseColor);
-      colorData.push({
-        id: this.element,
-        refId: isLegend ? config.sum! : parentKey || '',
+      this.addColorData({
+        value: sumValue,
         label: config.label || displayText || config.sum!,
-        color: metricColor.color,
-        lvl: metricColor.lvl,
-        metric: this.formatDecimal(sumValue, decimal),
-        filling: filling || '',
-        unit: config.unit,
+        refId: isLegend ? config.sum! : parentKey || '',
+        metric,
+        config,
+        colorData,
+        decimal,
+        filling,
+        thresholds: thresholdsToUse,
+        baseColor,
       });
     } else {
-      data.forEach((item) => {
-        const metricColor = this.getMetricColor(item.value, thresholdsToUse, baseColor);
-        colorData.push({
-          id: this.element,
-          refId: isLegend ? item.displayName : parentKey || '',
-          label: config.label || displayText || item.displayName,
-          color: metricColor.color,
-          lvl: metricColor.lvl,
-          metric: this.formatDecimal(item.value, decimal),
-          filling: filling || '',
-          unit: config.unit,
+      for (let i = 0; i < data.length; i++) {
+        this.addColorData({
+          value: data[i].value,
+          label: config.label || displayText || data[i].displayName,
+          refId: isLegend ? data[i].displayName : parentKey || '',
+          metric,
+          config,
+          colorData,
+          decimal,
+          filling,
+          thresholds: thresholdsToUse,
+          baseColor,
         });
-      });
+      }
     }
+  }
+
+  private addColorData(params: {
+    value: number;
+    label: string;
+    refId: string;
+    metric: Metric;
+    config: RefIds | Legends;
+    colorData: ColorDataEntry[];
+    decimal?: number;
+    filling?: string;
+    thresholds?: Threshold[];
+    baseColor?: string;
+  }): void {
+    const { value, label, refId, config, colorData, decimal, filling, thresholds, baseColor } = params;
+
+    const colorKey = `${value}_${JSON.stringify(thresholds)}_${baseColor}`;
+    let colorResult: { color: string; lvl: number };
+
+    if (colorCache.has(colorKey)) {
+      colorResult = colorCache.get(colorKey)!;
+    } else {
+      colorResult = this.getMetricColor(value, thresholds, baseColor);
+      colorCache.set(colorKey, colorResult);
+    }
+
+    colorData.push({
+      id: this.element,
+      refId,
+      label,
+      color: colorResult.color,
+      lvl: colorResult.lvl,
+      metric: this.formatDecimal(value, decimal),
+      filling: filling || '',
+      unit: config.unit,
+    });
+  }
+
+  private getThresholds(config: RefIds | Legends, metric: Metric): Threshold[] | undefined {
+    return 'thresholds' in config && config.thresholds?.length ? config.thresholds : metric.thresholds;
   }
 
   private applyFilter(
@@ -139,12 +224,16 @@ export class MetricProcessor {
       return data;
     }
 
+    const filteredData: Array<{ displayName: string; value: number }> = [];
     const currentDate = new Date();
-    return data.filter((item) => {
-      const matchesFilter = filter.split(',').some((f) => {
-        const trimmed = f.trim();
+    const filterParts = filter.split(',');
 
-        // Проверяем на наличие префикса '-'
+    for (let i = 0; i < data.length; i++) {
+      const item = data[i];
+      let shouldInclude = false;
+
+      for (let j = 0; j < filterParts.length; j++) {
+        const trimmed = filterParts[j].trim();
         const isExclusion = trimmed.startsWith('-');
         const filterValue = isExclusion ? trimmed.slice(1) : trimmed;
 
@@ -152,15 +241,22 @@ export class MetricProcessor {
           const days = parseInt(filterValue.replace('$date', ''), 10) || 0;
           const targetDate = new Date(currentDate);
           targetDate.setDate(currentDate.getDate() - days);
-          return item.displayName === this.formatDate(targetDate);
+          if (item.displayName === this.formatDate(targetDate)) {
+            shouldInclude = !isExclusion;
+            break;
+          }
+        } else if (this.matchPattern(filterValue, item.displayName)) {
+          shouldInclude = !isExclusion;
+          break;
         }
+      }
 
-        const matches = this.matchPattern(filterValue, item.displayName);
-        return isExclusion ? !matches : matches; // Исключаем или включаем в зависимости от префикса
-      });
+      if (shouldInclude) {
+        filteredData.push(item);
+      }
+    }
 
-      return matchesFilter; // Возвращаем true, если элемент соответствует фильтру
-    });
+    return filteredData;
   }
 
   private calculateValue(values: number[], method: CalculationMethod): number {
@@ -168,54 +264,83 @@ export class MetricProcessor {
       return 0;
     }
 
+    const cacheKey = `${method}_${values.join(',')}`;
+    if (calculationCache.has(cacheKey)) {
+      return calculationCache.get(cacheKey)!;
+    }
+
+    let result: number;
     switch (method) {
       case 'last':
-        return values[values.length - 1];
+        result = values[values.length - 1];
+        break;
       case 'total':
-        return values.reduce((a, b) => a + b, 0);
+        result = values.reduce((a, b) => a + b, 0);
+        break;
       case 'max':
-        return Math.max(...values);
+        result = Math.max(...values);
+        break;
       case 'min':
-        return Math.min(...values);
+        result = Math.min(...values);
+        break;
       case 'count':
-        return values.length;
+        result = values.length;
+        break;
       case 'delta':
-        return values[values.length - 1] - values[0];
+        result = values[values.length - 1] - values[0];
+        break;
       default:
-        return values[values.length - 1];
+        result = values[values.length - 1];
     }
+
+    calculationCache.set(cacheKey, result);
+    return result;
   }
 
   private matchPattern(pattern: string, target: string): boolean {
+    if (pattern === target) {
+      return true;
+    }
+
+    const cacheKey = `${pattern}_${target}`;
+    if (conditionCache.has(cacheKey)) {
+      return conditionCache.get(cacheKey)!;
+    }
+
     const regexSpecialChars = /[.*+?^${}()|[\]\\]/;
+    let result = false;
 
     if (regexSpecialChars.test(pattern)) {
       try {
-        return new RegExp(pattern).test(target);
+        result = new RegExp(pattern).test(target);
       } catch {
-        return false;
+        result = false;
       }
-    } else {
-      return pattern === target;
     }
+
+    conditionCache.set(cacheKey, result);
+    return result;
   }
 
   private getMetricColor(value: number, thresholds?: Threshold[], baseColor?: string) {
     let color = baseColor || '';
     let lvl = 1;
 
-    thresholds?.forEach((t, index) => {
-      if (t.condition && !this.evaluateCondition(t.condition)) {
-        return;
-      }
+    if (thresholds?.length) {
+      for (let i = 0; i < thresholds.length; i++) {
+        const t = thresholds[i];
+        if (t.condition && !this.evaluateCondition(t.condition)) {
+          continue;
+        }
 
-      const operator = t.operator || '>=';
-      const compareResult = this.compareValues(value, t.value, operator);
-      if (compareResult) {
-        color = t.color;
-        lvl = t.lvl || index + 1;
+        const operator = t.operator || '>=';
+        if (this.compareValues(value, t.value, operator)) {
+          color = t.color;
+          lvl = t.lvl || i + 1;
+          break; // Используем первый подходящий порог
+        }
       }
-    });
+    }
 
     if (color === baseColor) {
       lvl = 0;
@@ -224,15 +349,24 @@ export class MetricProcessor {
   }
 
   private evaluateCondition(condition: string): boolean {
+    const cacheKey = condition;
+    if (conditionCache.has(cacheKey)) {
+      return conditionCache.get(cacheKey)!;
+    }
+
+    let result = false;
     try {
       const now = new Date();
       const timezone = parseInt(condition.match(/timezone\s*=\s*(-?\d+)/)?.[1] || '3', 10);
       const hour = (now.getUTCHours() + timezone + 24) % 24;
 
-      return new Function('hour', 'minute', 'day', `return ${condition}`)(hour, now.getUTCMinutes(), now.getUTCDay());
+      result = new Function('hour', 'minute', 'day', `return ${condition}`)(hour, now.getUTCMinutes(), now.getUTCDay());
     } catch {
-      return false;
+      result = false;
     }
+
+    conditionCache.set(cacheKey, result);
+    return result;
   }
 
   private compareValues(a: number, b: number, operator: string): boolean {
@@ -255,10 +389,28 @@ export class MetricProcessor {
   }
 
   private formatDecimal(value: number, decimals = 3): number {
-    return parseFloat(value.toFixed(decimals));
+    if (!MetricProcessor.DECIMAL_CACHE.has(decimals)) {
+      MetricProcessor.DECIMAL_CACHE.set(decimals, new Map());
+    }
+
+    const decimalMap = MetricProcessor.DECIMAL_CACHE.get(decimals)!;
+    if (decimalMap.has(value)) {
+      return decimalMap.get(value)!;
+    }
+
+    const result = parseFloat(value.toFixed(decimals));
+    decimalMap.set(value, result);
+    return result;
   }
 
   private formatDate(date: Date): string {
-    return date.toISOString().split('T')[0];
+    const time = date.getTime();
+    if (MetricProcessor.DATE_FORMAT_CACHE.has(time)) {
+      return MetricProcessor.DATE_FORMAT_CACHE.get(time)!;
+    }
+
+    const result = date.toISOString().split('T')[0];
+    MetricProcessor.DATE_FORMAT_CACHE.set(time, result);
+    return result;
   }
 }

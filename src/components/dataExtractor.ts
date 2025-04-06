@@ -10,15 +10,16 @@ export class DataExtractor {
   public extractValues(): Map<string, { values: Map<string, string[]> }> {
     const valueMap = new Map<string, { values: Map<string, string[]> }>();
 
-    this.dataFrame.forEach((frame: DataFrame) => {
+    for (let i = 0; i < this.dataFrame.length; i++) {
+      const frame: DataFrame = this.dataFrame[i];
       const metricValueField = frame.fields.find((field) => field.type === FieldType.number);
       if (!metricValueField?.values?.length) {
-        return;
+        continue;
       }
 
       const refId = frame.refId;
       if (!refId) {
-        return;
+        continue;
       }
 
       // Получаем имя на основе меток или названия поля
@@ -41,7 +42,7 @@ export class DataExtractor {
       // Сохраняем значения
       const values = metricValueField.values.map(String);
       refStore.values.set(uniqueName, values);
-    });
+    }
     return valueMap;
   }
 
