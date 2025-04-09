@@ -326,21 +326,18 @@ export class MetricProcessor {
     let color = baseColor || '';
     let lvl = 1;
 
-    if (thresholds?.length) {
-      for (let i = 0; i < thresholds.length; i++) {
-        const t = thresholds[i];
-        if (t.condition && !this.evaluateCondition(t.condition)) {
-          continue;
-        }
-
-        const operator = t.operator || '>=';
-        if (this.compareValues(value, t.value, operator)) {
-          color = t.color;
-          lvl = t.lvl || i + 1;
-          break; // Используем первый подходящий порог
-        }
+    thresholds?.forEach((t, index) => {
+      if (t.condition && !this.evaluateCondition(t.condition)) {
+        return;
       }
-    }
+
+      const operator = t.operator || '>=';
+      const compareResult = this.compareValues(value, t.value, operator);
+      if (compareResult) {
+        color = t.color;
+        lvl = t.lvl || index + 1;
+      }
+    });
 
     if (color === baseColor) {
       lvl = 0;

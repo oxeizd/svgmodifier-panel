@@ -8,106 +8,116 @@ export class LabelUpdater {
     colorData: ColorDataEntry[] = [],
     labelMapping?: LabelMapping[]
   ): void {
-    // 1. Предварительная обработка данных о цветах
-    const colorDataMap = this.createColorDataMap(colorData);
+    const colorDataMap = this.buildColorDataMap(colorData);
+    const sortedMappings = labelMapping ? this.prepareMappings(labelMapping) : undefined;
 
-    // 2. Предварительная сортировка маппинга меток
-    const sortedMappings = labelMapping ? this.sortLabelMappings(labelMapping) : undefined;
-
-    // 3. Обработка каждого элемента
     for (const [id, element] of elementsMap) {
       if (!element) {
         continue;
       }
 
-      // 4. Получение текстовых элементов
-      const labelElements = this.getLabelElements(element);
+      const labelElements = this.findLabelElements(element);
       if (!labelElements.length) {
         continue;
       }
 
-      // 5. Получение метрики для элемента
-      const metricValue = this.getMetricValue(colorDataMap, id);
-
-      // 6. Обновление содержимого подписи
-      this.updateLabelContent(labelElements, label, metricValue, sortedMappings);
-
-      // 7. Применение цвета подписи
-      this.applyLabelColor(labelElements, labelColor, colorDataMap, id);
+      const metricValue = this.calculateMaxMetric(colorDataMap, id);
+      this.processLabelContent(labelElements, label, metricValue, sortedMappings);
+      this.applyColorToLabels(labelElements, labelColor, colorDataMap, id);
     }
   }
 
-  private static createColorDataMap(colorData: ColorDataEntry[]): Map<string, ColorDataEntry[]> {
+  private static buildColorDataMap(colorData: ColorDataEntry[]): Map<string, ColorDataEntry[]> {
     const map = new Map<string, ColorDataEntry[]>();
+
     for (const entry of colorData) {
-      if (!map.has(entry.id)) {
-        map.set(entry.id, []);
-      }
-      map.get(entry.id)!.push(entry);
+      const entries = map.get(entry.id) || [];
+      entries.push(entry);
+      map.set(entry.id, entries);
     }
+
     return map;
   }
 
-  private static sortLabelMappings(mappings: LabelMapping[]): LabelMapping[] {
+  private static prepareMappings(mappings: LabelMapping[]): LabelMapping[] {
     return [...mappings].sort((a, b) => {
-      const aValue = a.value ?? 0;
-      const bValue = b.value ?? 0;
+      const aVal = a.value ?? 0;
+      const bVal = b.value ?? 0;
+      const aIsHighPriority = a.condition && ['>', '>='].includes(a.condition);
+      const bIsHighPriority = b.condition && ['>', '>='].includes(b.condition);
 
-      const aIsAscending = a.condition && ['>', '>='].includes(a.condition);
-      const bIsAscending = b.condition && ['>', '>='].includes(b.condition);
-
-      if (aIsAscending !== bIsAscending) {
-        return aIsAscending ? -1 : 1;
-      }
-
-      return aValue - bValue;
+      return aIsHighPriority === bIsHighPriority ? aVal - bVal : aIsHighPriority ? -1 : 1;
     });
   }
 
-  private static getLabelElements(element: SVGElement): Array<SVGTextElement | HTMLElement> {
-    const textElement = element.querySelector<SVGTextElement>('text');
-    const htmlElement = element
-      .querySelector<SVGForeignObjectElement>('foreignObject')
-      ?.querySelector<HTMLElement>('div');
+  private static findLabelElements(element: SVGElement): Array<SVGTextElement | HTMLElement> {
+    const elements: Array<SVGTextElement | HTMLElement> = [];
 
-    return [textElement, htmlElement].filter(Boolean) as Array<SVGTextElement | HTMLElement>;
+    const textElement = element.querySelector('text');
+    if (textElement) {
+      elements.push(textElement);
+    }
+
+    const htmlElement = element.querySelector('foreignObject')?.querySelector('div');
+    if (htmlElement) {
+      elements.push(htmlElement);
+    }
+
+    return elements;
   }
 
-  private static getMetricValue(colorDataMap: Map<string, ColorDataEntry[]>, elementId: string): number | undefined {
+  private static calculateMaxMetric(
+    colorDataMap: Map<string, ColorDataEntry[]>,
+    elementId: string
+  ): number | undefined {
     const entries = colorDataMap.get(elementId);
-    return entries?.length ? Math.max(...entries.map((entry) => entry.metric)) : undefined;
+    if (!entries?.length) {
+      return undefined;
+    }
+
+    let maxMetric = entries[0].metric;
+    for (let i = 1; i < entries.length; i++) {
+      if (entries[i].metric > maxMetric) {
+        maxMetric = entries[i].metric;
+      }
+    }
+    return maxMetric;
   }
 
-  private static updateLabelContent(
+  private static processLabelContent(
     elements: Array<SVGTextElement | HTMLElement>,
     label: string,
     metricValue: number | undefined,
     mappings?: LabelMapping[]
   ): void {
     if (label !== 'replace') {
-      elements.forEach((el) => (el.textContent = label));
+      this.setElementsText(elements, label);
       return;
     }
 
-    if (metricValue === undefined) {
-      elements.forEach((el) => (el.textContent = ''));
-      return;
-    }
+    const content =
+      metricValue === undefined ? '' : this.getMappedLabel(mappings, metricValue) ?? metricValue.toString();
 
-    const content = mappings
-      ? this.findMappedLabel(mappings, metricValue) ?? metricValue.toString()
-      : metricValue.toString();
-
-    elements.forEach((el) => (el.textContent = content));
+    this.setElementsText(elements, content);
   }
 
-  private static findMappedLabel(mappings: LabelMapping[], value: number): string | undefined {
+  private static setElementsText(elements: Array<SVGTextElement | HTMLElement>, text: string): void {
+    for (const el of elements) {
+      el.textContent = text;
+    }
+  }
+
+  private static getMappedLabel(mappings: LabelMapping[] | undefined, value: number): string | undefined {
+    if (!mappings) {
+      return undefined;
+    }
+
     for (let i = mappings.length - 1; i >= 0; i--) {
       const mapping = mappings[i];
       if (
         mapping.value !== undefined &&
         mapping.condition &&
-        this.checkCondition(value, mapping.value, mapping.condition)
+        this.evaluateCondition(value, mapping.value, mapping.condition)
       ) {
         return mapping.label;
       }
@@ -115,7 +125,7 @@ export class LabelUpdater {
     return undefined;
   }
 
-  private static checkCondition(value: number, conditionValue: number, condition: string): boolean {
+  private static evaluateCondition(value: number, conditionValue: number, condition: string): boolean {
     switch (condition) {
       case '>':
         return value > conditionValue;
@@ -134,7 +144,7 @@ export class LabelUpdater {
     }
   }
 
-  private static applyLabelColor(
+  private static applyColorToLabels(
     elements: Array<SVGTextElement | HTMLElement>,
     colorSetting: string | undefined,
     colorDataMap: Map<string, ColorDataEntry[]>,
@@ -149,21 +159,24 @@ export class LabelUpdater {
       return;
     }
 
-    let color: string;
-    if (colorSetting === 'metric') {
-      // Находим запись с максимальным значением метрики
-      const maxEntry = entries.reduce((max, current) => (current.metric > max.metric ? current : max));
-      color = maxEntry.color;
-    } else {
-      color = colorSetting;
-    }
+    const color = colorSetting === 'metric' ? this.findMaxMetricEntry(entries).color : colorSetting;
 
-    elements.forEach((el) => {
+    for (const el of elements) {
       if (el instanceof SVGTextElement) {
         el.setAttribute('fill', color);
       } else {
         (el as HTMLElement).style.color = color;
       }
-    });
+    }
+  }
+
+  private static findMaxMetricEntry(entries: ColorDataEntry[]): ColorDataEntry {
+    let maxEntry = entries[0];
+    for (let i = 1; i < entries.length; i++) {
+      if (entries[i].metric > maxEntry.metric) {
+        maxEntry = entries[i];
+      }
+    }
+    return maxEntry;
   }
 }

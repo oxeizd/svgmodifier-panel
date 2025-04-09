@@ -63,47 +63,66 @@ export class SvgModifier {
       const change = this.changes[i];
       const rawIds = Array.isArray(change.id) ? change.id : [change.id];
       const rawIdsLength = rawIds.length;
-
-      for (let j = 0; j < rawIdsLength; j++) {
-        const rawId = rawIds[j];
-        const [elementPattern, schemaName, metricsSelector] = rawId.split(':');
-        const matchedElementIds = this.getElementsByIdOrRegex(elementPattern);
-
-        if (matchedElementIds.length === 0) {
-          continue;
-        }
-
-        const attributesCopy = this.deepClone(change.attributes);
-
-        if (schemaName) {
-          attributesCopy.schema = schemaName;
-
-          if (metricsSelector && attributesCopy.metrics) {
-            const selectedIndices = metricsSelector.split('|');
-            const preprocessedSelectors = selectedIndices.map((s) => s.split('@'));
-            const metricsLength = attributesCopy.metrics.length;
-
-            for (let k = 0; k < metricsLength; k++) {
-              const metric = attributesCopy.metrics[k];
-
-              this.processSelectors(metric, preprocessedSelectors);
+      if (change.attributes.autoConfig === true) {
+        const ids = [];
+        for (let j = 0; j < rawIdsLength; j++) {
+          const rawId = rawIds[j];
+          const [elementPattern, _, __] = rawId.split(':');
+          const matchedElementIds = this.getElementsByIdOrRegex(elementPattern);
+          if (matchedElementIds.length > 0) {
+            for (let x = 0; x < matchedElementIds.length; x++) {
+              ids.push(matchedElementIds[x]);
             }
           }
         }
+        const attributesCopy = this.deepClone(change.attributes);
 
-        matchedElementIds.forEach((id) => allRelevantIds.add(id));
         configurations.push({
-          id: matchedElementIds,
+          id: ids,
           attributes: attributesCopy,
         });
-      }
-    }
+      } else {
+        for (let j = 0; j < rawIdsLength; j++) {
+          const rawId = rawIds[j];
+          const [elementPattern, schemaName, metricsSelector] = rawId.split(':');
+          const matchedElementIds = this.getElementsByIdOrRegex(elementPattern);
 
-    configurations.forEach((config) => {
-      if (config.attributes.schema) {
-        this.applySchema(config.attributes);
+          if (matchedElementIds.length === 0) {
+            continue;
+          }
+
+          const attributesCopy = this.deepClone(change.attributes);
+
+          if (schemaName) {
+            attributesCopy.schema = schemaName;
+
+            if (metricsSelector && attributesCopy.metrics) {
+              const selectedIndices = metricsSelector.split('|');
+              const preprocessedSelectors = selectedIndices.map((s) => s.split('@'));
+              const metricsLength = attributesCopy.metrics.length;
+
+              for (let k = 0; k < metricsLength; k++) {
+                const metric = attributesCopy.metrics[k];
+
+                this.processSelectors(metric, preprocessedSelectors);
+              }
+            }
+          }
+
+          matchedElementIds.forEach((id) => allRelevantIds.add(id));
+          configurations.push({
+            id: matchedElementIds,
+            attributes: attributesCopy,
+          });
+        }
       }
-    });
+
+      configurations.forEach((config) => {
+        if (config.attributes.schema) {
+          this.applySchema(config.attributes);
+        }
+      });
+    }
 
     return configurations;
   }
@@ -199,9 +218,10 @@ export class SvgModifier {
         delete attributes.label;
         delete attributes.labelColor;
         delete attributes.tooltip;
+        delete attributes.metrics.baseColor;
         if (Array.isArray(attributes.metrics)) {
           attributes.metrics[0].filling = 'stroke';
-          attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '#00ff00';
+          attributes.metrics[0].baseColor = '';
         }
         break;
       case 'text':
@@ -215,6 +235,34 @@ export class SvgModifier {
         }
         if (Array.isArray(attributes.metrics)) {
           attributes.metrics[0].filling = 'none';
+          attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '';
+        }
+        break;
+      case 'table':
+        delete attributes.link;
+        delete attributes.tooltip;
+        if (!attributes.label) {
+          attributes.label = 'replace';
+        }
+        if (!attributes.labelColor) {
+          attributes.labelColor = 'metric';
+        }
+        if (Array.isArray(attributes.metrics)) {
+          attributes.metrics[0].filling = 'fill, 20';
+          attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '#00ff00';
+        }
+        break;
+      case 'stokefill':
+        delete attributes.link;
+        delete attributes.tooltip;
+        if (!attributes.label) {
+          attributes.label = 'replace';
+        }
+        if (!attributes.labelColor) {
+          attributes.labelColor = 'metric';
+        }
+        if (Array.isArray(attributes.metrics)) {
+          attributes.metrics[0].filling = 'fill, 20';
           attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '#00ff00';
         }
         break;
@@ -237,7 +285,7 @@ export class SvgModifier {
       const processedData = processor.process();
 
       if (processedData.color) {
-        if (attributes.autoConfig === true) {
+        if (attributes.autoConfig) {
           this.handleAutoConfig(colorData, ids, processedData);
         } else {
           this.handleDefaultConfig(colorData, processedData, ids);
@@ -312,30 +360,30 @@ export class SvgModifier {
 
   private handleAutoConfig(colorData: ColorDataEntry[], ids: string[], processedData: any): void {
     const minLength = Math.min(ids.length, processedData.color.length);
-    for (let i = 0; i < minLength; i++) {
-      colorData.push({ ...processedData.color[i], id: ids[i] });
-    }
+
+    processedData.color
+      .slice(0, minLength)
+      .forEach((entry: any, index: number) => colorData.push({ ...entry, id: ids[index] }));
 
     if (processedData.color.length > ids.length) {
       const lastId = ids[ids.length - 1];
-      for (let i = minLength; i < processedData.color.length; i++) {
-        colorData.push({ ...processedData.color[i], id: lastId });
-      }
+      processedData.color.slice(minLength).forEach((entry: any) => colorData.push({ ...entry, id: lastId }));
     }
   }
 
   private handleDefaultConfig(colorData: ColorDataEntry[], processedData: any, ids: string[]): void {
-    for (let i = 0; i < processedData.color.length; i++) {
-      colorData.push(processedData.color[i]);
-    }
+    processedData.color.forEach((entry: any) => colorData.push(entry));
 
     if (ids.length > 1) {
-      const baseEntries = colorData.filter((entry) => entry.id === ids[0]);
-      for (let i = 1; i < ids.length; i++) {
-        for (let j = 0; j < baseEntries.length; j++) {
-          colorData.push({ ...baseEntries[j], id: ids[i] });
-        }
-      }
+      this.replicateColorDataForIds(colorData, ids);
     }
+  }
+
+  private replicateColorDataForIds(colorData: ColorDataEntry[], ids: string[]): void {
+    const baseEntries = colorData.filter((entry) => entry.id === ids[0]);
+
+    baseEntries.forEach((baseEntry) => {
+      ids.slice(1).forEach((id) => colorData.push({ ...baseEntry, id }));
+    });
   }
 }
