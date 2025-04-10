@@ -1,169 +1,220 @@
 import { DataExtractor } from 'components/dataExtractor';
-import { Change, ColorDataEntry, Legends, RefIds, TooltipContent } from '../types';
+import { Change, ColorDataEntry, TooltipContent } from '../types';
 import { MetricProcessor } from 'components/dataProcessor';
 import { LinkManager } from './linkManager';
 import { ColorApplier } from './ColorUpdater';
 import { LabelUpdater } from './LabelUpdater';
 import { formatValues } from './Formatter';
 
+interface SvgModifierConfig {
+  id: string[];
+  attributes: any;
+}
+
 const regexCache = new Map<string, RegExp>();
 const regexResultCache = new Map<string, string[]>();
 
 export class SvgModifier {
-  private svgElementsMap = new Map<string, SVGElement>();
+  private svgElementsMap: Map<string, SVGElement>;
+  private readonly parser: DOMParser;
+  private readonly serializer: XMLSerializer;
 
-  constructor(private svg: string, private changes: Change[], private dataFrame: any[]) {}
+  constructor(
+    private readonly svg: string,
+    private readonly changes: Change[],
+    private readonly dataFrame: any[]
+  ) {
+    this.svgElementsMap = new Map();
+    this.parser = new DOMParser();
+    this.serializer = new XMLSerializer();
+  }
 
-  public modify() {
+  public modify(): { modifiedSvg: string; tooltipData: TooltipContent[] } {
     const { doc, colorData, tooltipData } = this.initProcessing();
-    const dataExtractor = new DataExtractor(this.dataFrame);
-    const extractedValueMap = dataExtractor.extractValues();
-
+    const extractedValueMap = new DataExtractor(this.dataFrame).extractValues();
     const config = this.getConfigs();
+
     this.processing(config, extractedValueMap, colorData, tooltipData);
 
     return {
-      modifiedSvg: new XMLSerializer().serializeToString(doc),
-      tooltipData,
+      modifiedSvg: this.serializer.serializeToString(doc),
+      tooltipData
     };
   }
 
   private initProcessing() {
     const doc = this.parseSvgDocument();
-    const colorData: ColorDataEntry[] = [];
-    const tooltipData: TooltipContent[] = [];
-    return { doc, colorData, tooltipData };
+    return { 
+      doc, 
+      colorData: [] as ColorDataEntry[], 
+      tooltipData: [] as TooltipContent[] 
+    };
   }
 
   private parseSvgDocument(): Document {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(this.svg, 'image/svg+xml');
+    const doc = this.parser.parseFromString(this.svg, 'image/svg+xml');
     const svgElement = doc.documentElement;
 
     svgElement.setAttribute('width', '100%');
     svgElement.setAttribute('height', '100%');
 
     const elements = doc.querySelectorAll<SVGElement>('[id^="cell"]');
-    for (let i = 0; i < elements.length; i++) {
-      const element = elements[i];
-      if (element.id) {
-        this.svgElementsMap.set(element.id, element);
-      }
-    }
+    elements.forEach(element => {
+      if (element.id) this.svgElementsMap.set(element.id, element);
+    });
 
     return doc;
   }
 
-  private getConfigs(): Array<{ id: string[]; attributes: any }> {
-    const configurations: Array<{ id: string[]; attributes: any }> = [];
+  private getConfigs(): SvgModifierConfig[] {
+    const configurations: SvgModifierConfig[] = [];
     const allRelevantIds = new Set<string>();
-    const changesLength = this.changes.length;
 
-    for (let i = 0; i < changesLength; i++) {
-      const change = this.changes[i];
+    for (const change of this.changes) {
       const rawIds = Array.isArray(change.id) ? change.id : [change.id];
-      const rawIdsLength = rawIds.length;
-      if (change.attributes.autoConfig === true) {
-        const ids = [];
-        for (let j = 0; j < rawIdsLength; j++) {
-          const rawId = rawIds[j];
-          const [elementPattern, _, __] = rawId.split(':');
-          const matchedElementIds = this.getElementsByIdOrRegex(elementPattern);
-          if (matchedElementIds.length > 0) {
-            for (let x = 0; x < matchedElementIds.length; x++) {
-              ids.push(matchedElementIds[x]);
-            }
-          }
-        }
-        const attributesCopy = this.deepClone(change.attributes);
+      const attributes = this.deepClone(change.attributes);
 
-        configurations.push({
-          id: ids,
-          attributes: attributesCopy,
-        });
+      if (attributes.autoConfig) {
+        this.processHybridConfig(rawIds, attributes, configurations, allRelevantIds);
       } else {
-        for (let j = 0; j < rawIdsLength; j++) {
-          const rawId = rawIds[j];
-          const [elementPattern, schemaName, metricsSelector] = rawId.split(':');
-          const matchedElementIds = this.getElementsByIdOrRegex(elementPattern);
-
-          if (matchedElementIds.length === 0) {
-            continue;
-          }
-
-          const attributesCopy = this.deepClone(change.attributes);
-
-          if (schemaName) {
-            attributesCopy.schema = schemaName;
-
-            if (metricsSelector && attributesCopy.metrics) {
-              const selectedIndices = metricsSelector.split('|');
-              const preprocessedSelectors = selectedIndices.map((s) => s.split('@'));
-              const metricsLength = attributesCopy.metrics.length;
-
-              for (let k = 0; k < metricsLength; k++) {
-                const metric = attributesCopy.metrics[k];
-
-                this.processSelectors(metric, preprocessedSelectors);
-              }
-            }
-          }
-
-          matchedElementIds.forEach((id) => allRelevantIds.add(id));
-          configurations.push({
-            id: matchedElementIds,
-            attributes: attributesCopy,
-          });
-        }
+        this.processManualConfig(rawIds, attributes, configurations, allRelevantIds);
       }
-
-      configurations.forEach((config) => {
-        if (config.attributes.schema) {
-          this.applySchema(config.attributes);
-        }
-      });
     }
+
+    configurations.forEach(config => {
+      if (config.attributes.schema) this.applySchema(config.attributes);
+    });
 
     return configurations;
   }
 
-  private processSelectors(metric: any, selectors: string[][]) {
-    if (metric.refIds) {
-      const filteredRefIds: RefIds[] = [];
-      for (let l = 0; l < selectors.length; l++) {
-        const [type, indexStr] = selectors[l];
-        if (type === 'r') {
-          const index = Number(indexStr) - 1;
-          if (index >= 0 && index < metric.refIds.length) {
-            filteredRefIds.push(metric.refIds[index]);
-          }
-        }
+  private processHybridConfig(
+    rawIds: string[],
+    baseAttributes: any,
+    configurations: SvgModifierConfig[],
+    allRelevantIds: Set<string>
+  ) {
+    const autoConfigIds: string[] = [];
+    const exceptions: Array<{pattern: string; schema: string; selector: string}> = [];
+
+    // 1. Разделяем ID на обычные и исключения
+    for (const rawId of rawIds) {
+      const [pattern, schema, selector] = rawId.split(':');
+      
+      if (selector?.includes('@')) {
+        exceptions.push({ pattern, schema, selector });
+      } else {
+        autoConfigIds.push(rawId);
       }
-      metric.refIds = filteredRefIds;
     }
 
-    if (metric.legends) {
-      const filteredLegends: Legends[] = [];
-      for (let l = 0; l < selectors.length; l++) {
-        const [type, indexStr] = selectors[l];
-        if (type === 'l') {
-          const index = Number(indexStr) - 1;
-          if (index >= 0 && index < metric.legends.length) {
-            filteredLegends.push(metric.legends[index]);
-          }
+    // 2. Обрабатываем исключения
+    for (const { pattern, schema, selector } of exceptions) {
+      const matchedIds = this.getElementsByIdOrRegex(pattern);
+      if (!matchedIds.length) continue;
+
+      const exceptionAttributes = this.deepClone(baseAttributes);
+      exceptionAttributes.autoConfig = false;
+      exceptionAttributes.schema = schema;
+      
+      if (exceptionAttributes.metrics) {
+        this.processMetricsSelectors(exceptionAttributes.metrics, selector);
+      }
+
+      configurations.push({
+        id: matchedIds,
+        attributes: exceptionAttributes
+      });
+
+      matchedIds.forEach(id => allRelevantIds.add(id));
+    }
+
+    // 3. Обрабатываем автоконфиг для обычных ID
+    if (autoConfigIds.length) {
+      const ids = this.processAutoConfig(autoConfigIds);
+      if (ids.length) {
+        configurations.push({
+          id: ids,
+          attributes: baseAttributes
+        });
+      }
+    }
+  }
+
+  private processManualConfig(
+    rawIds: string[],
+    attributes: any,
+    configurations: SvgModifierConfig[],
+    allRelevantIds: Set<string>
+  ) {
+    for (const rawId of rawIds) {
+      const [pattern, schema, selector] = rawId.split(':');
+      const matchedIds = this.getElementsByIdOrRegex(pattern);
+
+      if (!matchedIds.length) continue;
+
+      const attributesCopy = this.deepClone(attributes);
+      
+      if (schema) {
+        attributesCopy.schema = schema;
+        if (selector && attributesCopy.metrics) {
+          this.processMetricsSelectors(attributesCopy.metrics, selector);
         }
       }
-      metric.legends = filteredLegends;
+
+      matchedIds.forEach(id => allRelevantIds.add(id));
+      configurations.push({
+        id: matchedIds,
+        attributes: attributesCopy
+      });
+    }
+  }
+
+  private processAutoConfig(rawIds: string[]): string[] {
+    const ids: string[] = [];
+    for (const rawId of rawIds) {
+      const [pattern] = rawId.split(':');
+      ids.push(...this.getElementsByIdOrRegex(pattern));
+    }
+    return ids;
+  }
+
+  private processMetricsSelectors(metrics: any[], selector: string): void {
+    const selectors: string[][] = selector.split('|').map((s: string) => s.split('@'));
+    
+    for (const metric of metrics) {
+      if (metric.refIds && selector != "@all") {
+        metric.refIds = metric.refIds.filter((_: any, i: number) => 
+          selectors.some(([type, idx]: string[]) => type === 'r' && Number(idx) - 1 === i)
+        );
+      }
+      if (metric.legends && selector != "@all") {
+        metric.legends = metric.legends.filter((_: any, i: number) =>
+          selectors.some(([type, idx]: string[]) => type === 'l' && Number(idx) - 1 === i)
+        );
+      }
     }
   }
 
   private deepClone<T>(obj: T): T {
-    return JSON.parse(JSON.stringify(obj));
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(item => this.deepClone(item)) as unknown as T;
+    
+    const clone = Object.create(Object.getPrototypeOf(obj));
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        clone[key] = this.deepClone(obj[key]);
+      }
+    }
+    return clone;
   }
 
   private isValidRegex(pattern: string): boolean {
+    if (regexCache.has(pattern)) return true;
+    
     try {
-      new RegExp(pattern);
+      const regex = new RegExp(pattern);
+      regexCache.set(pattern, regex);
       return /[.*+?^${}()|[\]\\]/.test(pattern);
     } catch {
       return false;
@@ -171,116 +222,76 @@ export class SvgModifier {
   }
 
   private getElementsByIdOrRegex(id: string): string[] {
-    if (regexResultCache.has(id)) {
-      return regexResultCache.get(id)!;
-    }
+    if (regexResultCache.has(id)) return regexResultCache.get(id)!;
 
-    if (this.isValidRegex(id)) {
-      let regex = regexCache.get(id);
-      if (!regex) {
-        regex = new RegExp(id);
-        regexCache.set(id, regex);
-      }
+    const result = this.isValidRegex(id)
+      ? Array.from(this.svgElementsMap.keys()).filter(k => regexCache.get(id)!.test(k))
+      : this.svgElementsMap.has(id) ? [id] : [];
 
-      const matchingIds: string[] = [];
-      this.svgElementsMap.forEach((_, elementId) => {
-        if (regex!.test(elementId)) {
-          matchingIds.push(elementId);
-        }
-      });
-
-      regexResultCache.set(id, matchingIds);
-      return matchingIds;
-    }
-
-    const result = this.svgElementsMap.has(id) ? [id] : [];
     regexResultCache.set(id, result);
     return result;
   }
 
   private applySchema(attributes: any) {
     const schema = attributes.schema;
+    if (!schema) return;
 
-    switch (schema) {
-      case 'basic':
+    const schemaActions: Record<string, () => void> = {
+      basic: () => {
         delete attributes.label;
         delete attributes.labelColor;
-        if (!attributes.tooltip) {
-          attributes.tooltip = { show: true };
-        }
-        if (Array.isArray(attributes.metrics)) {
+        attributes.tooltip = attributes.tooltip || { show: true };
+        if (attributes.metrics?.[0]) {
           attributes.metrics[0].filling = 'fill';
           attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '#00ff00';
         }
-        break;
-      case 'stroke':
-        delete attributes.link;
-        delete attributes.label;
-        delete attributes.labelColor;
-        delete attributes.tooltip;
-        delete attributes.metrics.baseColor;
-        if (Array.isArray(attributes.metrics)) {
+      },
+      stroke: () => {
+        ['link', 'label', 'labelColor', 'tooltip'].forEach(p => delete attributes[p]);
+        delete attributes.metrics?.baseColor;
+        if (attributes.metrics?.[0]) {
           attributes.metrics[0].filling = 'stroke';
           attributes.metrics[0].baseColor = '';
         }
-        break;
-      case 'text':
+      },
+      strokeBase: () => {
+        ['link', 'label', 'labelColor', 'tooltip'].forEach(p => delete attributes[p]);
+        if (attributes.metrics?.[0]) {
+          attributes.metrics[0].filling = 'stroke';
+        }
+      },
+      text: () => {
         delete attributes.link;
         delete attributes.tooltip;
-        if (!attributes.label) {
-          attributes.label = 'replace';
-        }
-        if (!attributes.labelColor) {
-          attributes.labelColor = 'metric';
-        }
-        if (Array.isArray(attributes.metrics)) {
+        attributes.label = attributes.label || 'replace';
+        attributes.labelColor = attributes.labelColor || 'metric';
+        if (attributes.metrics?.[0]) {
           attributes.metrics[0].filling = 'none';
           attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '';
         }
-        break;
-      case 'table':
+      },
+      table: () => {
         delete attributes.link;
         delete attributes.tooltip;
-        if (!attributes.label) {
-          attributes.label = 'replace';
-        }
-        if (!attributes.labelColor) {
-          attributes.labelColor = 'metric';
-        }
-        if (Array.isArray(attributes.metrics)) {
+        attributes.label = attributes.label || 'replace';
+        attributes.labelColor = attributes.labelColor || 'metric';
+        if (attributes.metrics?.[0]) {
           attributes.metrics[0].filling = 'fill, 20';
           attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '#00ff00';
         }
-        break;
-      case 'stokefill':
-        delete attributes.link;
-        delete attributes.tooltip;
-        if (!attributes.label) {
-          attributes.label = 'replace';
-        }
-        if (!attributes.labelColor) {
-          attributes.labelColor = 'metric';
-        }
-        if (Array.isArray(attributes.metrics)) {
-          attributes.metrics[0].filling = 'fill, 20';
-          attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '#00ff00';
-        }
-        break;
-    }
+      }
+    };
+
+    schemaActions[schema]?.();
   }
 
   private processing(
-    config: any[],
+    config: SvgModifierConfig[],
     extractedValueMap: Map<string, any>,
     colorData: ColorDataEntry[],
     tooltipData: TooltipContent[]
-  ): void {
-    const configLength = config.length;
-
-    for (let i = 0; i < configLength; i++) {
-      const element = config[i];
-      const ids = element.id;
-      const attributes = element.attributes;
+  ) {
+    for (const { id: ids, attributes } of config) {
       const processor = new MetricProcessor(ids[0], attributes.metrics, extractedValueMap);
       const processedData = processor.process();
 
@@ -292,11 +303,10 @@ export class SvgModifier {
         }
       }
 
-      const elementsForUpdate = this.getFilteredElementsMap(new Set(ids));
-
+      const elements = this.getElementsForUpdate(ids);
       if (attributes.label) {
         LabelUpdater.updateElements(
-          elementsForUpdate,
+          elements,
           attributes.label,
           attributes.labelColor,
           colorData,
@@ -305,85 +315,81 @@ export class SvgModifier {
       }
 
       if (attributes.link) {
-        LinkManager.addLinks(elementsForUpdate, attributes.link);
+        LinkManager.addLinks(elements, attributes.link);
       }
 
       if (attributes.tooltip?.show) {
         this.processTooltip(ids, colorData, tooltipData, attributes.tooltip);
       }
 
-      ColorApplier.applyToElements(elementsForUpdate, colorData);
+      ColorApplier.applyToElements(elements, colorData);
     }
   }
 
-  private getFilteredElementsMap(ids: Set<string>): Map<string, SVGElement> {
-    const filteredMap = new Map<string, SVGElement>();
-    ids.forEach((id) => {
-      const element = this.svgElementsMap.get(id);
-      if (element) {
-        filteredMap.set(id, element);
-      }
-    });
-    return filteredMap;
+  private getElementsForUpdate(ids: string[]): Map<string, SVGElement> {
+    const map = new Map<string, SVGElement>();
+    for (const id of ids) {
+      const el = this.svgElementsMap.get(id);
+      if (el) map.set(id, el);
+    }
+    return map;
   }
 
   private processTooltip(
     ids: string[],
     colorData: ColorDataEntry[],
     tooltipData: TooltipContent[],
-    tooltipConfig?: any
-  ): void {
-    for (let i = 0; i < colorData.length; i++) {
-      const entry = colorData[i];
-      if (!ids.includes(entry.id)) {
-        continue;
-      }
+    tooltipConfig: any
+  ) {
+    for (const entry of colorData) {
+      if (!ids.includes(entry.id)) continue;
 
-      const cleanedLabel = entry.label.replace(/_prfx\d+/g, '');
-      const tooltipItem: TooltipContent = {
+      tooltipData.push({
         id: entry.id,
-        label: cleanedLabel,
+        label: entry.label.replace(/_prfx\d+/g, ''),
         color: entry.color,
         metric: entry.unit ? formatValues(entry.metric, entry.unit) : entry.metric.toString(),
-      };
-
-      if (tooltipConfig?.textAbove) {
-        tooltipItem.textAbove = tooltipConfig.textAbove;
-      }
-      if (tooltipConfig?.textBelow) {
-        tooltipItem.textBelow = tooltipConfig.textBelow;
-      }
-
-      tooltipData.push(tooltipItem);
+        textAbove: tooltipConfig.textAbove,
+        textBelow: tooltipConfig.textBelow
+      });
     }
   }
 
-  private handleAutoConfig(colorData: ColorDataEntry[], ids: string[], processedData: any): void {
-    const minLength = Math.min(ids.length, processedData.color.length);
+  private handleAutoConfig(
+    colorData: ColorDataEntry[],
+    ids: string[],
+    processedData: { color: ColorDataEntry[] }
+  ) {
+    const minLen = Math.min(ids.length, processedData.color.length);
+    for (let i = 0; i < minLen; i++) {
+      colorData.push({ ...processedData.color[i], id: ids[i] });
+    }
 
-    processedData.color
-      .slice(0, minLength)
-      .forEach((entry: any, index: number) => colorData.push({ ...entry, id: ids[index] }));
-
-    if (processedData.color.length > ids.length) {
-      const lastId = ids[ids.length - 1];
-      processedData.color.slice(minLength).forEach((entry: any) => colorData.push({ ...entry, id: lastId }));
+    if (processedData.color.length > minLen) {
+      const lastId = ids[minLen - 1];
+      for (let i = minLen; i < processedData.color.length; i++) {
+        colorData.push({ ...processedData.color[i], id: lastId });
+      }
     }
   }
 
-  private handleDefaultConfig(colorData: ColorDataEntry[], processedData: any, ids: string[]): void {
-    processedData.color.forEach((entry: any) => colorData.push(entry));
-
+  private handleDefaultConfig(
+    colorData: ColorDataEntry[],
+    processedData: { color: ColorDataEntry[] },
+    ids: string[]
+  ) {
+    colorData.push(...processedData.color);
     if (ids.length > 1) {
       this.replicateColorDataForIds(colorData, ids);
     }
   }
 
-  private replicateColorDataForIds(colorData: ColorDataEntry[], ids: string[]): void {
-    const baseEntries = colorData.filter((entry) => entry.id === ids[0]);
-
-    baseEntries.forEach((baseEntry) => {
-      ids.slice(1).forEach((id) => colorData.push({ ...baseEntry, id }));
-    });
+  private replicateColorDataForIds(colorData: ColorDataEntry[], ids: string[]) {
+    const baseEntries = colorData.filter(e => e.id === ids[0]);
+    for (const entry of baseEntries) {
+      for (const id of ids.slice(1)) {
+        colorData.push({ ...entry, id });
+      }
+    }
   }
 }
