@@ -1,4 +1,20 @@
 changes:
+  - id: ['cell-s1', 'cell-s2', 'cell-s3:basic:r@3']
+    attributes:
+      autoConfig: true
+      link: 'http://example.com/1'
+      tooltip:
+        show: true
+      metrics:
+        - refIds:
+            - { refid: 'A', sum: '1' }
+            - { refid: 'A', sum: '2' }
+            - { refid: 'A', sum: '3' }
+          decimal: 2
+          baseColor: '#00ff00'
+          thresholds:
+            - { color: 'orange', value: 50 }
+            - { color: 'red', value: 60 }
   - id: [cell-s1, 'cell-text:text:l@1']
     attributes:
       tooltip:

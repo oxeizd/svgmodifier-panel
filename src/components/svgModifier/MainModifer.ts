@@ -101,7 +101,9 @@ export class SvgModifier {
     for (const rawId of rawIds) {
       const [pattern, schema, selector] = rawId.split(':');
 
-      if (selector?.includes('@')) {
+      if (schema && selector === undefined) {
+        exceptions.push({ pattern, schema, selector: '@all' });
+      } else if (selector?.includes('@')) {
         exceptions.push({ pattern, schema, selector });
       } else {
         autoConfigIds.push(rawId);
@@ -149,7 +151,8 @@ export class SvgModifier {
     configurations: SvgModifierConfig[],
     allRelevantIds: Set<string>
   ) {
-    for (const rawId of rawIds) {
+    for (let i = 0; i < rawIds.length; i++) {
+      const rawId = rawIds[i];
       const [pattern, schema, selector] = rawId.split(':');
       const matchedIds = this.getElementsByIdOrRegex(pattern);
 
@@ -163,6 +166,21 @@ export class SvgModifier {
         attributesCopy.schema = schema;
         if (selector && attributesCopy.metrics) {
           this.processMetricsSelectors(attributesCopy.metrics, selector);
+        }
+      }
+
+      // Обработка ссылок здесь
+      if (attributesCopy.link) {
+        if (Array.isArray(attributesCopy.link)) {
+          // Применяем ссылку из массива в зависимости от индекса
+          if (i < attributesCopy.link.length) {
+            attributesCopy.link = attributesCopy.link[i]; // Применяем только текущую ссылку
+          } else {
+            delete attributesCopy.link; // Удаляем link, если нет соответствующей ссылки
+          }
+        } else {
+          // Если это строка, применяем её ко всем элементам
+          attributesCopy.link = [attributesCopy.link]; // Преобразуем в массив для унификации
         }
       }
 
@@ -184,18 +202,34 @@ export class SvgModifier {
   }
 
   private processMetricsSelectors(metrics: any[], selector: string): void {
+    // Разбиваем селектор на части
     const selectors: string[][] = selector.split('|').map((s: string) => s.split('@'));
+
+    // Создаем массивы для хранения индексов
+    const refIdsIndexes: Set<number> = new Set();
+    const legendsIndexes: Set<number> = new Set();
+
+    // Заполняем массивы индексов
+    for (const [type, idx] of selectors) {
+      if (idx) {
+        const indexes = idx
+          .split(',')
+          .map(Number)
+          .map((i) => i - 1); // Преобразуем индексы в числа и уменьшаем на 1
+        if (type === 'r') {
+          indexes.forEach((i) => refIdsIndexes.add(i)); // Используем Set для уникальности
+        } else if (type === 'l') {
+          indexes.forEach((i) => legendsIndexes.add(i)); // Используем Set для уникальности
+        }
+      }
+    }
 
     for (const metric of metrics) {
       if (metric.refIds && selector !== '@all') {
-        metric.refIds = metric.refIds.filter((_: any, i: number) =>
-          selectors.some(([type, idx]: string[]) => type === 'r' && Number(idx) - 1 === i)
-        );
+        metric.refIds = metric.refIds.filter((_: any, i: number) => refIdsIndexes.has(i));
       }
       if (metric.legends && selector !== '@all') {
-        metric.legends = metric.legends.filter((_: any, i: number) =>
-          selectors.some(([type, idx]: string[]) => type === 'l' && Number(idx) - 1 === i)
-        );
+        metric.legends = metric.legends.filter((_: any, i: number) => legendsIndexes.has(i));
       }
     }
   }

@@ -47,7 +47,7 @@ export interface Change {
   attributes: {
     autoConfig?: boolean;
     schema?: string;
-    link?: string;
+    link?: string | string[];
     tooltip?: Tooltip[];
     label?: string;
     labelColor?: string;

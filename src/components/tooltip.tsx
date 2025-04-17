@@ -92,7 +92,7 @@ export const Tooltip: React.FC<{
     maxWidth: '500px',
     overflow: 'hidden',
     wordWrap: 'break-word',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.05)',
     whiteSpace: 'normal',
   };
 
@@ -101,7 +101,7 @@ export const Tooltip: React.FC<{
       <div style={{ color: '#A0A0A0', fontSize: '12px', marginBottom: '8px' }}>{currentDateTime}</div>
 
       {uniqueTextAbove.length > 0 && (
-        <div style={{ marginBottom: '8px' }}>
+        <div style={{ marginBottom: '4px' }}>
           {uniqueTextAbove.map((line, index) => (
             <div key={`text-above-${index}`} style={{ color: '#FFFFFF', fontSize: '14px', fontWeight: '600' }}>
               {line}
@@ -118,7 +118,7 @@ export const Tooltip: React.FC<{
       ))}
 
       {uniqueTextBelow.length > 0 && (
-        <div style={{ marginTop: '8px' }}>
+        <div style={{ marginTop: '4px' }}>
           {uniqueTextBelow.map((line, index) => (
             <div key={`text-below-${index}`} style={{ color: '#A0A0A0', fontSize: '12px' }}>
               {line}
