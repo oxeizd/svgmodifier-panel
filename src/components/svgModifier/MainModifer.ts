@@ -31,7 +31,7 @@ export class SvgModifier {
     const config = this.getConfigs();
 
     this.processing(config, extractedValueMap, colorData, tooltipData);
-
+    this.finalizeTooltipData(colorData, tooltipData);
     return {
       modifiedSvg: this.serializer.serializeToString(doc),
       tooltipData,
@@ -341,7 +341,9 @@ export class SvgModifier {
     colorData: ColorDataEntry[],
     tooltipData: TooltipContent[]
   ) {
-    for (const { id: ids, attributes } of config) {
+    const newColorDataEntries: ColorDataEntry[] = []; // Временный массив для новых записей
+
+    config.forEach(({ id: ids, attributes }) => {
       const processor = new MetricProcessor(ids[0], attributes.metrics, extractedValueMap);
       const processedData = processor.process();
 
@@ -351,6 +353,8 @@ export class SvgModifier {
         } else {
           this.handleDefaultConfig(colorData, processedData, ids);
         }
+
+        newColorDataEntries.push(...processedData.color);
       }
 
       const elements = this.getElementsForUpdate(ids);
@@ -368,12 +372,26 @@ export class SvgModifier {
         LinkManager.addLinks(elements, attributes.link);
       }
 
+      // Добавляем параметры тултипов только к новым записям
       if (attributes.tooltip?.show) {
-        this.processTooltip(ids, colorData, tooltipData, attributes.tooltip);
+        const tooltipParams = {
+          tooltip: true,
+          textAbove: attributes.tooltip.textAbove,
+          textBelow: attributes.tooltip.textBelow,
+        };
+
+        newColorDataEntries.forEach((entry) => {
+          if (ids.includes(entry.id)) {
+            Object.assign(entry, tooltipParams);
+          }
+        });
       }
 
       ColorApplier.applyToElements(elements, colorData);
-    }
+    });
+
+    // Объединяем новые записи с основным colorData
+    colorData.push(...newColorDataEntries);
   }
 
   private getElementsForUpdate(ids: string[]): Map<string, SVGElement> {
@@ -387,26 +405,24 @@ export class SvgModifier {
     return map;
   }
 
-  private processTooltip(
-    ids: string[],
-    colorData: ColorDataEntry[],
-    tooltipData: TooltipContent[],
-    tooltipConfig: any
-  ) {
-    for (const entry of colorData) {
-      if (!ids.includes(entry.id)) {
-        continue;
-      }
+  private finalizeTooltipData(colorData: ColorDataEntry[], tooltipData: TooltipContent[]) {
+    const uniqueIds = new Set<string>(); // Множество для отслеживания уникальных id
 
-      tooltipData.push({
-        id: entry.id,
-        label: entry.label.replace(/_prfx\d+/g, ''),
-        color: entry.color,
-        metric: entry.unit ? formatValues(entry.metric, entry.unit) : entry.metric.toString(),
-        textAbove: tooltipConfig.textAbove,
-        textBelow: tooltipConfig.textBelow,
-      });
-    }
+    colorData.forEach((entry) => {
+      if (entry.tooltip && !uniqueIds.has(entry.id)) {
+        // Проверяем, был ли уже добавлен этот id
+        uniqueIds.add(entry.id); // Добавляем id в множество
+        tooltipData.push({
+          id: entry.id,
+          label: entry.label.replace(/_prfx\d+/g, ''),
+          color: entry.color,
+          metric: entry.unit ? formatValues(entry.metric, entry.unit) : entry.metric.toString(),
+          textAbove: entry.textAbove,
+          textBelow: entry.textBelow,
+        });
+      }
+    });
+    console.log(tooltipData);
   }
 
   private handleAutoConfig(colorData: ColorDataEntry[], ids: string[], processedData: { color: ColorDataEntry[] }) {

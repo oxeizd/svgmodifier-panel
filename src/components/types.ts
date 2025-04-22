@@ -80,6 +80,9 @@ export interface ColorDataEntry {
   metric: number;
   filling?: string;
   unit?: string;
+  tooltip?: boolean;
+  textAbove?: string;
+  textBelow?: string;
 }
 
 export interface PanelOptions {
