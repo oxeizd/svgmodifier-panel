@@ -1,9 +1,25 @@
-import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import { CodeEditor } from '@grafana/ui';
 import type { StandardEditorProps } from '@grafana/data';
 import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api';
 import { setDiagnosticsOptions } from 'monaco-yaml';
 import { configSchema } from './yamlSchema';
+
+// Декларация интерфейсов для работы с folding API
+interface FoldingController {
+  getFoldingModel(): Promise<FoldingModel | null>;
+}
+
+interface FoldingModel {
+  getAllRegions(): FoldingRegion[];
+  dispose(): void;
+}
+
+interface FoldingRegion {
+  isCollapsed: boolean;
+  startLineNumber: number;
+  endLineNumber: number;
+}
 
 type SuggestionItem = {
   label: string;
@@ -18,10 +34,12 @@ type EditorContext = {
   model: monacoEditor.editor.ITextModel;
 };
 
+const STORAGE_KEY = 'yaml-editor-folding-state';
+
 const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) => {
   const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
-  // Add a ref to track the completion provider disposal
   const completionProviderRef = useRef<monacoEditor.IDisposable | null>(null);
+  const [initialValue] = useState(value || 'changes:\n  ');
 
   const monacoOptions = useMemo(
     () => ({
@@ -78,6 +96,68 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
     []
   );
 
+  const saveFoldingState = useCallback(async (editor: monacoEditor.editor.IStandaloneCodeEditor) => {
+    try {
+      const foldingController = editor.getContribution('editor.contrib.folding') as unknown as FoldingController;
+      if (!foldingController?.getFoldingModel) {
+        return;
+      }
+
+      const foldingModel = await foldingController.getFoldingModel();
+      if (!foldingModel) {
+        return;
+      }
+
+      const regions = foldingModel.getAllRegions();
+      const state = regions
+        .filter(region => region.isCollapsed)
+        .map(region => `${region.startLineNumber}:${region.endLineNumber}`)
+        .join(';');
+      
+      localStorage.setItem(STORAGE_KEY, state);
+      foldingModel.dispose();
+    } catch (error) {
+      console.error('Error saving folding state:', error);
+    }
+  }, []);
+
+  const restoreFoldingState = useCallback(async (editor: monacoEditor.editor.IStandaloneCodeEditor) => {
+    try {
+      const savedState = localStorage.getItem(STORAGE_KEY);
+      if (!savedState) {
+        return;
+      }
+
+      const foldingController = editor.getContribution('editor.contrib.folding') as unknown as FoldingController;
+      if (!foldingController?.getFoldingModel) {
+        return;
+      }
+
+      const foldingModel = await foldingController.getFoldingModel();
+      if (!foldingModel) {
+        return;
+      }
+
+      const regions = foldingModel.getAllRegions();
+      savedState.split(';').forEach(range => {
+        const [start, end] = range.split(':').map(Number);
+        const region = regions.find(r => r.startLineNumber === start && r.endLineNumber === end);
+        if (region && !region.isCollapsed) {
+          region.isCollapsed = true;
+        }
+      });
+
+      foldingModel.dispose();
+      
+      const currentSelection = editor.getSelection();
+      if (currentSelection) {
+        editor.setSelection(currentSelection);
+      }
+    } catch (error) {
+      console.error('Error restoring folding state:', error);
+    }
+  }, []);
+
   useEffect(() => {
     setDiagnosticsOptions({
       validate: false,
@@ -85,11 +165,9 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
       schemas: [],
     });
 
-    // Cleanup function to dispose of the completion provider when component unmounts
     return () => {
       if (completionProviderRef.current) {
         completionProviderRef.current.dispose();
-        completionProviderRef.current = null;
       }
     };
   }, []);
@@ -98,12 +176,14 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
     (editor: monacoEditor.editor.IStandaloneCodeEditor, monaco: typeof monacoEditor) => {
       editorRef.current = editor;
 
-      // Dispose of any existing completion provider before creating a new one
-      if (completionProviderRef.current) {
-        completionProviderRef.current.dispose();
-      }
+      // Восстановление состояния сворачивания
+      restoreFoldingState(editor);
 
-      // Register the completion provider and store the disposable
+      // Сохранение состояния при изменениях
+      editor.onDidChangeModelContent(() => saveFoldingState(editor));
+      editor.onDidChangeModelDecorations(() => saveFoldingState(editor));
+
+      // Регистрация провайдера автодополнения
       completionProviderRef.current = monaco.languages.registerCompletionItemProvider('yaml', {
         triggerCharacters: ['\n'],
         provideCompletionItems: (model, position) => {
@@ -117,7 +197,6 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
             endColumn: word.endColumn,
           };
 
-          // Clear suggestions for this specific completion request
           const suggestions: monacoEditor.languages.CompletionItem[] = [];
           const currentRequestKeys = new Set<string>();
 
@@ -138,18 +217,32 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
         },
       });
     },
-    [getEditorContext, createSuggestion]
+    [getEditorContext, createSuggestion, restoreFoldingState, saveFoldingState]
   );
+
+  const handleBlur = useCallback((value: string) => {
+    onChange(value);
+    if (editorRef.current) {
+      saveFoldingState(editorRef.current);
+    }
+  }, [onChange, saveFoldingState]);
+
+  const handleSave = useCallback((value: string) => {
+    onChange(value);
+    if (editorRef.current) {
+      saveFoldingState(editorRef.current);
+    }
+  }, [onChange, saveFoldingState]);
 
   return (
     <CodeEditor
-      value={value || 'changes:\n  '}
+      value={initialValue}
       language="yaml"
       width="100%"
       height="500px"
       showMiniMap={false}
-      onBlur={onChange}
-      onSave={onChange}
+      onBlur={handleBlur}
+      onSave={handleSave}
       onEditorDidMount={handleEditorDidMount}
       monacoOptions={monacoOptions}
     />
