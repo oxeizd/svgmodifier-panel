@@ -110,10 +110,10 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
 
       const regions = foldingModel.getAllRegions();
       const state = regions
-        .filter(region => region.isCollapsed)
-        .map(region => `${region.startLineNumber}:${region.endLineNumber}`)
+        .filter((region) => region.isCollapsed)
+        .map((region) => `${region.startLineNumber}:${region.endLineNumber}`)
         .join(';');
-      
+
       localStorage.setItem(STORAGE_KEY, state);
       foldingModel.dispose();
     } catch (error) {
@@ -139,16 +139,16 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
       }
 
       const regions = foldingModel.getAllRegions();
-      savedState.split(';').forEach(range => {
+      savedState.split(';').forEach((range) => {
         const [start, end] = range.split(':').map(Number);
-        const region = regions.find(r => r.startLineNumber === start && r.endLineNumber === end);
+        const region = regions.find((r) => r.startLineNumber === start && r.endLineNumber === end);
         if (region && !region.isCollapsed) {
           region.isCollapsed = true;
         }
       });
 
       foldingModel.dispose();
-      
+
       const currentSelection = editor.getSelection();
       if (currentSelection) {
         editor.setSelection(currentSelection);
@@ -220,19 +220,25 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
     [getEditorContext, createSuggestion, restoreFoldingState, saveFoldingState]
   );
 
-  const handleBlur = useCallback((value: string) => {
-    onChange(value);
-    if (editorRef.current) {
-      saveFoldingState(editorRef.current);
-    }
-  }, [onChange, saveFoldingState]);
+  const handleBlur = useCallback(
+    (value: string) => {
+      onChange(value);
+      if (editorRef.current) {
+        saveFoldingState(editorRef.current);
+      }
+    },
+    [onChange, saveFoldingState]
+  );
 
-  const handleSave = useCallback((value: string) => {
-    onChange(value);
-    if (editorRef.current) {
-      saveFoldingState(editorRef.current);
-    }
-  }, [onChange, saveFoldingState]);
+  const handleSave = useCallback(
+    (value: string) => {
+      onChange(value);
+      if (editorRef.current) {
+        saveFoldingState(editorRef.current);
+      }
+    },
+    [onChange, saveFoldingState]
+  );
 
   return (
     <CodeEditor
