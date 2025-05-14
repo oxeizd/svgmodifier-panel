@@ -26,11 +26,11 @@ export class SvgModifier {
   }
 
   public modify(): { modifiedSvg: string; tooltipData: TooltipContent[] } {
-    const { doc, colorData, tooltipData } = this.initProcessing();
+    const { doc,fullColorData, colorData, tooltipData } = this.initProcessing();
     const extractedValueMap = new DataExtractor(this.dataFrame).extractValues();
     const config = this.getConfigs();
 
-    this.processing(config, extractedValueMap, colorData, tooltipData);
+    this.processing(config, extractedValueMap, fullColorData, colorData, tooltipData);
 
     return {
       modifiedSvg: this.serializer.serializeToString(doc),
@@ -42,6 +42,7 @@ export class SvgModifier {
     const doc = this.parseSvgDocument();
     return {
       doc,
+      fullColorData: [] as ColorDataEntry[],
       colorData: [] as ColorDataEntry[],
       tooltipData: [] as TooltipContent[],
     };
@@ -338,6 +339,7 @@ export class SvgModifier {
   private processing(
     configs: SvgModifierConfig[],
     extractedValueMap: Map<string, any>,
+    fullColorData: ColorDataEntry[],
     colorData: ColorDataEntry[],
     tooltipData: TooltipContent[]
   ) {
@@ -376,9 +378,9 @@ export class SvgModifier {
         if (attributes.tooltip?.show) {
           this.processTooltip(colorData, tooltipData, attributes.tooltip);
         }
-
+        fullColorData.push(...colorData);
         // Применение цветов
-        ColorApplier.applyToElements(elements, colorData);
+        ColorApplier.applyToElements(elements, fullColorData);
       }
     }
   }
