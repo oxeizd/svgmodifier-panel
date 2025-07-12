@@ -5,7 +5,7 @@ import { SvgModifier } from './svgModifier/MainModifer';
 import { Tooltip } from './tooltip';
 import YAML from 'yaml';
 
-const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data }) => {
+const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data, width, height }) => {
   const svgContainerRef = useRef<HTMLDivElement>(null);
   const svgCode = useMemo(
     () =>
@@ -95,8 +95,8 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
       style={{
         position: 'relative',
         overflow: 'hidden',
-        height: '100%',
-        width: '100%',
+        height: `${height}px`,
+        width: `${width}px`,
         border: 'none',
         boxShadow: 'none',
       }}
@@ -104,7 +104,11 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
     >
       <div
         dangerouslySetInnerHTML={{ __html: modifiedSvg }}
-        style={{ width: '100%', height: '100%', display: 'block' }}
+        style={{
+          height: `${height}px`,
+          width: `${width}px`,
+          display: 'block',
+        }}
       />
       <Tooltip visible={tooltip.visible} x={tooltip.x} y={tooltip.y} content={tooltip.content} />
     </div>

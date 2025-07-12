@@ -26,7 +26,7 @@ export class SvgModifier {
   }
 
   public modify(): { modifiedSvg: string; tooltipData: TooltipContent[] } {
-    const { doc,fullColorData, colorData, tooltipData } = this.initProcessing();
+    const { doc, fullColorData, colorData, tooltipData } = this.initProcessing();
     const extractedValueMap = new DataExtractor(this.dataFrame).extractValues();
     const config = this.getConfigs();
 

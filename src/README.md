@@ -1,21 +1,8 @@
 # SVG Modifier
 
 **SVG Modifier** is a plugin for Grafana that allows users to visualize data in SVG format. The plugin processes SVG images, changes the colors of elements based on metrics and threshold values, and adds interactive elements such as tooltips and links.
+
 ![image](https://github.com/oxeizd/svgmodifier-panel/blob/main/src/img/example.png)
-
-## Functional Features
-
-### Dynamic SVG Modification
-
-The plugin allows users to change the colors of SVG elements based on metrics and set threshold values for metrics, enabling the visual highlighting of critical states. Users can customize color schemes and styles according to metric values, helping them respond quickly to changes.
-
-### Tooltips
-
-The plugin supports the display of tooltips that show information about metrics when hovering over SVG elements. This allows users to obtain additional information without the need to navigate to other panels or pages.
-
-### Interactive Links
-
-The ability to add interactive links to SVG elements enables users to navigate to additional information or other panels.
 
 ## How to use
 
