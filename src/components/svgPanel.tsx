@@ -8,10 +8,8 @@ import YAML from 'yaml';
 const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data, width, height }) => {
   const svgContainerRef = useRef<HTMLDivElement>(null);
   const svgCode = useMemo(
-    () =>
-      options.jsonData.svgCode ||
-      '<svg width="100%" height="100%" style="background-color:rgba(240, 240, 240, 0);"></svg>',
-    [options.jsonData.svgCode]
+    () => options.svgCode || '<svg width="100%" height="100%" style="background-color:rgba(240, 240, 240, 0);"></svg>',
+    [options.svgCode]
   );
   const dataFrame = data.series;
 
@@ -27,12 +25,12 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
 
   const changes: Change[] = useMemo(() => {
     try {
-      const metricsMapping = YAML.parse(options.jsonData.metricsMapping);
+      const metricsMapping = YAML.parse(options.metricsMapping);
       return metricsMapping.changes || [];
     } catch {
       return [];
     }
-  }, [options.jsonData.metricsMapping]);
+  }, [options.metricsMapping]);
 
   const modifySvgAsync = useCallback(async () => {
     const svgModifier = new SvgModifier(svgCode, changes, dataFrame);
