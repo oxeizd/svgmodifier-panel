@@ -1,10 +1,11 @@
 import { DataExtractor } from 'components/dataExtractor';
 import { Change, ColorDataEntry, TooltipContent } from '../types';
 import { MetricProcessor } from 'components/dataProcessor';
-import { LinkManager } from './linkManager';
-import { ColorApplier } from './ColorUpdater';
-import { LabelUpdater } from './LabelUpdater';
+import { LinkManager } from './addLink';
+import { ColorApplier } from './ConfigColor';
+import { LabelUpdater } from './ConfigLabel';
 import { formatValues } from './Formatter';
+import { applySchema } from './ConfigSchema';
 
 interface SvgModifierConfig {
   id: string[];
@@ -82,7 +83,7 @@ export class SvgModifier {
 
     configurations.forEach((config) => {
       if (config.attributes.schema) {
-        this.applySchema(config.attributes);
+        applySchema(config.attributes);
       }
     });
 
@@ -281,61 +282,6 @@ export class SvgModifier {
     return result;
   }
 
-  private applySchema(attributes: any) {
-    const schema = attributes.schema;
-    if (!schema) {
-      return;
-    }
-
-    const schemaActions: Record<string, () => void> = {
-      basic: () => {
-        delete attributes.label;
-        delete attributes.labelColor;
-        attributes.tooltip = attributes.tooltip || { show: true };
-        if (attributes.metrics?.[0]) {
-          attributes.metrics[0].filling = 'fill';
-          attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '#00ff00';
-        }
-      },
-      stroke: () => {
-        ['link', 'label', 'labelColor', 'tooltip'].forEach((p) => delete attributes[p]);
-        delete attributes.metrics?.baseColor;
-        if (attributes.metrics?.[0]) {
-          attributes.metrics[0].filling = 'stroke';
-          attributes.metrics[0].baseColor = '';
-        }
-      },
-      strokeBase: () => {
-        ['link', 'label', 'labelColor', 'tooltip'].forEach((p) => delete attributes[p]);
-        if (attributes.metrics?.[0]) {
-          attributes.metrics[0].filling = 'stroke';
-        }
-      },
-      text: () => {
-        delete attributes.link;
-        delete attributes.tooltip;
-        attributes.label = attributes.label || 'replace';
-        attributes.labelColor = attributes.labelColor || 'metric';
-        if (attributes.metrics?.[0]) {
-          attributes.metrics[0].filling = 'none';
-          attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '';
-        }
-      },
-      table: () => {
-        delete attributes.link;
-        delete attributes.tooltip;
-        attributes.label = attributes.label || 'replace';
-        attributes.labelColor = attributes.labelColor || 'metric';
-        if (attributes.metrics?.[0]) {
-          attributes.metrics[0].filling = 'fill, 20';
-          attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '#00ff00';
-        }
-      },
-    };
-
-    schemaActions[schema]?.();
-  }
-
   private processing(
     configs: SvgModifierConfig[],
     extractedValueMap: Map<string, any>,
@@ -403,6 +349,7 @@ export class SvgModifier {
         label: entry.label.replace(/_prfx\d+/g, ''),
         color: entry.color,
         metric: entry.unit ? formatValues(entry.metric, entry.unit) : entry.metric.toString(),
+        title: entry.title,
         textAbove: tooltipConfig.textAbove,
         textBelow: tooltipConfig.textBelow,
       });

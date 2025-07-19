@@ -13,15 +13,18 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
   );
   const dataFrame = data.series;
 
-  const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; content: TooltipContent[] }>({
+  const [tooltip, setTooltip] = useState({
     visible: false,
     x: 0,
     y: 0,
-    content: [],
+    content: [] as TooltipContent[],
   });
 
-  const [modifiedSvg, setModifiedSvg] = useState<string>('');
+  const [modifiedSvg, setModifiedSvg] = useState('');
   const [tooltipData, setTooltipData] = useState<TooltipContent[]>([]);
+
+  const tooltipDataRef = useRef<TooltipContent[]>([]);
+  tooltipDataRef.current = tooltipData;
 
   const changes: Change[] = useMemo(() => {
     try {
@@ -44,70 +47,83 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
   }, [modifySvgAsync]);
 
   const handleMouseOver = useCallback(
-    (event: MouseEvent, tooltipInfo: { id: string }) => {
-      const relatedMetrics = tooltipData.filter((item) => item.id === tooltipInfo.id);
-      if (relatedMetrics.length > 0) {
-        setTooltip({
-          visible: true,
-          x: event.clientX + 10,
-          y: event.clientY,
-          content: relatedMetrics,
-        });
+    (e: MouseEvent) => {
+      const targetElement = e.target as Element | null;
+      if (!targetElement) {
+        return;
+      }
+
+      let currentElement: Element | null = targetElement;
+      while (currentElement && currentElement !== svgContainerRef.current) {
+        if (currentElement.id) {
+          const currentId = currentElement.id;
+          const hasTooltipData = tooltipDataRef.current.some((td) => td.id === currentId);
+
+          if (hasTooltipData) {
+            const relatedMetrics = tooltipDataRef.current.filter((td) => td.id === currentId);
+            setTooltip({
+              visible: true,
+              x: e.clientX + 10,
+              y: e.clientY,
+              content: relatedMetrics,
+            });
+            return;
+          }
+        }
+        currentElement = currentElement.parentElement;
+      }
+
+      if (tooltip.visible) {
+        setTooltip((prev) => ({ ...prev, visible: false }));
       }
     },
-    [tooltipData]
+    [tooltip.visible]
   );
 
-  const handleMouseOut = useCallback(() => {
-    setTooltip((prevTooltip) => ({ ...prevTooltip, visible: false }));
+  const handleMouseOut = useCallback((e: MouseEvent) => {
+    const relatedTarget = e.relatedTarget as Node | null;
+
+    if (!svgContainerRef.current?.contains(relatedTarget)) {
+      setTooltip((prev) => ({ ...prev, visible: false }));
+    }
   }, []);
 
   useEffect(() => {
-    const svgElement = svgContainerRef.current?.querySelector('svg');
-    if (!svgElement || tooltipData.length === 0) {
+    const container = svgContainerRef.current;
+    if (!container) {
       return;
     }
 
-    const cleanupFunctions: Array<() => void> = [];
-    tooltipData.forEach((item) => {
-      const element = svgElement.querySelector(`g#${item.id}`);
-      if (element) {
-        const mouseOverHandler = (e: MouseEvent) => handleMouseOver(e, { id: item.id });
-        const mouseOutHandler = handleMouseOut;
+    container.addEventListener('mouseover', handleMouseOver as EventListener);
+    container.addEventListener('mouseout', handleMouseOut as EventListener);
 
-        element.addEventListener('mouseover', mouseOverHandler as EventListener);
-        element.addEventListener('mouseout', mouseOutHandler);
-
-        cleanupFunctions.push(() => {
-          element.removeEventListener('mouseover', mouseOverHandler as EventListener);
-          element.removeEventListener('mouseout', mouseOutHandler);
-        });
-      }
-    });
-
-    return () => cleanupFunctions.forEach((cleanup) => cleanup());
-  }, [tooltipData, handleMouseOut, handleMouseOver]);
+    return () => {
+      container.removeEventListener('mouseover', handleMouseOver as EventListener);
+      container.removeEventListener('mouseout', handleMouseOut as EventListener);
+    };
+  }, [handleMouseOver, handleMouseOut]);
 
   return (
     <div
+      ref={svgContainerRef}
       style={{
         position: 'relative',
-        overflow: 'hidden',
         height: `${height}px`,
         width: `${width}px`,
+        overflow: 'hidden',
         border: 'none',
         boxShadow: 'none',
       }}
-      ref={svgContainerRef}
     >
       <div
         dangerouslySetInnerHTML={{ __html: modifiedSvg }}
         style={{
+          display: 'block',
           height: `${height}px`,
           width: `${width}px`,
-          display: 'block',
         }}
       />
+
       <Tooltip visible={tooltip.visible} x={tooltip.x} y={tooltip.y} content={tooltip.content} />
     </div>
   );

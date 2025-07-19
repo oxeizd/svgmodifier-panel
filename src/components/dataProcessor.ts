@@ -187,8 +187,9 @@ export class MetricProcessor {
     filling?: string;
     thresholds?: Threshold[];
     baseColor?: string;
+    weight?: number[];
   }): void {
-    const { value, label, refId, config, colorData, decimal, filling, thresholds, baseColor } = params;
+    const { value, label, refId, config, colorData, decimal, filling, thresholds, baseColor, weight } = params;
 
     const colorKey = `${value}_${JSON.stringify(thresholds)}_${baseColor}`;
     let colorResult: { color: string; lvl: number };
@@ -209,6 +210,8 @@ export class MetricProcessor {
       metric: this.formatDecimal(value, decimal),
       filling: filling || '',
       unit: config.unit,
+      title: config.title,
+      weight,
     });
   }
 

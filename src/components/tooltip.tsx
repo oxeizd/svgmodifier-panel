@@ -1,6 +1,6 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { TooltipContent } from './types';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 
 export const Tooltip: React.FC<{
   visible: boolean;
@@ -83,16 +83,16 @@ export const Tooltip: React.FC<{
     position: 'fixed',
     left: adjustedCoords.x,
     top: adjustedCoords.y,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: 'rgba(30, 30, 30, 1)',
     padding: '12px',
-    borderRadius: '8px',
+    borderRadius: '4px',
     pointerEvents: 'none',
     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
     zIndex: 1000,
     maxWidth: '500px',
     overflow: 'hidden',
     wordWrap: 'break-word',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.07)',
     whiteSpace: 'normal',
   };
 
@@ -112,6 +112,7 @@ export const Tooltip: React.FC<{
 
       {content.map((item, index) => (
         <div key={`metric-${index}`} style={{ marginBottom: '4px' }}>
+          {item.title && <div style={{ color: '#A0A0A0', fontWeight: '300', marginBottom: '2px' }}>{item.title}</div>}
           <span style={{ color: '#FFFFFF', fontWeight: '500' }}>{item.label}: </span>
           <span style={{ color: item.color || '#FFFFFF', fontWeight: '600' }}>{item.metric}</span>
         </div>
