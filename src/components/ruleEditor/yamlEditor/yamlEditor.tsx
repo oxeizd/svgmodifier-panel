@@ -1,9 +1,9 @@
-import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import { CodeEditor } from '@grafana/ui';
-import type { StandardEditorProps } from '@grafana/data';
 import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api';
 import { setDiagnosticsOptions } from 'monaco-yaml';
 import { configSchema } from './yamlSchema';
+import { css } from '@emotion/css';
 
 type SuggestionItem = {
   label: string;
@@ -18,10 +18,20 @@ type EditorContext = {
   model: monacoEditor.editor.ITextModel;
 };
 
-const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) => {
+type YamlEditorProps = {
+  value: string;
+  onChange: (value?: string) => void;
+  context?: {
+    schemas?: any[];
+    data?: any[];
+    options?: any;
+  };
+};
+
+const YamlEditor: React.FC<YamlEditorProps> = ({ value, onChange, context }) => {
   const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
-  // Add a ref to track the completion provider disposal
   const completionProviderRef = useRef<monacoEditor.IDisposable | null>(null);
+  const [errors, setErrors] = useState<monacoEditor.editor.IMarkerData[]>([]);
 
   const monacoOptions = useMemo(
     () => ({
@@ -46,6 +56,7 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
       suggestOnTriggerCharacters: false,
       autoClosingBrackets: 'always' as const,
       autoClosingQuotes: 'always' as const,
+      theme: 'vs-dark',
     }),
     []
   );
@@ -78,32 +89,61 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
     []
   );
 
+  const handleBlur = () => {
+    if (onChange && editorRef.current) {
+      const currentValue = editorRef.current.getValue();
+      onChange(currentValue || '');
+    }
+  };
+
+  const handleSave = () => {
+    if (onChange && editorRef.current) {
+      const currentValue = editorRef.current.getValue();
+      onChange(currentValue || '');
+    }
+  };
+
   useEffect(() => {
     setDiagnosticsOptions({
-      validate: false,
-      enableSchemaRequest: false,
-      schemas: [],
+      validate: true,
+      enableSchemaRequest: true,
+      schemas: context?.schemas || [],
+      format: true,
     });
 
-    // Cleanup function to dispose of the completion provider when component unmounts
+    const model = editorRef.current?.getModel();
+    if (model) {
+      const markerListener = monacoEditor.editor.onDidChangeMarkers((uris) => {
+        const currentUri = model.uri;
+        if (uris.some(uri => uri.toString() === currentUri.toString())) {
+          const markers = monacoEditor.editor.getModelMarkers({ resource: model.uri });
+          setErrors(markers);
+        }
+      });
+
+      return () => {
+        markerListener.dispose();
+        if (completionProviderRef.current) {
+          completionProviderRef.current.dispose();
+        }
+      };
+    }
+
     return () => {
       if (completionProviderRef.current) {
         completionProviderRef.current.dispose();
-        completionProviderRef.current = null;
       }
     };
-  }, []);
+  }, [context?.schemas]);
 
   const handleEditorDidMount = useCallback(
     (editor: monacoEditor.editor.IStandaloneCodeEditor, monaco: typeof monacoEditor) => {
       editorRef.current = editor;
 
-      // Dispose of any existing completion provider before creating a new one
       if (completionProviderRef.current) {
         completionProviderRef.current.dispose();
       }
 
-      // Register the completion provider and store the disposable
       completionProviderRef.current = monaco.languages.registerCompletionItemProvider('yaml', {
         triggerCharacters: ['\n'],
         provideCompletionItems: (model, position) => {
@@ -117,7 +157,6 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
             endColumn: word.endColumn,
           };
 
-          // Clear suggestions for this specific completion request
           const suggestions: monacoEditor.languages.CompletionItem[] = [];
           const currentRequestKeys = new Set<string>();
 
@@ -142,18 +181,75 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
   );
 
   return (
-    <CodeEditor
-      value={value || 'changes:\n  '}
-      language="yaml"
-      width="100%"
-      height="500px"
-      showMiniMap={false}
-      onBlur={onChange}
-      onSave={onChange}
-      onEditorDidMount={handleEditorDidMount}
-      monacoOptions={monacoOptions}
-    />
+    <div className={yamlEditorStyles.container}>
+      <div className={yamlEditorStyles.header}>
+        <div className={yamlEditorStyles.status}>
+          <span className={errors.length === 0 ? yamlEditorStyles.valid : yamlEditorStyles.invalid}>
+            {errors.length === 0 ? "✓ Valid YAML" : `✗ ${errors.length} error(s)`}
+          </span>
+          {errors.length > 0 && (
+            <div className={yamlEditorStyles.errors}>
+              {errors.map((error, i) => (
+                <div key={i} className={yamlEditorStyles.error}>
+                  Line {error.startLineNumber}: {error.message}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <CodeEditor
+        value={value || ''}
+        language="yaml"
+        width="100%"
+        height="450px"
+        showMiniMap={false}
+        onBlur={handleBlur}
+        onSave={handleSave}
+        onEditorDidMount={handleEditorDidMount}
+        monacoOptions={monacoOptions}
+      />
+    </div>
   );
+};
+
+const yamlEditorStyles = {
+  container: css`
+    border: 1px solid #262a2e;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #1a1d21;
+  `,
+  header: css`
+    padding: 8px 16px;
+    background: #262a2e;
+    border-bottom: 1px solid #30363d;
+  `,
+  status: css`
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+  `,
+  valid: css`
+    color: #3fb950;
+  `,
+  invalid: css`
+    color: #f85149;
+  `,
+  errors: css`
+    margin-top: 4px;
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 11px;
+  `,
+  error: css`
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(248, 81, 73, 0.2);
+    &:last-child {
+      border-bottom: none;
+    }
+  `
 };
 
 export default React.memo(YamlEditor);

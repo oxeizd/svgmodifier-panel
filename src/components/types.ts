@@ -1,10 +1,12 @@
 export interface Change {
-  id: string | string[];
+  rule: string;
+  group: string;
+  id: string | string[]
   attributes: {
     autoConfig?: boolean;
     schema?: string;
     link?: string | string[];
-    tooltip?: Tooltip[];
+    tooltip?: Tooltip;
     label?: string;
     labelColor?: string;
     labelMapping?: LabelMapping[];
@@ -90,4 +92,15 @@ export interface ColorDataEntry {
 export interface PanelOptions {
   svgCode: string;
   metricsMapping: string;
+}
+
+interface RuleGroup {
+  name: string
+  collapsed: boolean // Добавляем поле collapsed
+  rules: Change[]
+}
+
+export interface GroupedRules {
+  groups: RuleGroup[]
+  ungrouped: Change[]
 }
