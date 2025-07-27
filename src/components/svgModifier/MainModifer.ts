@@ -13,7 +13,7 @@ interface SvgModifierConfig {
 }
 
 const regexCache = new Map<string, RegExp>();
-const regexResultCache = new Map<string, string[]>();
+const MAX_REGEX_CACHE_SIZE = 100;
 
 export class SvgModifier {
   private svgElementsMap: Map<string, SVGElement>;
@@ -37,6 +37,10 @@ export class SvgModifier {
       modifiedSvg: this.serializer.serializeToString(doc),
       tooltipData,
     };
+  }
+
+  public clearCache(): void {
+    regexCache.clear();
   }
 
   private initProcessing() {
@@ -99,7 +103,6 @@ export class SvgModifier {
     const autoConfigIds: string[] = [];
     const exceptions: Array<{ pattern: string; schema: string; selector: string }> = [];
 
-    // 1. Разделяем ID на обычные и исключения
     for (const rawId of rawIds) {
       const [pattern, schema, selector] = rawId.split(':');
 
@@ -112,7 +115,6 @@ export class SvgModifier {
       }
     }
 
-    // 2. Обрабатываем исключения
     for (const { pattern, schema, selector } of exceptions) {
       const matchedIds = this.getElementsByIdOrRegex(pattern);
       if (!matchedIds.length) {
@@ -135,7 +137,6 @@ export class SvgModifier {
       matchedIds.forEach((id) => allRelevantIds.add(id));
     }
 
-    // 3. Обрабатываем автоконфиг для обычных ID
     if (autoConfigIds.length) {
       const ids = this.processAutoConfig(autoConfigIds);
       if (ids.length) {
@@ -171,18 +172,15 @@ export class SvgModifier {
         }
       }
 
-      // Обработка ссылок здесь
       if (attributesCopy.link) {
         if (Array.isArray(attributesCopy.link)) {
-          // Применяем ссылку из массива в зависимости от индекса
           if (i < attributesCopy.link.length) {
-            attributesCopy.link = attributesCopy.link[i]; // Применяем только текущую ссылку
+            attributesCopy.link = attributesCopy.link[i];
           } else {
-            delete attributesCopy.link; // Удаляем link, если нет соответствующей ссылки
+            delete attributesCopy.link;
           }
         } else {
-          // Если это строка, применяем её ко всем элементам
-          attributesCopy.link = [attributesCopy.link]; // Преобразуем в массив для унификации
+          attributesCopy.link = [attributesCopy.link];
         }
       }
 
@@ -204,24 +202,20 @@ export class SvgModifier {
   }
 
   private processMetricsSelectors(metrics: any[], selector: string): void {
-    // Разбиваем селектор на части
     const selectors: string[][] = selector.split('|').map((s: string) => s.split('@'));
-
-    // Создаем массивы для хранения индексов
     const refIdsIndexes: Set<number> = new Set();
     const legendsIndexes: Set<number> = new Set();
 
-    // Заполняем массивы индексов
     for (const [type, idx] of selectors) {
       if (idx) {
         const indexes = idx
           .split(',')
           .map(Number)
-          .map((i) => i - 1); // Преобразуем индексы в числа и уменьшаем на 1
+          .map((i) => i - 1);
         if (type === 'r') {
-          indexes.forEach((i) => refIdsIndexes.add(i)); // Используем Set для уникальности
+          indexes.forEach((i) => refIdsIndexes.add(i));
         } else if (type === 'l') {
-          indexes.forEach((i) => legendsIndexes.add(i)); // Используем Set для уникальности
+          indexes.forEach((i) => legendsIndexes.add(i));
         }
       }
     }
@@ -259,6 +253,10 @@ export class SvgModifier {
     }
 
     try {
+      if (regexCache.size >= MAX_REGEX_CACHE_SIZE) {
+        regexCache.clear();
+      }
+
       const regex = new RegExp(pattern);
       regexCache.set(pattern, regex);
       return /[.*+?^${}()|[\]\\]/.test(pattern);
@@ -268,18 +266,11 @@ export class SvgModifier {
   }
 
   private getElementsByIdOrRegex(id: string): string[] {
-    if (regexResultCache.has(id)) {
-      return regexResultCache.get(id)!;
-    }
-
-    const result = this.isValidRegex(id)
+    return this.isValidRegex(id)
       ? Array.from(this.svgElementsMap.keys()).filter((k) => regexCache.get(id)!.test(k))
       : this.svgElementsMap.has(id)
       ? [id]
       : [];
-
-    regexResultCache.set(id, result);
-    return result;
   }
 
   private processing(
@@ -293,11 +284,9 @@ export class SvgModifier {
       colorData.length = 0;
       const { id: ids, attributes } = config;
 
-      // Обработка метрик
       const processor = new MetricProcessor(ids[0], attributes.metrics, extractedValueMap);
-      const processedData = processor.process(); // Перезаписываем данные
+      const processedData = processor.process();
 
-      // Обработка цветов
       if (processedData && processedData.color) {
         if (attributes.autoConfig) {
           this.handleAutoConfig(colorData, ids, processedData);
@@ -305,7 +294,6 @@ export class SvgModifier {
           this.handleDefaultConfig(colorData, processedData, ids);
         }
 
-        // Обновление элементов
         const elements = this.getElementsForUpdate(ids);
         if (attributes.label) {
           LabelUpdater.updateElements(
@@ -325,7 +313,6 @@ export class SvgModifier {
           this.processTooltip(colorData, tooltipData, attributes.tooltip);
         }
         fullColorData.push(...colorData);
-        // Применение цветов
         ColorApplier.applyToElements(elements, fullColorData);
       }
     }

@@ -38,6 +38,9 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
   const modifySvgAsync = useCallback(async () => {
     const svgModifier = new SvgModifier(svgCode, changes, dataFrame);
     const { modifiedSvg, tooltipData } = await svgModifier.modify();
+
+    svgModifier.clearCache();
+
     setModifiedSvg(modifiedSvg);
     setTooltipData(tooltipData);
   }, [svgCode, changes, dataFrame]);

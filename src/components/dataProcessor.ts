@@ -2,20 +2,18 @@ import { Legends, Metric, RefIds, Threshold, ColorDataEntry } from './types';
 
 type CalculationMethod = 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
 
-// Кэши для часто используемых вычислений
-const calculationCache = new Map<string, number>();
-const colorCache = new Map<string, { color: string; lvl: number }>();
-const conditionCache = new Map<string, boolean>();
-
 export class MetricProcessor {
   private static readonly DATE_FORMAT_CACHE = new Map<number, string>();
   private static readonly DECIMAL_CACHE = new Map<number, Map<number, number>>();
+  private metrics: Metric[];
 
   constructor(
     private element: string,
-    private metrics: Metric[],
+    metrics: Metric | Metric[],
     private extractedValueMap: Map<string, { values: Map<string, string[]> }>
-  ) {}
+  ) {
+    this.metrics = this.normalizeMetrics(metrics);
+  }
 
   public process(): { color: ColorDataEntry[] } {
     const colorData: ColorDataEntry[] = [];
@@ -23,13 +21,15 @@ export class MetricProcessor {
       return { color: [] };
     }
 
-    // Оптимизация: предварительная обработка метрик
-    for (let i = 0; i < this.metrics.length; i++) {
-      const metric = this.metrics[i];
+    for (const metric of this.metrics) {
       this.processMetric(metric, colorData);
     }
 
     return { color: colorData };
+  }
+
+  private normalizeMetrics(metrics: Metric | Metric[]): Metric[] {
+    return Array.isArray(metrics) ? metrics : [metrics];
   }
 
   private processMetric(metric: Metric, colorData: ColorDataEntry[]): void {
@@ -109,18 +109,8 @@ export class MetricProcessor {
     const items: Array<{ displayName: string; value: number }> = [];
 
     for (const [innerKey, values] of metricData.values) {
-      const cacheKey = `${innerKey}_${calculation}_${values.join(',')}`;
-
-      if (calculationCache.has(cacheKey)) {
-        items.push({
-          displayName: innerKey,
-          value: calculationCache.get(cacheKey)!,
-        });
-      } else {
-        const value = this.calculateValue(values.map(Number), calculation);
-        calculationCache.set(cacheKey, value);
-        items.push({ displayName: innerKey, value });
-      }
+      const value = this.calculateValue(values.map(Number), calculation);
+      items.push({ displayName: innerKey, value });
     }
 
     return items;
@@ -191,15 +181,7 @@ export class MetricProcessor {
   }): void {
     const { value, label, refId, config, colorData, decimal, filling, thresholds, baseColor, weight } = params;
 
-    const colorKey = `${value}_${JSON.stringify(thresholds)}_${baseColor}`;
-    let colorResult: { color: string; lvl: number };
-
-    if (colorCache.has(colorKey)) {
-      colorResult = colorCache.get(colorKey)!;
-    } else {
-      colorResult = this.getMetricColor(value, thresholds, baseColor);
-      colorCache.set(colorKey, colorResult);
-    }
+    const colorResult = this.getMetricColor(value, thresholds, baseColor);
 
     colorData.push({
       id: this.element,
@@ -267,11 +249,6 @@ export class MetricProcessor {
       return 0;
     }
 
-    const cacheKey = `${method}_${values.join(',')}`;
-    if (calculationCache.has(cacheKey)) {
-      return calculationCache.get(cacheKey)!;
-    }
-
     let result: number;
     switch (method) {
       case 'last':
@@ -296,7 +273,6 @@ export class MetricProcessor {
         result = values[values.length - 1];
     }
 
-    calculationCache.set(cacheKey, result);
     return result;
   }
 
@@ -305,24 +281,16 @@ export class MetricProcessor {
       return true;
     }
 
-    const cacheKey = `${pattern}_${target}`;
-    if (conditionCache.has(cacheKey)) {
-      return conditionCache.get(cacheKey)!;
-    }
-
     const regexSpecialChars = /[.*+?^${}()|[\]\\]/;
-    let result = false;
-
     if (regexSpecialChars.test(pattern)) {
       try {
-        result = new RegExp(pattern).test(target);
+        return new RegExp(pattern).test(target);
       } catch {
-        result = false;
+        return false;
       }
     }
 
-    conditionCache.set(cacheKey, result);
-    return result;
+    return false;
   }
 
   private getMetricColor(value: number, thresholds?: Threshold[], baseColor?: string) {
@@ -349,11 +317,6 @@ export class MetricProcessor {
   }
 
   private evaluateCondition(condition: string): boolean {
-    const cacheKey = condition;
-    if (conditionCache.has(cacheKey)) {
-      return conditionCache.get(cacheKey)!;
-    }
-
     let result = false;
     try {
       const now = new Date();
@@ -365,7 +328,6 @@ export class MetricProcessor {
       result = false;
     }
 
-    conditionCache.set(cacheKey, result);
     return result;
   }
 

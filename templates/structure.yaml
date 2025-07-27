@@ -30,3 +30,42 @@ changes:
           thresholds:
             - { color: 'orange', value: 10 }
             - { color: 'red', value: 20 }
+        - refIds:
+            - { refid: 'A', calculation: 'last', label: 'a', sum: 'a', unit: 'seconds', thresholds: *cfg }
+            - { refid: '' }
+          legends:
+            - { legend: '' }
+            - { legend: '' }
+          baseColor: '#00ff00'
+          decimal: 0
+          displayText: ''
+          filling: 'fill'
+          thresholds:
+            - { color: 'orange', value: 10 }
+            - { color: 'red', value: 20 }
+  - id: 'cell-s1'
+    attributes:
+      autoConfig: true
+      label: 'replace'
+      labelColor: 'metric'
+      labelMapping:
+        - { condition: '>=', value, label: '' }
+      link: ''
+      tooltip:
+        show: true
+        textAbove: 'sample text'
+        textBelow: 'sample text'
+      metrics:
+        refIds:
+          - { refid: 'A', calculation: 'last', label: 'a', sum: 'a', unit: 'seconds', thresholds: *cfg }
+          - { refid: '' }
+        legends:
+          - { legend: '' }
+          - { legend: '' }
+        baseColor: '#00ff00'
+        decimal: 0
+        displayText: ''
+        filling: 'fill'
+        thresholds:
+          - { color: 'orange', value: 10 }
+          - { color: 'red', value: 20 }

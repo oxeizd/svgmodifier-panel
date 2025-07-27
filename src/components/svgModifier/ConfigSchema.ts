@@ -9,23 +9,23 @@ export function applySchema(attributes: any) {
       delete attributes.label;
       delete attributes.labelColor;
       attributes.tooltip = attributes.tooltip || { show: true };
-      if (attributes.metrics?.[0]) {
-        attributes.metrics[0].filling = 'fill';
-        attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '#00ff00';
+      if (attributes.metrics) {
+        attributes.metrics.filling = 'fill';
+        attributes.metrics.baseColor = attributes.metrics.baseColor || '#00ff00';
       }
     },
     stroke: () => {
       ['link', 'label', 'labelColor', 'tooltip'].forEach((p) => delete attributes[p]);
       delete attributes.metrics?.baseColor;
-      if (attributes.metrics?.[0]) {
-        attributes.metrics[0].filling = 'stroke';
-        attributes.metrics[0].baseColor = '';
+      if (attributes.metrics) {
+        attributes.metrics.filling = 'stroke';
+        attributes.metrics.baseColor = '';
       }
     },
     strokeBase: () => {
       ['link', 'label', 'labelColor', 'tooltip'].forEach((p) => delete attributes[p]);
-      if (attributes.metrics?.[0]) {
-        attributes.metrics[0].filling = 'stroke';
+      if (attributes.metrics) {
+        attributes.metrics.filling = 'stroke';
       }
     },
     text: () => {
@@ -33,9 +33,9 @@ export function applySchema(attributes: any) {
       delete attributes.tooltip;
       attributes.label = attributes.label || 'replace';
       attributes.labelColor = attributes.labelColor || 'metric';
-      if (attributes.metrics?.[0]) {
-        attributes.metrics[0].filling = 'none';
-        attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '';
+      if (attributes.metrics) {
+        attributes.metrics.filling = 'none';
+        attributes.metrics.baseColor = attributes.metrics.baseColor || '';
       }
     },
     table: () => {
@@ -43,9 +43,9 @@ export function applySchema(attributes: any) {
       delete attributes.tooltip;
       attributes.label = attributes.label || 'replace';
       attributes.labelColor = attributes.labelColor || 'metric';
-      if (attributes.metrics?.[0]) {
-        attributes.metrics[0].filling = 'fill, 20';
-        attributes.metrics[0].baseColor = attributes.metrics[0].baseColor || '#00ff00';
+      if (attributes.metrics) {
+        attributes.metrics.filling = 'fill, 20';
+        attributes.metrics.baseColor = attributes.metrics.baseColor || '#00ff00';
       }
     },
   };

@@ -4,11 +4,11 @@ export interface Change {
     autoConfig?: boolean;
     schema?: string;
     link?: string | string[];
-    tooltip?: Tooltip[];
+    tooltip?: Tooltip;
     label?: string;
     labelColor?: string;
     labelMapping?: LabelMapping[];
-    metrics?: Metric[];
+    metrics?: Metric | Metric[];
   };
 }
 

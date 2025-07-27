@@ -2,7 +2,6 @@ import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { CodeEditor } from '@grafana/ui';
 import type { StandardEditorProps } from '@grafana/data';
 import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api';
-import { setDiagnosticsOptions } from 'monaco-yaml';
 import { configSchema } from './yamlSchema';
 
 type SuggestionItem = {
@@ -79,13 +78,6 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
   );
 
   useEffect(() => {
-    setDiagnosticsOptions({
-      validate: false,
-      enableSchemaRequest: false,
-      schemas: [],
-    });
-
-    // Cleanup function to dispose of the completion provider when component unmounts
     return () => {
       if (completionProviderRef.current) {
         completionProviderRef.current.dispose();
