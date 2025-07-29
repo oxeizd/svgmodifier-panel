@@ -88,6 +88,8 @@ export interface ColorDataEntry {
 }
 
 export interface PanelOptions {
-  svgCode: string;
-  metricsMapping: string;
+  jsonData: {
+    svgCode: string;
+    metricsMapping: string;
+  };
 }

@@ -6,7 +6,7 @@ import YamlEditor from 'components/yamlEditor/yamlEditor';
 export const plugin = new PanelPlugin<PanelOptions>(SvgPanel).setPanelOptions((builder) => {
   return builder
     .addTextInput({
-      path: 'svgCode',
+      path: 'jsonData.svgCode',
       name: 'SVG Code',
       settings: {
         rows: 2,
@@ -15,7 +15,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel).setPanelOptions((b
     })
     .addCustomEditor({
       id: 'metricsMapping',
-      path: 'metricsMapping',
+      path: 'jsonData.metricsMapping',
       name: 'Metrics Mapping',
       description: 'Enter metrics mapping in Yaml format. CTRL+SPACE for tips',
       editor: YamlEditor,
