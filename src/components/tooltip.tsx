@@ -105,7 +105,10 @@ export const Tooltip: React.FC<{
       {uniqueTextAbove.length > 0 && (
         <div style={{ marginBottom: '4px' }}>
           {uniqueTextAbove.map((line, index) => (
-            <div key={`text-above-${index}`} style={{ color: '#FFFFFF', fontSize: '14px', fontWeight: '600' }}>
+            <div
+              key={`text-above-${index}`}
+              style={{ color: `${theme.colors.text.primary}`, fontSize: '14px', fontWeight: '600' }}
+            >
               {line}
             </div>
           ))}
@@ -115,7 +118,7 @@ export const Tooltip: React.FC<{
       {content.map((item, index) => (
         <div key={`metric-${index}`} style={{ marginBottom: '4px' }}>
           {item.title && <div style={{ color: '#A0A0A0', fontWeight: '300', marginBottom: '2px' }}>{item.title}</div>}
-          <span style={{ color: '#FFFFFF', fontWeight: '500' }}>{item.label}: </span>
+          <span style={{ color: `${theme.colors.text.primary}`, fontWeight: '500' }}>{item.label}: </span>
           <span style={{ color: item.color || '#FFFFFF', fontWeight: '600' }}>{item.metric}</span>
         </div>
       ))}
@@ -123,7 +126,7 @@ export const Tooltip: React.FC<{
       {uniqueTextBelow.length > 0 && (
         <div style={{ marginTop: '4px' }}>
           {uniqueTextBelow.map((line, index) => (
-            <div key={`text-below-${index}`} style={{ color: '#A0A0A0', fontSize: '12px' }}>
+            <div key={`text-below-${index}`} style={{ color: `${theme.colors.text.primary}`, fontSize: '12px' }}>
               {line}
             </div>
           ))}
