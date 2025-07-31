@@ -119,7 +119,7 @@ export const Tooltip: React.FC<{
         <div key={`metric-${index}`} style={{ marginBottom: '4px' }}>
           {item.title && <div style={{ color: '#A0A0A0', fontWeight: '300', marginBottom: '2px' }}>{item.title}</div>}
           <span style={{ color: `${theme.colors.text.primary}`, fontWeight: '500' }}>{item.label}: </span>
-          <span style={{ color: item.color || '#FFFFFF', fontWeight: '600' }}>{item.metric}</span>
+          <span style={{ color: item.color || `${theme.colors.text.primary}`, fontWeight: '600' }}>{item.metric}</span>
         </div>
       ))}
 
