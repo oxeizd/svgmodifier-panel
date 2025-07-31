@@ -1,4 +1,5 @@
 import ReactDOM from 'react-dom';
+import { useTheme2 } from '@grafana/ui';
 import { TooltipContent } from './types';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 
@@ -10,6 +11,7 @@ export const Tooltip: React.FC<{
 }> = ({ visible, x, y, content }) => {
   const [adjustedCoords, setAdjustedCoords] = useState({ x, y });
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const theme = useTheme2();
 
   useLayoutEffect(() => {
     if (visible && tooltipRef.current) {
@@ -83,16 +85,16 @@ export const Tooltip: React.FC<{
     position: 'fixed',
     left: adjustedCoords.x,
     top: adjustedCoords.y,
-    backgroundColor: 'rgba(30, 30, 30, 1)',
+    backgroundColor: theme.colors.background.primary,
     padding: '12px',
-    borderRadius: '4px',
+    borderRadius: '3px',
     pointerEvents: 'none',
     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
     zIndex: 1000,
     maxWidth: '500px',
     overflow: 'hidden',
     wordWrap: 'break-word',
-    border: '1px solid rgba(255, 255, 255, 0.07)',
+    border: `1px solid ${theme.colors.border.weak}`,
     whiteSpace: 'normal',
   };
 
