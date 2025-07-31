@@ -1,3 +1,5 @@
+import { Metric } from 'components/types';
+
 export function applySchema(attributes: any) {
   const schema = attributes.schema;
   if (!schema) {
@@ -9,44 +11,44 @@ export function applySchema(attributes: any) {
       delete attributes.label;
       delete attributes.labelColor;
       attributes.tooltip = attributes.tooltip || { show: true };
-      if (attributes.metrics) {
-        attributes.metrics.filling = 'fill';
-        attributes.metrics.baseColor = attributes.metrics.baseColor || '#00ff00';
-      }
+      attributes.metrics?.forEach((metric: Metric) => {
+        metric.filling = 'fill';
+        metric.baseColor = metric.baseColor || '#00ff00';
+      });
     },
     stroke: () => {
       ['link', 'label', 'labelColor', 'tooltip'].forEach((p) => delete attributes[p]);
       delete attributes.metrics?.baseColor;
-      if (attributes.metrics) {
-        attributes.metrics.filling = 'stroke';
-        attributes.metrics.baseColor = '';
-      }
+      attributes.metrics?.forEach((metric: Metric) => {
+        metric.filling = 'stroke';
+        metric.baseColor = '';
+      });
     },
     strokeBase: () => {
       ['link', 'label', 'labelColor', 'tooltip'].forEach((p) => delete attributes[p]);
-      if (attributes.metrics) {
-        attributes.metrics.filling = 'stroke';
-      }
+      attributes.metrics?.forEach((metric: Metric) => {
+        metric.filling = 'stroke';
+      });
     },
     text: () => {
       delete attributes.link;
       delete attributes.tooltip;
       attributes.label = attributes.label || 'replace';
       attributes.labelColor = attributes.labelColor || 'metric';
-      if (attributes.metrics) {
-        attributes.metrics.filling = 'none';
-        attributes.metrics.baseColor = attributes.metrics.baseColor || '';
-      }
+      attributes.metrics?.forEach((metric: Metric) => {
+        metric.filling = 'none';
+        metric.baseColor = metric.baseColor || '';
+      });
     },
     table: () => {
       delete attributes.link;
       delete attributes.tooltip;
       attributes.label = attributes.label || 'replace';
       attributes.labelColor = attributes.labelColor || 'metric';
-      if (attributes.metrics) {
-        attributes.metrics.filling = 'fill, 20';
-        attributes.metrics.baseColor = attributes.metrics.baseColor || '#00ff00';
-      }
+      attributes.metrics?.forEach((metric: Metric) => {
+        metric.filling = 'fill, 20';
+        metric.baseColor = metric.baseColor || '#00ff00';
+      });
     },
   };
 
