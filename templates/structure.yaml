@@ -69,3 +69,18 @@ changes:
         thresholds:
           - { color: 'orange', value: 10 }
           - { color: 'red', value: 20 }
+# condition examples
+# "hour === 12"
+# "hour >= 9 && hour <= 17"
+# "minute === 0"
+# "minute >= 30 && minute < 45"
+# "day === 1"
+# "day === 0 || day === 6"
+# "(hour >= 9 && hour <= 17) && (minute === 0)"
+# "(hour < 12 && minute < 30) || (hour >= 12 && hour < 14)"
+# "hour % 2 === 0"
+# "hour + minute > 60"
+# 'hour > 01 && (hour === 17 && minute < 50)'
+# 'timezone = 10, $B.B-series < 70 && $A > 10 && hour > 1'
+# syntax
+# 'timezone = x(default = 3), $refid.legend > X && or || or | hour > x | munite === 30'

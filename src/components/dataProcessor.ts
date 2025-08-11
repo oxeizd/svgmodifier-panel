@@ -3,8 +3,6 @@ import { Legends, Metric, RefIds, Threshold, ColorDataEntry } from './types';
 type CalculationMethod = 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
 
 export class MetricProcessor {
-  private static readonly DATE_FORMAT_CACHE = new Map<number, string>();
-  private static readonly DECIMAL_CACHE = new Map<number, Map<number, number>>();
   private metrics: Metric[];
 
   constructor(
@@ -322,9 +320,46 @@ export class MetricProcessor {
       const now = new Date();
       const timezone = parseInt(condition.match(/timezone\s*=\s*(-?\d+)/)?.[1] || '3', 10);
       const hour = (now.getUTCHours() + timezone + 24) % 24;
+      const sanitizedCondition = condition.replace(/timezone\s*=\s*(-?\d+),?/, '').trim();
 
-      result = new Function('hour', 'minute', 'day', `return ${condition}`)(hour, now.getUTCMinutes(), now.getUTCDay());
-    } catch {
+      const variableRegex =
+        /\$([А-Яа-яЁёA-Za-z0-9_]+)(?:\.([А-Яа-яЁёA-Za-z0-9_ -]+))?(?::(last|total|max|min|count|delta))?/g;
+
+      const metricsCondition = sanitizedCondition.replace(
+        variableRegex,
+        (_match: string, refId: string, subKey: string, calculationMethod: CalculationMethod = 'last') => {
+          if (refId !== undefined) {
+            refId = refId.trim();
+            const metricData = this.extractedValueMap.get(refId);
+            if (metricData) {
+              let value = 0;
+              if (subKey !== undefined) {
+                subKey = subKey.trim();
+                const subKeyValues = metricData.values.get(subKey);
+                if (subKeyValues) {
+                  const numericValues: number[] = subKeyValues.map(Number);
+                  value = this.calculateValue(numericValues, calculationMethod);
+                }
+              } else {
+                // Если subKey не указан, берем первое значение из метрики
+                const firstValue = Array.from(metricData.values.values())[0];
+                if (firstValue) {
+                  const numericValues: number[] = firstValue.map(Number);
+                  value = this.calculateValue(numericValues, calculationMethod);
+                }
+              }
+              return value.toFixed(2);
+            }
+          }
+          return '0';
+        }
+      );
+      result = new Function('hour', 'minute', 'day', `return ${metricsCondition}`)(
+        hour,
+        now.getUTCMinutes(),
+        now.getUTCDay()
+      );
+    } catch (error) {
       result = false;
     }
 
@@ -351,28 +386,10 @@ export class MetricProcessor {
   }
 
   private formatDecimal(value: number, decimals = 3): number {
-    if (!MetricProcessor.DECIMAL_CACHE.has(decimals)) {
-      MetricProcessor.DECIMAL_CACHE.set(decimals, new Map());
-    }
-
-    const decimalMap = MetricProcessor.DECIMAL_CACHE.get(decimals)!;
-    if (decimalMap.has(value)) {
-      return decimalMap.get(value)!;
-    }
-
-    const result = parseFloat(value.toFixed(decimals));
-    decimalMap.set(value, result);
-    return result;
+    return parseFloat(value.toFixed(decimals));
   }
 
   private formatDate(date: Date): string {
-    const time = date.getTime();
-    if (MetricProcessor.DATE_FORMAT_CACHE.has(time)) {
-      return MetricProcessor.DATE_FORMAT_CACHE.get(time)!;
-    }
-
-    const result = date.toISOString().split('T')[0];
-    MetricProcessor.DATE_FORMAT_CACHE.set(time, result);
-    return result;
+    return date.toISOString().split('T')[0];
   }
 }
