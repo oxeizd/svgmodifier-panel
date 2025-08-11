@@ -295,7 +295,7 @@ export class SvgModifier {
         }
 
         const elements = this.getElementsForUpdate(ids);
-        if (attributes.label) {
+        if (attributes.label || attributes.labelColor || attributes.labelMapping) {
           LabelUpdater.updateElements(
             elements,
             attributes.label,

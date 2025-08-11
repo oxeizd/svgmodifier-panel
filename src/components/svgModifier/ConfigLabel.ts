@@ -3,7 +3,7 @@ import { ColorDataEntry, LabelMapping } from '../types';
 export class LabelUpdater {
   public static updateElements(
     elementsMap: Map<string, SVGElement>,
-    label: string,
+    label?: string,
     labelColor?: string,
     colorData: ColorDataEntry[] = [],
     labelMapping?: LabelMapping[]
@@ -22,8 +22,14 @@ export class LabelUpdater {
       }
 
       const metricValue = this.calculateMaxMetric(colorDataMap, id);
-      this.processLabelContent(labelElements, label, metricValue, sortedMappings);
-      this.applyColorToLabels(labelElements, labelColor, colorDataMap, id);
+
+      if (label !== undefined || sortedMappings) {
+        this.processLabelContent(labelElements, label || 'replace', metricValue, sortedMappings);
+      }
+
+      if (labelColor !== undefined) {
+        this.applyColorToLabels(labelElements, labelColor, colorDataMap, id);
+      }
     }
   }
 
@@ -102,8 +108,22 @@ export class LabelUpdater {
   }
 
   private static setElementsText(elements: Array<SVGTextElement | HTMLElement>, text: string): void {
+    let fontSize: string | null = null;
     for (const el of elements) {
-      el.textContent = text;
+      if (el instanceof SVGTextElement) {
+        fontSize = el.getAttribute('font-size');
+        el.textContent = text;
+        if (fontSize) {
+          el.setAttribute('font-size', fontSize);
+        }
+      } else {
+        if (fontSize) {
+          el.textContent = text;
+          el.style.fontSize = fontSize;
+        } else {
+          el.textContent = text;
+        }
+      }
     }
   }
 
