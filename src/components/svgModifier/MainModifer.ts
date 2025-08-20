@@ -283,37 +283,39 @@ export class SvgModifier {
     for (const config of configs) {
       colorData.length = 0;
       const { id: ids, attributes } = config;
+      const elements = this.getElementsForUpdate(ids);
 
-      const processor = new MetricProcessor(ids[0], attributes.metrics, extractedValueMap);
-      const processedData = processor.process();
+      if (attributes.link) {
+        LinkManager.addLinks(elements, attributes.link);
+      }
 
-      if (processedData && processedData.color) {
-        if (attributes.autoConfig) {
-          this.handleAutoConfig(colorData, ids, processedData);
-        } else {
-          this.handleDefaultConfig(colorData, processedData, ids);
+      if (attributes.metrics) {
+        const processor = new MetricProcessor(ids[0], attributes.metrics, extractedValueMap);
+        const processedData = processor.process();
+  
+        if (processedData && processedData.color) {
+          if (attributes.autoConfig) {
+            this.handleAutoConfig(colorData, ids, processedData);
+          } else {
+            this.handleDefaultConfig(colorData, processedData, ids);
+          }
+  
+          if (attributes.tooltip?.show) {
+            this.processTooltip(colorData, tooltipData, attributes.tooltip);
+          }
+          fullColorData.push(...colorData);
+          ColorApplier.applyToElements(elements, fullColorData);
         }
+      }
 
-        const elements = this.getElementsForUpdate(ids);
-        if (attributes.label || attributes.labelColor || attributes.labelMapping) {
-          LabelUpdater.updateElements(
-            elements,
-            attributes.label,
-            attributes.labelColor,
-            colorData,
-            attributes.labelMapping
-          );
-        }
-
-        if (attributes.link) {
-          LinkManager.addLinks(elements, attributes.link);
-        }
-
-        if (attributes.tooltip?.show) {
-          this.processTooltip(colorData, tooltipData, attributes.tooltip);
-        }
-        fullColorData.push(...colorData);
-        ColorApplier.applyToElements(elements, fullColorData);
+      if (attributes.label || attributes.labelColor || attributes.labelMapping) {
+        LabelUpdater.updateElements(
+          elements,
+          attributes.label,
+          attributes.labelColor,
+          colorData,
+          attributes.labelMapping
+        );
       }
     }
   }

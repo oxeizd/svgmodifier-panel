@@ -32,7 +32,6 @@ export interface Metric {
   baseColor?: string;
   thresholds?: Threshold[];
   decimal?: number;
-  weight?: string;
 }
 
 interface BaseRef {
@@ -82,7 +81,6 @@ export interface ColorDataEntry {
   unit?: string;
   tooltip?: boolean;
   title?: string;
-  weight?: number[];
   textAbove?: string;
   textBelow?: string;
 }

@@ -175,9 +175,8 @@ export class MetricProcessor {
     filling?: string;
     thresholds?: Threshold[];
     baseColor?: string;
-    weight?: number[];
   }): void {
-    const { value, label, refId, config, colorData, decimal, filling, thresholds, baseColor, weight } = params;
+    const { value, label, refId, config, colorData, decimal, filling, thresholds, baseColor } = params;
 
     const colorResult = this.getMetricColor(value, thresholds, baseColor);
 
@@ -191,7 +190,6 @@ export class MetricProcessor {
       filling: filling || '',
       unit: config.unit,
       title: config.title,
-      weight,
     });
   }
 
