@@ -107,55 +107,52 @@ export class LabelUpdater {
     this.setElementsText(elements, content);
   }
 
-  private static setElementsText(
-    elements: Array<SVGTextElement | HTMLElement>, 
-    text: string
-): void {
-    const originalStyles = elements.map(el => {
-        if (el instanceof SVGTextElement) {
-            return {
-                element: el,
-                fontSize: el.getAttribute('font-size'),
-                fill: el.getAttribute('fill'),
-                stroke: el.getAttribute('stroke'),
-                color: null
-            };
-        } else {
-            return {
-                element: el,
-                fontSize: (el as HTMLElement).style.fontSize,
-                fill: null,
-                stroke: null,
-                color: (el as HTMLElement).style.color
-            };
-        }
+  private static setElementsText(elements: Array<SVGTextElement | HTMLElement>, text: string): void {
+    const originalStyles = elements.map((el) => {
+      if (el instanceof SVGTextElement) {
+        return {
+          element: el,
+          fontSize: el.getAttribute('font-size'),
+          fill: el.getAttribute('fill'),
+          stroke: el.getAttribute('stroke'),
+          color: null,
+        };
+      } else {
+        return {
+          element: el,
+          fontSize: (el as HTMLElement).style.fontSize,
+          fill: null,
+          stroke: null,
+          color: (el as HTMLElement).style.color,
+        };
+      }
     });
 
     for (const el of elements) {
-        el.textContent = text;
+      el.textContent = text;
     }
 
     for (const style of originalStyles) {
-        if (style.element instanceof SVGTextElement) {
-            if (style.fontSize) {
-                style.element.setAttribute('font-size', style.fontSize);
-            }
-            if (style.fill) {
-                style.element.setAttribute('fill', style.fill);
-            }
-            if (style.stroke) {
-                style.element.setAttribute('stroke', style.stroke);
-            }
-        } else {
-            if (style.fontSize) {
-                (style.element as HTMLElement).style.fontSize = style.fontSize;
-            }
-            if (style.color) {
-                (style.element as HTMLElement).style.color = style.color;
-            }
+      if (style.element instanceof SVGTextElement) {
+        if (style.fontSize) {
+          style.element.setAttribute('font-size', style.fontSize);
         }
+        if (style.fill) {
+          style.element.setAttribute('fill', style.fill);
+        }
+        if (style.stroke) {
+          style.element.setAttribute('stroke', style.stroke);
+        }
+      } else {
+        if (style.fontSize) {
+          (style.element as HTMLElement).style.fontSize = style.fontSize;
+        }
+        if (style.color) {
+          (style.element as HTMLElement).style.color = style.color;
+        }
+      }
     }
-}
+  }
 
   private static getMappedLabel(mappings: LabelMapping[] | undefined, value: number): string | undefined {
     if (!mappings) {
@@ -199,50 +196,51 @@ export class LabelUpdater {
     colorSetting: string | undefined,
     colorDataMap: Map<string, ColorDataEntry[]>,
     elementId: string
-): void {
+  ): void {
     if (!colorSetting) {
-        return;
+      return;
     }
-    
+
     let color: string;
 
     if (colorSetting === 'metric') {
-        const entries = colorDataMap.get(elementId);
-        if (!entries?.length) {
-            return;
-        }
-        color = this.findMaxMetricEntry(entries).color;
+      const entries = colorDataMap.get(elementId);
+      if (!entries?.length) {
+        return;
+      }
+      color = this.findMaxMetricEntry(entries).color;
     } else {
-        color = colorSetting;
+      color = colorSetting;
     }
 
     for (const el of elements) {
-        if (!el || !el.isConnected) continue;
+      if (!el || !el.isConnected) {
+        continue;
+      }
 
-        if (el instanceof SVGTextElement) {
-            el.setAttribute('fill', color);
-            
-            const nestedTexts = el.querySelectorAll('text');
-            nestedTexts.forEach(textEl => {
-                textEl.setAttribute('fill', color);
-                textEl.removeAttribute('stroke');
-            });
-            
-        } else if (el instanceof HTMLElement) {
-            el.style.color = color;
-            
-            const colorElements = el.querySelectorAll('[style*="color"], [fill]');
-            colorElements.forEach(colorEl => {
-                if (colorEl instanceof SVGElement && colorEl.hasAttribute('fill')) {
-                    colorEl.setAttribute('fill', color);
-                }
-                if (colorEl instanceof HTMLElement) {
-                    colorEl.style.color = color;
-                }
-            });
-        }
+      if (el instanceof SVGTextElement) {
+        el.setAttribute('fill', color);
+
+        const nestedTexts = el.querySelectorAll('text');
+        nestedTexts.forEach((textEl) => {
+          textEl.setAttribute('fill', color);
+          textEl.removeAttribute('stroke');
+        });
+      } else if (el instanceof HTMLElement) {
+        el.style.color = color;
+
+        const colorElements = el.querySelectorAll('[style*="color"], [fill]');
+        colorElements.forEach((colorEl) => {
+          if (colorEl instanceof SVGElement && colorEl.hasAttribute('fill')) {
+            colorEl.setAttribute('fill', color);
+          }
+          if (colorEl instanceof HTMLElement) {
+            colorEl.style.color = color;
+          }
+        });
+      }
     }
-}
+  }
 
   private static findMaxMetricEntry(entries: ColorDataEntry[]): ColorDataEntry {
     let maxEntry = entries[0];
