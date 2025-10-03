@@ -36,7 +36,6 @@ export function applyChangesToElements(items: ExpandedItem[]): void {
       continue;
     }
 
-    // извлекаем параметры из attributes
     const { link, label, labelColor, labelMapping } = item.attributes ?? {};
     const sortedMappings = labelMapping ? sortMappings(labelMapping) : undefined;
 
@@ -47,19 +46,19 @@ export function applyChangesToElements(items: ExpandedItem[]): void {
     operations.push(() => {
       const labelElements = findLabelElements(svgElement);
 
+      if (linkForThis !== undefined) {
+        addLinksToSvgElements(svgElement, linkForThis.toString());
+      }
+
+      if (label) {
+        setLabelContent(labelElements, label, maxEntries?.label, maxEntries?.metric, sortedMappings);
+      }
+
+      if (labelColor) {
+        applyColorToLabels(labelElements, labelColor, maxEntries?.color);
+      }
+
       if (maxEntries) {
-        if (label) {
-          setLabelContent(labelElements, label, maxEntries.label || '', maxEntries.metric, sortedMappings);
-        }
-
-        if (labelColor) {
-          applyColorToLabels(labelElements, labelColor, maxEntries.color);
-        }
-
-        if (linkForThis !== undefined) {
-          addLinksToSvgElements(svgElement, linkForThis.toString());
-        }
-
         applyColortoElement(svgElement, maxEntries);
       }
     });
@@ -213,10 +212,10 @@ function setLabelContent(
       }
       break;
     case 'legend +':
-      content = metricLabel + ':' + displayValue;
+      content = metricLabel + ': ' + displayValue;
       break;
     case 'colon':
-      content = label + ': ' + displayValue;
+      content = metricLabel + ': ' + displayValue;
       break;
     case 'space':
       content = label + ' ' + displayValue;
@@ -247,7 +246,7 @@ function setLabelContent(
 function applyColorToLabels(
   elements: Array<SVGTextElement | HTMLElement>,
   colorSetting: string | undefined,
-  elementColor: string
+  elementColor?: string
 ): void {
   if (!colorSetting) {
     return;
