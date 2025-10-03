@@ -1,13 +1,6 @@
+import { roundToFixed } from './helpers';
+
 type DecimalCount = number;
-
-function roundToFixed(value: number, decimals: DecimalCount = 2): number {
-  const factor = Math.pow(10, decimals);
-  return Math.round(value * factor) / factor;
-}
-
-function formatScaled(value: number, decimals: DecimalCount = 2, suffix: string): string {
-  return `${roundToFixed(value, decimals)}${suffix}`;
-}
 
 export function formatValues(value: number, unit?: string, decimals?: DecimalCount): string {
   if (value === null) {
@@ -36,7 +29,11 @@ export function formatValues(value: number, unit?: string, decimals?: DecimalCou
   return `${roundedValue}`;
 }
 
-export function toPercent(value: number, decimals?: DecimalCount): string {
+function formatScaled(value: number, decimals: DecimalCount = 2, suffix: string): string {
+  return `${roundToFixed(value, decimals)}${suffix}`;
+}
+
+function toPercent(value: number, decimals?: DecimalCount): string {
   if (value === null) {
     return '';
   }
@@ -44,7 +41,7 @@ export function toPercent(value: number, decimals?: DecimalCount): string {
   return formatScaled(value, decimals, '%');
 }
 
-export function toPercentUnit(value: number, decimals?: DecimalCount): string {
+function toPercentUnit(value: number, decimals?: DecimalCount): string {
   if (value === null) {
     return '';
   }
@@ -53,7 +50,7 @@ export function toPercentUnit(value: number, decimals?: DecimalCount): string {
   return formatScaled(formattedValue, decimals, '%');
 }
 
-export function toBytes(size: number, decimals?: DecimalCount): string {
+function toBytes(size: number, decimals?: DecimalCount): string {
   if (size === null) {
     return '';
   }
@@ -69,7 +66,7 @@ export function toBytes(size: number, decimals?: DecimalCount): string {
   }
 }
 
-export function toMilliSeconds(size: number, decimals?: DecimalCount): string {
+function toMilliSeconds(size: number, decimals?: DecimalCount): string {
   if (size === null) {
     return '';
   }
@@ -89,7 +86,7 @@ export function toMilliSeconds(size: number, decimals?: DecimalCount): string {
   return formatScaled(size / 31536000000, decimals, ' year');
 }
 
-export function toSeconds(size: number, decimals?: DecimalCount): string {
+function toSeconds(size: number, decimals?: DecimalCount): string {
   if (size === null) {
     return '';
   }

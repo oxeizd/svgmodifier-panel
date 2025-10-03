@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { PanelOptions, TooltipContent, Change } from './types';
+import { modifySvg } from './mainProcessor'; // Импортируем наши функции
 import { PanelProps } from '@grafana/data';
-import { SvgModifier } from './svgModifier/MainModifer';
 import { Tooltip } from './tooltip';
 import YAML from 'yaml';
 
@@ -38,10 +38,7 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(({ options, data
   }, [options.jsonData.metricsMapping]);
 
   const modifySvgAsync = useCallback(async () => {
-    const svgModifier = new SvgModifier(svgCode, changes, dataFrame);
-    const { modifiedSvg, tooltipData } = await svgModifier.modify();
-
-    svgModifier.clearCache();
+    const { modifiedSvg, tooltipData } = modifySvg(svgCode, changes, dataFrame);
 
     setModifiedSvg(modifiedSvg);
     setTooltipData(tooltipData);

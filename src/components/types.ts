@@ -71,19 +71,25 @@ export interface TooltipContent {
 }
 
 export interface ColorDataEntry {
-  id: string;
-  refId: string;
+  object: string;
   label: string;
   color: string;
   lvl: number;
   metric: number;
   filling?: string;
   unit?: string;
-  tooltip?: boolean;
   title?: string;
-  textAbove?: string;
-  textBelow?: string;
 }
+
+export type ExpandedItem = {
+  id: string;
+  schema: string;
+  selector: string;
+  svgElement: SVGElement;
+  attributes: Change['attributes'];
+  colorDataEntries: ColorDataEntry[];
+  maxEntry?: ColorDataEntry;
+};
 
 export interface PanelOptions {
   jsonData: {

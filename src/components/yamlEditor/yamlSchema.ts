@@ -1,22 +1,10 @@
+import { SUGGESTION_GROUPS, EditorContext, SuggestionItem } from './constants';
 import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api';
-
-type SuggestionItem = {
-  label: string;
-  insertText: string;
-};
-
-type EditorContext = {
-  currentIndent: number;
-  lineContent: string;
-  prevLine: string;
-  position: monacoEditor.Position;
-  model: monacoEditor.editor.ITextModel;
-};
 
 // Вспомогательная функция для проверки наличия строки `- id:` выше текущей строки
 export const findIdAbove = (model: monacoEditor.editor.ITextModel, currentLine: number): boolean => {
   for (let i = currentLine - 1; i >= 1; i--) {
-    if (model.getLineContent(i).includes('- id:')) {
+    if (model.getLineContent(i).indexOf('- id:') !== -1) {
       return true;
     }
   }
@@ -33,50 +21,45 @@ export const ruleExistsInIdBlock = (
   checkAll = false
 ): boolean => {
   const currentLine = position.lineNumber;
+  const totalLines = model.getLineCount();
 
-  if (checkAll) {
-    const totalLines = model.getLineCount();
-
-    if (direction === 'above' || direction === 'both') {
-      for (let i = currentLine - 1; i >= 1; i--) {
-        if (model.getLineContent(i).includes(`${rule}:`)) {
-          return true;
-        }
-      }
-    }
-
-    if (direction === 'below' || direction === 'both') {
-      for (let j = currentLine + 1; j <= totalLines; j++) {
-        if (model.getLineContent(j).includes(`${rule}:`)) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  let startLine = currentLine;
-
-  if (direction === 'above' || direction === 'both') {
-    let linesChecked = 0;
-    while (startLine > 1 && linesChecked < linesToCheck) {
-      if (model.getLineContent(startLine).includes('- id:')) {
-        break;
-      }
-      startLine--;
-      linesChecked++;
-    }
-
-    for (let i = startLine; i <= currentLine; i++) {
+  const checkLines = (start: number, end: number, step: number) => {
+    for (let i = start; i !== end; i += step) {
       if (model.getLineContent(i).includes(`${rule}:`)) {
         return true;
       }
     }
+    return false;
+  };
+
+  if (checkAll) {
+    if (direction === 'above' || direction === 'both') {
+      if (checkLines(currentLine - 1, 0, -1)) {
+        return true;
+      }
+    }
+    if (direction === 'below' || direction === 'both') {
+      if (checkLines(currentLine + 1, totalLines + 1, 1)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (direction === 'above' || direction === 'both') {
+    let linesChecked = 0;
+    for (let i = currentLine - 1; i >= 1 && linesChecked < linesToCheck; i--) {
+      if (model.getLineContent(i).includes('- id:')) {
+        break;
+      }
+      if (model.getLineContent(i).includes(`${rule}:`)) {
+        return true;
+      }
+      linesChecked++;
+    }
   }
 
   if (direction === 'below' || direction === 'both') {
-    const totalLines = model.getLineCount();
     let linesChecked = 0;
     for (let j = currentLine + 1; j <= totalLines && linesChecked < linesToCheck; j++) {
       if (model.getLineContent(j).includes('- id:')) {
@@ -94,12 +77,10 @@ export const ruleExistsInIdBlock = (
 
 // Вспомогательная функция для проверки условий позиции курсора
 export const isConditionMet = (ctx: EditorContext, pos: number) => {
-  const lineContent = ctx.lineContent;
-  const column = ctx.position.column;
+  const { lineContent, position } = ctx;
+  const isRightEmpty = lineContent.substring(position.column - 1).trim() === '';
 
-  const isRightEmpty = lineContent.substring(column - 1).trim() === '';
-
-  return ctx.position.column === pos && isRightEmpty;
+  return position.column === pos && isRightEmpty;
 };
 
 // Вспомогательная функция для проверки, заканчивается ли строка запятой
@@ -121,7 +102,7 @@ export const configSchema = [
     indent: 2,
     condition: (ctx: EditorContext) =>
       isConditionMet(ctx, 3) && ruleExistsInIdBlock(ctx.model, ctx.position, 'changes', 'above', Infinity, true),
-    items: [{ label: 'id', insertText: "- id: '${1}'\n  attributes:\n    " }],
+    items: SUGGESTION_GROUPS.CHANGES,
   },
   {
     key: 'attributes',
@@ -132,19 +113,7 @@ export const configSchema = [
       return hasIdAbove && hasAttributes && !hasMetrics;
     },
     items: (ctx: EditorContext): SuggestionItem[] => {
-      const allItems: SuggestionItem[] = [
-        { label: 'link', insertText: "link: ''" },
-        { label: 'tooltip', insertText: 'tooltip:\n  show: true' },
-        { label: 'label', insertText: "label: 'replace'" },
-        { label: 'labelColor', insertText: "labelColor: 'metric'" },
-        { label: 'autoConfig', insertText: 'autoConfig: true' },
-        {
-          label: 'labelMapping',
-          insertText: "labelMapping:\n  - { condition: '${1|>=,>,<,=,!=,<=|}', value: ${2}, label: '${3}' }",
-        },
-        { label: 'add mapping', insertText: "- { condition: '${1|>=,>,<,=,!=,<=|}', value: ${2}, label: '${3}' }" },
-        { label: 'metrics', insertText: 'metrics:\n  ' },
-      ];
+      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.ATTRIBUTES];
 
       return allItems.filter((item) => {
         const exists = ruleExistsInIdBlock(ctx.model, ctx.position, item.label, 'both');
@@ -169,13 +138,7 @@ export const configSchema = [
     items: (ctx: EditorContext): SuggestionItem[] => {
       const leftText = ctx.lineContent.substring(0, ctx.position.column);
 
-      const allItems: SuggestionItem[] = [
-        { label: 'filter', insertText: "filter: '${1| ,$date,$dateN|}'" },
-        { label: 'label', insertText: "label: '${1}'" },
-        { label: 'sum', insertText: "sum: '${1}'" },
-        { label: 'unit', insertText: "unit: '${1|seconds,milliseconds,bytes,percent,percent(0-1)|}'" },
-        { label: 'calculation', insertText: "calculation: '${1|last,total,max,min,count,delta|}'" },
-      ];
+      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.LEGEND];
 
       return allItems.filter((item) => !new RegExp(`${item.label}:`).test(leftText));
     },
@@ -191,23 +154,7 @@ export const configSchema = [
       );
     },
     items: (ctx: EditorContext): SuggestionItem[] => {
-      const allItems: SuggestionItem[] = [
-        { label: 'refIds', insertText: "- refIds:\n  - { refid: '${1}' }" },
-        { label: 'legends', insertText: "- legends:\n  - { legend: '${1}' }" },
-        { label: 'additional refIds', insertText: "refIds:\n   - { refid: '${1}' }" },
-        { label: 'additional legends', insertText: "legends:\n   - { legend: '${1}' }" },
-        { label: 'add legend', insertText: "- { legend: '${1}' }" },
-        { label: 'add refid', insertText: "- { refid: '${1}' }" },
-        { label: 'decimal', insertText: 'decimal: 0' },
-        { label: 'baseColor', insertText: "baseColor: '#00ff00'" },
-        { label: 'filling', insertText: "filling: '${1|fill,stroke,fs,fill\\, 20,none|}'" },
-        { label: 'displayText', insertText: "displayText: '${1}'" },
-        {
-          label: 'thresholds',
-          insertText: "thresholds:\n  - { color: 'orange', value: 10 }\n  - { color: 'red', value: 20 }",
-        },
-        { label: 'add threshold', insertText: "- { color: '', value:  }" },
-      ];
+      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.METRICS];
 
       return allItems.filter((item) => {
         const exists = ruleExistsInIdBlock(ctx.model, ctx.position, item.label, 'both');
@@ -285,11 +232,7 @@ export const configSchema = [
       return isAfterComma(ctx.lineContent, ctx.position.column) && /-\s*{[^}]*\bcolor\s*:/.test(ctx.lineContent);
     },
     items: (ctx: EditorContext): SuggestionItem[] => {
-      const allItems: SuggestionItem[] = [
-        { label: 'lvl', insertText: 'lvl: ${1}' },
-        { label: 'operator', insertText: "operator: '${1|=,>,<,>=,!=,<=|}'" },
-        { label: 'condition', insertText: "condition: '${1|hour >= 9 && hour < 18 && day !== 0 && day !== 6|}'" },
-      ];
+      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.THRESHOLD];
 
       return allItems.filter((item) => !new RegExp(`${item.label}:`).test(ctx.lineContent));
     },
@@ -298,22 +241,7 @@ export const configSchema = [
     key: 'defConfig',
     condition: (ctx: EditorContext) =>
       isConditionMet(ctx, 3) && ruleExistsInIdBlock(ctx.model, ctx.position, 'changes', 'above', Infinity, true),
-    items: [
-      {
-        label: 'defConfig',
-        insertText: `- id: ''
-  attributes:
-    tooltip:
-      show: true
-    metrics:
-      - refIds:
-        - { refid: '' }
-        baseColor: '#00ff00'
-        thresholds:
-          - { color: 'orange', value: 10 }
-          - { color: 'red', value: 20 }`,
-      },
-    ],
+    items: [...SUGGESTION_GROUPS.DEFS],
   },
   {
     key: 'thresholds',
@@ -322,14 +250,6 @@ export const configSchema = [
       !ruleExistsInIdBlock(ctx.model, ctx.position, 'changes', 'above', Infinity, true) &&
       ruleExistsInIdBlock(ctx.model, ctx.position, 'changes', 'below', Infinity, true) &&
       !ruleExistsInIdBlock(ctx.model, ctx.position, 'thresholds', 'both'),
-    items: [
-      {
-        label: 'thresholds',
-        insertText: `thresholds:
-  name: &name
-  - { color: 'orange', value: 10 }
-  - { color: 'red', value: 20 }`,
-      },
-    ],
+    items: [...SUGGESTION_GROUPS.ROOT],
   },
 ];
