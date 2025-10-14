@@ -76,10 +76,14 @@ function addLinksToSvgElements(svgElement: SVGElement, link: string): void {
     return;
   }
 
+  if (svgElement.hasAttribute('data-has-link')) {
+    return;
+  }
+
   const linkElement = document.createElementNS('http://www.w3.org/2000/svg', 'a');
+
   linkElement.setAttribute('target', '_blank');
   linkElement.setAttribute('href', link);
-  linkElement.setAttribute('rel', 'noopener noreferrer');
 
   svgElement.setAttribute('data-has-link', 'true');
   parent.insertBefore(linkElement, svgElement);

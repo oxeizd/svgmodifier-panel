@@ -2,7 +2,6 @@ export interface Change {
   id: string | string[];
   attributes: {
     autoConfig?: boolean;
-    schema?: string;
     link?: string | string[];
     tooltip?: Tooltip;
     label?: string;
