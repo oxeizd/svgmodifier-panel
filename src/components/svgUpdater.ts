@@ -1,4 +1,4 @@
-import { ColorDataEntry, valueMapping, ExpandedItem } from './types';
+import { ColorDataEntry, ValueMapping, ExpandedItem } from './types';
 import { getMappingMatch } from './utils/helpers';
 
 /**
@@ -199,7 +199,7 @@ function setLabelContent(
   label: string,
   metricLabel?: string,
   metricValue?: number | undefined,
-  mappings?: valueMapping[]
+  mappings?: ValueMapping[]
 ): void {
   let content = '';
 
