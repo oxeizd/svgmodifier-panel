@@ -1,5 +1,5 @@
-import { ColorDataEntry, LabelMapping, ExpandedItem } from './types';
-import { compareValues } from './utils/helpers';
+import { ColorDataEntry, valueMapping, ExpandedItem } from './types';
+import { getMappingMatch } from './utils/helpers';
 
 /**
  * Парсит SVG строку в DOM документ и извлекает элементы с ID начинающимися на "cell"
@@ -36,8 +36,7 @@ export function applyChangesToElements(items: ExpandedItem[]): void {
       continue;
     }
 
-    const { link, label, labelColor, labelMapping } = item.attributes ?? {};
-    const sortedMappings = labelMapping ? sortMappings(labelMapping) : undefined;
+    const { link, label, labelColor, valueMapping } = item.attributes ?? {};
 
     const linksArray = Array.isArray(link) ? (link as string[]) : undefined;
     const linkForThis = linksArray ? linksArray[i] : link;
@@ -51,7 +50,7 @@ export function applyChangesToElements(items: ExpandedItem[]): void {
       }
 
       if (label) {
-        setLabelContent(labelElements, label, maxEntries?.label, maxEntries?.metric, sortedMappings);
+        setLabelContent(labelElements, label, maxEntries?.label, maxEntries?.metric, valueMapping);
       }
 
       if (labelColor) {
@@ -200,11 +199,12 @@ function setLabelContent(
   label: string,
   metricLabel?: string,
   metricValue?: number | undefined,
-  mappings?: LabelMapping[]
+  mappings?: valueMapping[]
 ): void {
   let content = '';
 
-  const displayValue = metricValue === undefined ? '' : getMappedLabel(mappings, metricValue) ?? metricValue.toString();
+  const displayValue =
+    metricValue === undefined ? '' : getMappingMatch(mappings, metricValue) ?? metricValue.toString();
 
   switch (label) {
     case 'replace':
@@ -283,29 +283,4 @@ function applyColorToLabels(
       });
     }
   });
-}
-
-function sortMappings(mappings: LabelMapping[]): LabelMapping[] {
-  return [...mappings].sort((a, b) => {
-    const aVal = a.value ?? 0;
-    const bVal = b.value ?? 0;
-    const aIsHighPriority = a.condition && ['>', '>='].includes(a.condition);
-    const bIsHighPriority = b.condition && ['>', '>='].includes(b.condition);
-
-    return aIsHighPriority === bIsHighPriority ? aVal - bVal : aIsHighPriority ? -1 : 1;
-  });
-}
-
-function getMappedLabel(mappings: LabelMapping[] | undefined, value: number): string | undefined {
-  if (!mappings) {
-    return undefined;
-  }
-
-  for (let i = mappings.length - 1; i >= 0; i--) {
-    const mapping = mappings[i];
-    if (mapping.value !== undefined && mapping.condition && compareValues(value, mapping.value, mapping.condition)) {
-      return mapping.label;
-    }
-  }
-  return undefined;
 }

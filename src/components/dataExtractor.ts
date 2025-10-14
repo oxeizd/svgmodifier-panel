@@ -7,13 +7,15 @@ export class DataExtractor {
     this.dataFrame = dataFrame;
   }
 
-  public extractValues(): Map<string, { values: Map<string, string[]> }> {
-    const valueMap = new Map<string, { values: Map<string, string[]> }>();
+  public extractValues(): Map<string, { values: Map<string, { values: string[]; timestamps: number[] }> }> {
+    const valueMap = new Map<string, { values: Map<string, { values: string[]; timestamps: number[] }> }>();
 
     for (let i = 0; i < this.dataFrame.length; i++) {
       const frame: DataFrame = this.dataFrame[i];
+      const timeField = frame.fields.find((field) => field.type === FieldType.time);
       const metricValueField = frame.fields.find((field) => field.type === FieldType.number);
-      if (!metricValueField?.values?.length) {
+
+      if (!metricValueField?.values?.length || !timeField?.values?.length) {
         continue;
       }
 
@@ -41,8 +43,10 @@ export class DataExtractor {
 
       // Сохраняем значения
       const values = metricValueField.values.map(String);
-      refStore.values.set(uniqueName, values);
+      const timestamps = timeField.values.map(Number);
+      refStore.values.set(uniqueName, { values: values, timestamps: timestamps });
     }
+
     return valueMap;
   }
 

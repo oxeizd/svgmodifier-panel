@@ -12,41 +12,43 @@ export type EditorContext = {
   prevLine: string;
   position: monacoEditor.Position;
   model: monacoEditor.editor.ITextModel;
+  lines?: string[];
 };
 
 /**
  * monacoEditor options
  */
 export const MONACO_OPTIONS: monacoEditor.editor.IStandaloneEditorConstructionOptions = {
-  folding: true,
-  foldingStrategy: 'indentation' as const,
-  foldingHighlight: true,
-  lineNumbers: 'on' as const,
+  // Базовые настройки
+  lineNumbers: 'on',
+  lineNumbersMinChars: 3,
   tabSize: 2,
+  insertSpaces: true,
   minimap: { enabled: false },
-  wordWrap: 'off' as const,
-  wrappingIndent: 'none' as const,
+  wordWrap: 'off',
+  scrollBeyondLastLine: false,
+  automaticLayout: true,
+  // Автодополнение
   suggest: {
-    snippetsPreventQuickSuggestions: false,
     showWords: false,
     showSnippets: true,
   },
   quickSuggestions: {
     other: false,
     comments: false,
-    strings: true,
+    strings: false,
   },
-  suggestOnTriggerCharacters: false,
-  autoClosingBrackets: 'always' as const,
-  autoClosingQuotes: 'always' as const,
-  scrollBeyondLastLine: false,
-  automaticLayout: true,
+  // Автозакрывание
+  autoClosingBrackets: 'always',
+  autoClosingQuotes: 'always',
 };
 
 /**
  * schama templates
  */
 export const SUGGESTION_TEMPLATES = {
+  DEFAULT_TEMPLATE: 'changes:\n  ',
+
   CHANGES: "- id: '${1}'\n  attributes:\n    ",
 
   // attributes
@@ -55,19 +57,17 @@ export const SUGGESTION_TEMPLATES = {
   LABEL: "label: 'replace'",
   LABEL_COLOR: "labelColor: 'metric'",
   AUTO_CONFIG: 'autoConfig: true',
-  LABEL_MAPPING: "labelMapping:\n  - { condition: '${1|>=,>,<,=,!=,<=|}', value: ${2}, label: '${3}' }",
+  LABEL_MAPPING: "valueMapping:\n  - { condition: '${1|>=,>,<,=,!=,<=|}', value: ${2}, label: '${3}' }",
   ADD_MAPPING: "- { condition: '${1|>=,>,<,=,!=,<=|}', value: ${2}, label: '${3}' }",
   METRICS: 'metrics:\n  ',
 
   // metrics
-  REFIDS: "- refIds:\n  - { refid: '${1}' }",
-  LEGENDS: "- legends:\n  - { legend: '${1}' }",
-  ADDITIONAL_REF_IDS: "refIds:\n   - { refid: '${1}' }",
-  ADDITIONAL_LEGENDS: "legends:\n   - { legend: '${1}' }",
+  REFIDS: "refIds:\n  - { refid: '${1}' }",
+  LEGENDS: "legends:\n  - { legend: '${1}' }",
   ADD_LEGEND: "- { legend: '${1}' }",
   ADD_REFID: "- { refid: '${1}' }",
   DECIMAL: 'decimal: 0',
-  BASE_COLOR: "baseColor: '#50C878'",
+  BASE_COLOR: "baseColor: 'rgba(50, 172,45, 0.97)'",
   FILLING: "filling: '${1|fill,stroke,fs,fill\\, 20,none|}'",
   DISPLAY_TEXT: "displayText: '${1}'",
   THRESHOLDS: "thresholds:\n  - { color: 'orange', value: 10 }\n  - { color: 'red', value: 20 }",
@@ -87,8 +87,8 @@ export const SUGGESTION_TEMPLATES = {
 
   // defs
   DEF_CONFIG:
-    `- id: ''\n  attributes:\n    tooltip:\n      show: true\n    metrics:\n      - refIds:\n` +
-    `        - { refid: '' }\n        baseColor: '#00ff00'\n        thresholds:\n          - { color: 'orange', value: 10 }`,
+    `- id: ''\n  attributes:\n    tooltip:\n      show: true\n    metrics:\n      refIds:\n` +
+    `       - { refid: '' }\n      baseColor: '#00ff00'\n      thresholds:\n        - { color: 'orange', value: 10 }`,
   THRESHOLDS_ROOT: `thresholds:\n  name: &name\n  - { color: 'orange', value: 10 }\n  - { color: 'red', value: 20 }`,
 } as const;
 
@@ -105,7 +105,7 @@ export const SUGGESTION_GROUPS = {
     { label: 'label', insertText: SUGGESTION_TEMPLATES.LABEL },
     { label: 'labelColor', insertText: SUGGESTION_TEMPLATES.LABEL_COLOR },
     { label: 'autoConfig', insertText: SUGGESTION_TEMPLATES.AUTO_CONFIG },
-    { label: 'labelMapping', insertText: SUGGESTION_TEMPLATES.LABEL_MAPPING },
+    { label: 'valueMapping', insertText: SUGGESTION_TEMPLATES.LABEL_MAPPING },
     { label: 'add mapping', insertText: SUGGESTION_TEMPLATES.ADD_MAPPING },
     { label: 'metrics', insertText: SUGGESTION_TEMPLATES.METRICS },
   ],
@@ -113,8 +113,6 @@ export const SUGGESTION_GROUPS = {
   METRICS: [
     { label: 'refIds', insertText: SUGGESTION_TEMPLATES.REFIDS },
     { label: 'legends', insertText: SUGGESTION_TEMPLATES.LEGENDS },
-    { label: 'additional refIds', insertText: SUGGESTION_TEMPLATES.ADDITIONAL_REF_IDS },
-    { label: 'additional legends', insertText: SUGGESTION_TEMPLATES.ADDITIONAL_LEGENDS },
     { label: 'add legend', insertText: SUGGESTION_TEMPLATES.ADD_LEGEND },
     { label: 'add refid', insertText: SUGGESTION_TEMPLATES.ADD_REFID },
     { label: 'decimal', insertText: SUGGESTION_TEMPLATES.DECIMAL },

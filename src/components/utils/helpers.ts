@@ -1,3 +1,5 @@
+import { ValueMapping } from 'components/types';
+
 /**
  * Форматирует число с заданным количеством десятичных знаков.
  */
@@ -57,4 +59,39 @@ export function matchPattern(pattern: string, target: string): boolean {
   }
 
   return false;
+}
+
+/**
+ *
+ */
+export function getMappingMatch(mappings: ValueMapping[] | undefined, value: number): string | undefined {
+  if (!mappings) {
+    return undefined;
+  }
+
+  // Сначала сортируем маппинги
+  const sortedMappings = sortMappings(mappings);
+
+  // Затем ищем подходящий маппинг (с конца для условий > и >=)
+  for (let i = sortedMappings.length - 1; i >= 0; i--) {
+    const mapping = sortedMappings[i];
+    if (mapping.value !== undefined && mapping.condition && compareValues(value, mapping.value, mapping.condition)) {
+      return mapping.label;
+    }
+  }
+  return undefined;
+}
+
+/**
+ *
+ */
+function sortMappings(mappings: ValueMapping[]): ValueMapping[] {
+  return [...mappings].sort((a, b) => {
+    const aVal = a.value ?? 0;
+    const bVal = b.value ?? 0;
+    const aIsHighPriority = a.condition && ['>', '>='].includes(a.condition);
+    const bIsHighPriority = b.condition && ['>', '>='].includes(b.condition);
+
+    return aIsHighPriority === bIsHighPriority ? aVal - bVal : aIsHighPriority ? -1 : 1;
+  });
 }

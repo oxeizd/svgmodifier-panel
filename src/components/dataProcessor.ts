@@ -2,7 +2,7 @@ import { compareValues, matchPattern, roundToFixed } from './utils/helpers';
 import { Legends, Metric, RefIds, Threshold, ColorDataEntry } from './types';
 
 type CalculationMethod = 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
-type MetricDataMap = Map<string, { values: Map<string, string[]> }>;
+type MetricDataMap = Map<string, { values: Map<string, { values: string[]; timestamps: number[] }> }>;
 
 interface ElementColorMappingParams {
   inputMetrics: Metric | Metric[];
@@ -26,7 +26,7 @@ export function getMetricsData(params: ElementColorMappingParams): { colorDataAr
       const items: Array<{ displayName: string; value: number }> = [];
 
       for (const [innerKey, values] of metricData.values) {
-        const value = calculateValue(values.map(Number), ref.calculation || 'last');
+        const value = calculateValue(values.values.map(Number), ref.calculation || 'last');
         items.push({ displayName: innerKey, value });
       }
 
@@ -42,7 +42,7 @@ export function getMetricsData(params: ElementColorMappingParams): { colorDataAr
           if (matchPattern(legend.legend, innerKey)) {
             filteredItems.push({
               displayName: innerKey,
-              value: calculateValue(values.map(Number), legend.calculation || 'last'),
+              value: calculateValue(values.values.map(Number), legend.calculation || 'last'),
               globalKey,
             });
           }
@@ -232,14 +232,14 @@ function evaluateThresholdCondition(condition: string, ValueMap: MetricDataMap):
               subKey = subKey.trim();
               const subKeyValues = metricData.values.get(subKey);
               if (subKeyValues) {
-                const numericValues: number[] = subKeyValues.map(Number);
+                const numericValues: number[] = subKeyValues.values.map(Number);
                 value = calculateValue(numericValues, calculationMethod);
               }
             } else {
               // Если subKey не указан, берем первое значение из метрики
               const firstValue = Array.from(metricData.values.values())[0];
               if (firstValue) {
-                const numericValues: number[] = firstValue.map(Number);
+                const numericValues: number[] = firstValue.values.map(Number);
                 value = calculateValue(numericValues, calculationMethod);
               }
             }

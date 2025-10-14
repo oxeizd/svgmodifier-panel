@@ -1,128 +1,212 @@
 import { SUGGESTION_GROUPS, EditorContext, SuggestionItem } from './constants';
-import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api';
 
-// Вспомогательная функция для проверки наличия строки `- id:` выше текущей строки
-export const findIdAbove = (model: monacoEditor.editor.ITextModel, currentLine: number): boolean => {
-  for (let i = currentLine - 1; i >= 1; i--) {
-    if (model.getLineContent(i).indexOf('- id:') !== -1) {
-      return true;
+interface BlockAnalysis {
+  hasIdAbove: boolean;
+  existingRules: Set<string>;
+  hasAttributes: boolean;
+  hasMetrics: boolean;
+  hasChanges: boolean;
+  hasThresholds: boolean;
+  currentBlockRules: Set<string>;
+  lineContents: string[];
+  blockStart: number;
+  blockEnd: number;
+  attributesBlockStart: number;
+  attributesBlockEnd: number;
+}
+
+const analyzeBlockContext = (ctx: EditorContext): BlockAnalysis => {
+  const existingRules = new Set<string>();
+  const currentBlockRules = new Set<string>();
+
+  const lineContents =
+    ctx.lines ?? Array.from({ length: ctx.model.getLineCount() }, (_, i) => ctx.model.getLineContent(i + 1));
+
+  const currentLine = Math.max(0, ctx.position.lineNumber - 1);
+  let blockStart = -1;
+  let blockEnd = lineContents.length;
+  let attributesBlockStart = -1;
+  let attributesBlockEnd = lineContents.length;
+
+  // Найти ближайший вверх '- id:'
+  for (let i = currentLine; i >= 0; i--) {
+    if (/^\s*-\s*id:/.test(lineContents[i])) {
+      blockStart = i;
+      break;
     }
   }
-  return false;
-};
 
-// Вспомогательная функция для проверки наличия правила в блоке `id`
-export const ruleExistsInIdBlock = (
-  model: monacoEditor.editor.ITextModel,
-  position: monacoEditor.Position,
-  rule: string,
-  direction: 'above' | 'below' | 'both' = 'both',
-  linesToCheck = Infinity,
-  checkAll = false
-): boolean => {
-  const currentLine = position.lineNumber;
-  const totalLines = model.getLineCount();
+  // Найти следующий '- id:' вниз
+  for (let i = currentLine + 1; i < lineContents.length; i++) {
+    if (/^\s*-\s*id:/.test(lineContents[i])) {
+      blockEnd = i;
+      break;
+    }
+  }
 
-  const checkLines = (start: number, end: number, step: number) => {
-    for (let i = start; i !== end; i += step) {
-      if (model.getLineContent(i).includes(`${rule}:`)) {
-        return true;
+  // Найти attributes: внутри найденного блока (если есть)
+  if (blockStart !== -1) {
+    for (let i = blockStart; i < blockEnd; i++) {
+      if (/^\s*attributes:/.test(lineContents[i])) {
+        attributesBlockStart = i;
+        const baseIndentMatch = lineContents[i].match(/^(\s*)/);
+        const baseIndent = baseIndentMatch ? baseIndentMatch[1].length : 0;
+        // определить конец attributes: — либо следующий ключ с indent <= baseIndent, либо следующий '- id:'
+        for (let j = i + 1; j < lineContents.length; j++) {
+          if (/^\s*-\s*id:/.test(lineContents[j])) {
+            attributesBlockEnd = j;
+            break;
+          }
+          const m = lineContents[j].match(/^(\s*)([^\s].*)/);
+          if (m) {
+            const indent = m[1].length;
+            const rest = m[2];
+            if (/^[\w-]+:/.test(rest) && indent <= baseIndent) {
+              attributesBlockEnd = j;
+              break;
+            }
+          }
+        }
+        break;
       }
     }
-    return false;
+  }
+
+  // Собираем правила: глобально и в текущем блоке (между blockStart..blockEnd)
+  let hasChanges = false;
+  let hasThresholds = false;
+  let hasMetrics = false;
+  let hasAttributes = false;
+
+  for (let i = 0; i < lineContents.length; i++) {
+    const line = lineContents[i];
+    const keyMatch = line.match(/^\s*([a-zA-Z0-9_-]+)\s*:/);
+    if (keyMatch) {
+      const ruleName = keyMatch[1];
+      existingRules.add(ruleName);
+
+      if (blockStart !== -1 && i >= blockStart && i < blockEnd) {
+        currentBlockRules.add(ruleName);
+        if (ruleName === 'attributes') {
+          hasAttributes = true;
+        }
+      }
+
+      if (attributesBlockStart !== -1 && i >= attributesBlockStart && i < attributesBlockEnd) {
+        if (ruleName === 'metrics') {
+          hasMetrics = true;
+        }
+      }
+
+      if (ruleName === 'changes') {
+        hasChanges = true;
+      }
+      if (ruleName === 'thresholds') {
+        hasThresholds = true;
+      }
+    }
+  }
+
+  return {
+    hasIdAbove: blockStart !== -1,
+    existingRules,
+    hasAttributes,
+    hasMetrics,
+    hasChanges,
+    hasThresholds,
+    currentBlockRules,
+    lineContents,
+    blockStart,
+    blockEnd,
+    attributesBlockStart,
+    attributesBlockEnd,
   };
-
-  if (checkAll) {
-    if (direction === 'above' || direction === 'both') {
-      if (checkLines(currentLine - 1, 0, -1)) {
-        return true;
-      }
-    }
-    if (direction === 'below' || direction === 'both') {
-      if (checkLines(currentLine + 1, totalLines + 1, 1)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  if (direction === 'above' || direction === 'both') {
-    let linesChecked = 0;
-    for (let i = currentLine - 1; i >= 1 && linesChecked < linesToCheck; i--) {
-      if (model.getLineContent(i).includes('- id:')) {
-        break;
-      }
-      if (model.getLineContent(i).includes(`${rule}:`)) {
-        return true;
-      }
-      linesChecked++;
-    }
-  }
-
-  if (direction === 'below' || direction === 'both') {
-    let linesChecked = 0;
-    for (let j = currentLine + 1; j <= totalLines && linesChecked < linesToCheck; j++) {
-      if (model.getLineContent(j).includes('- id:')) {
-        break;
-      }
-      if (model.getLineContent(j).includes(`${rule}:`)) {
-        return true;
-      }
-      linesChecked++;
-    }
-  }
-
-  return false;
 };
 
 // Вспомогательная функция для проверки условий позиции курсора
 export const isConditionMet = (ctx: EditorContext, pos: number) => {
   const { lineContent, position } = ctx;
   const isRightEmpty = lineContent.substring(position.column - 1).trim() === '';
-
   return position.column === pos && isRightEmpty;
 };
 
-// Вспомогательная функция для проверки, заканчивается ли строка запятой
-const isAfterComma = (lineContent: string, column: number) => {
-  const leftText = lineContent.substring(0, column);
-  return /,\s*$/.test(leftText);
+// Функция для проверки существования правила в attributes блоке (учитывает inline объекты)
+const ruleExistsInAttributesBlock = (analysis: BlockAnalysis, rule: string): boolean => {
+  if (analysis.currentBlockRules.has(rule)) {
+    return true;
+  }
+
+  if (analysis.attributesBlockStart !== -1) {
+    for (let i = analysis.attributesBlockStart; i < analysis.attributesBlockEnd; i++) {
+      const line = analysis.lineContents[i];
+      if (new RegExp(`(^|[\\s{,])${rule}\\s*:`).test(line)) {
+        return true;
+      }
+      // inline объект вида "- { legend: 'x', calculation: 'y' }"
+      if (/\{\s*[^}]*\}/.test(line) && new RegExp(`${rule}\\s*:`).test(line)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 };
 
-// Вспомогательная функция для проверки, находится ли курсор внутри блока legend
-const isInLegendBlock = (lineContent: string, column: number) => {
-  const leftText = lineContent.substring(0, column);
-  return /(legend|refid)\s*:\s*['"]/.test(leftText);
+// Проверка, находится ли позиция внутри блока metrics (в пределах attributes)
+const isInMetricsBlockForPosition = (analysis: BlockAnalysis, posLineIndex: number) => {
+  if (analysis.attributesBlockStart === -1) {
+    return false;
+  }
+  for (let i = analysis.attributesBlockStart; i < analysis.attributesBlockEnd; i++) {
+    if (/^\s*metrics:/.test(analysis.lineContents[i])) {
+      const metricsLine = i;
+      return posLineIndex >= metricsLine && posLineIndex < analysis.attributesBlockEnd;
+    }
+  }
+  return false;
 };
 
-// Основная схема конфигурации
 export const configSchema = [
   {
     key: 'id',
     indent: 2,
-    condition: (ctx: EditorContext) =>
-      isConditionMet(ctx, 3) && ruleExistsInIdBlock(ctx.model, ctx.position, 'changes', 'above', Infinity, true),
+    condition: (ctx: EditorContext) => {
+      const analysis = analyzeBlockContext(ctx);
+      // Показываем id если находимся в блоке changes или создаем новый блок
+      const isInChangesBlock = analysis.lineContents.some(
+        (line, idx) => line.includes('changes:') && idx < ctx.position.lineNumber - 1
+      );
+      return isConditionMet(ctx, 3) && isInChangesBlock;
+    },
     items: SUGGESTION_GROUPS.CHANGES,
   },
   {
     key: 'attributes',
     condition: (ctx: EditorContext) => {
-      const hasIdAbove = findIdAbove(ctx.model, ctx.position.lineNumber);
-      const hasAttributes = ruleExistsInIdBlock(ctx.model, ctx.position, 'attributes', 'above');
-      const hasMetrics = ruleExistsInIdBlock(ctx.model, ctx.position, 'metrics', 'above');
-      return hasIdAbove && hasAttributes && !hasMetrics;
+      const analysis = analyzeBlockContext(ctx);
+      // Показываем подсказки attributes только если находимся НЕ внутри metrics
+      const isInMetricsBlock = analysis.lineContents.some(
+        (line, idx) =>
+          idx < ctx.position.lineNumber - 1 &&
+          line.includes('metrics:') &&
+          idx >= analysis.blockStart &&
+          idx < analysis.blockEnd
+      );
+
+      return analysis.hasIdAbove && analysis.hasAttributes && !isInMetricsBlock;
     },
     items: (ctx: EditorContext): SuggestionItem[] => {
+      const analysis = analyzeBlockContext(ctx);
       const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.ATTRIBUTES];
 
       return allItems.filter((item) => {
-        const exists = ruleExistsInIdBlock(ctx.model, ctx.position, item.label, 'both');
+        const exists = analysis.currentBlockRules.has(item.label);
         if (item.label === 'add mapping') {
           return (
             !exists &&
             ctx.position.column === 9 &&
-            ruleExistsInIdBlock(ctx.model, ctx.position, 'labelMapping') &&
-            ruleExistsInIdBlock(ctx.model, ctx.position, '- { condition', 'both', 1)
+            analysis.currentBlockRules.has('labelMapping') &&
+            analysis.lineContents.some((line) => line.includes('- { condition'))
           );
         }
         return !exists && ctx.position.column === 7;
@@ -130,126 +214,194 @@ export const configSchema = [
     },
   },
   {
-    condition: (ctx: EditorContext) => {
-      return (
-        isAfterComma(ctx.lineContent, ctx.position.column) && isInLegendBlock(ctx.lineContent, ctx.position.column)
-      );
-    },
-    items: (ctx: EditorContext): SuggestionItem[] => {
-      const leftText = ctx.lineContent.substring(0, ctx.position.column);
-
-      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.LEGEND];
-
-      return allItems.filter((item) => !new RegExp(`${item.label}:`).test(leftText));
-    },
-  },
-  {
     key: 'metrics',
     condition: (ctx: EditorContext) => {
       const validColumns = [9, 11, 13, 14];
+      const analysis = analyzeBlockContext(ctx);
+
+      const isInMetricsBlock = analysis.lineContents.some(
+        (line, idx) =>
+          idx < ctx.position.lineNumber - 1 &&
+          line.includes('metrics:') &&
+          idx >= analysis.blockStart &&
+          idx < analysis.blockEnd
+      );
+
       return (
-        validColumns.includes(ctx.position.column) &&
-        findIdAbove(ctx.model, ctx.position.lineNumber) &&
-        ruleExistsInIdBlock(ctx.model, ctx.position, 'metrics', 'above')
+        validColumns.includes(ctx.position.column) && analysis.hasIdAbove && analysis.hasAttributes && isInMetricsBlock
       );
     },
     items: (ctx: EditorContext): SuggestionItem[] => {
-      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.METRICS];
+      const analysis = analyzeBlockContext(ctx);
+      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.METRICS, ...SUGGESTION_GROUPS.LEGEND];
 
+      const currentLine = ctx.position.lineNumber - 1;
+      const line = ctx.lineContent;
+
+      // Определяем, внутри ли мы inline-объекта (например "- { legend: '', calculation: '' }")
+      let isInsideObject = /\{\s*[^}]*$/.test(line) && !/\}/.test(line);
+      if (!isInsideObject) {
+        for (let i = currentLine - 1; i >= Math.max(0, currentLine - 10); i--) {
+          const l = analysis.lineContents[i];
+          if (l.includes('{') && !l.includes('}')) {
+            isInsideObject = true;
+            break;
+          }
+          if (l.includes('}')) {
+            break;
+          }
+        }
+      }
+
+      // Определяем, внутри ли мы блока metrics (в пределах attributes)
+      const isInMetrics = isInMetricsBlockForPosition(analysis, currentLine);
+      // Определим, внутри ли масива legends или refIds — ищем ближайшие вверх строки в пределах attributesBlock
+      let inLegendsArray = false;
+      let inRefIdsArray = false;
+      let isthresholdsArray = false;
+      if (analysis.attributesBlockStart !== -1) {
+        for (let i = currentLine; i >= analysis.attributesBlockStart; i--) {
+          const l = analysis.lineContents[i].trim();
+          if (l.startsWith('legends:')) {
+            inLegendsArray = true;
+            break;
+          }
+          if (l.startsWith('refIds:')) {
+            inRefIdsArray = true;
+            break;
+          }
+          if (l.startsWith('metrics:') && i !== currentLine) {
+            break;
+          }
+          if (l.startsWith('thresholds:')) {
+            isthresholdsArray = true;
+            break;
+          }
+        }
+      }
       return allItems.filter((item) => {
-        const exists = ruleExistsInIdBlock(ctx.model, ctx.position, item.label, 'both');
+        // Для inline-объекта проверяем только текущую строку, иначе — в attributes блоке
+        const exists = isInsideObject
+          ? new RegExp(`(^|[\\s{,])${item.label}\\s*:`).test(line)
+          : ruleExistsInAttributesBlock(analysis, item.label);
 
-        if (item.label === 'refIds' || item.label === 'legends') {
-          return (
-            !exists && ctx.position.column === 9 && ruleExistsInIdBlock(ctx.model, ctx.position, 'metrics', 'above', 1)
-          );
+        // На уровне атрибутов metrics (где refIds:, legends:, decimal:, baseColor и т.д.)
+        if (isInMetrics) {
+          if (item.label === 'refIds' || item.label === 'legends') {
+            return !exists && ctx.position.column === 9;
+          }
+
+          if (['decimal', 'baseColor', 'filling', 'displayText', 'thresholds'].includes(item.label)) {
+            return !exists && ctx.position.column === 9;
+          }
+
+          if (isthresholdsArray) {
+            if (item.label === 'add threshold') {
+              return (
+                !exists &&
+                ctx.position.column === 11 &&
+                ruleExistsInAttributesBlock(analysis, 'thresholds') &&
+                analysis.lineContents
+                  .slice(analysis.attributesBlockStart, analysis.attributesBlockEnd)
+                  .some((l) => /\-\s*\{\s*color\s*:/.test(l))
+              );
+            }
+          }
+
+          if (inRefIdsArray) {
+            if (item.label === 'add refid') {
+              return !exists && ctx.position.column === 11 && ruleExistsInAttributesBlock(analysis, 'refIds');
+            }
+          }
+          if (inLegendsArray) {
+            if (item.label === 'add legend') {
+              return !exists && ctx.position.column === 11 && ruleExistsInAttributesBlock(analysis, 'legends');
+            }
+          }
+          return false;
         }
-
-        if (item.label === 'additional refIds') {
-          return (
-            !exists &&
-            ctx.position.column === 11 &&
-            ruleExistsInIdBlock(ctx.model, ctx.position, '- legends', 'above') &&
-            ruleExistsInIdBlock(ctx.model, ctx.position, 'legend', 'above', 1) &&
-            !ruleExistsInIdBlock(ctx.model, ctx.position, 'refIds')
-          );
-        }
-
-        if (item.label === 'additional legends') {
-          return (
-            !exists &&
-            ctx.position.column === 11 &&
-            ruleExistsInIdBlock(ctx.model, ctx.position, '- refIds', 'above') &&
-            ruleExistsInIdBlock(ctx.model, ctx.position, 'refid', 'above', 1) &&
-            !ruleExistsInIdBlock(ctx.model, ctx.position, 'legends')
-          );
-        }
-
-        if (item.label === 'add legend') {
-          return (
-            !exists &&
-            ((ctx.position.column === 11 &&
-              ruleExistsInIdBlock(ctx.model, ctx.position, '- legends', 'above') &&
-              ruleExistsInIdBlock(ctx.model, ctx.position, 'legend', 'both', 1)) ||
-              (ctx.position.column === 14 &&
-                ruleExistsInIdBlock(ctx.model, ctx.position, '          legends', 'above') &&
-                ruleExistsInIdBlock(ctx.model, ctx.position, 'legend', 'both', 1)))
-          );
-        }
-
-        if (item.label === 'add refid') {
-          return (
-            !exists &&
-            ((ctx.position.column === 11 &&
-              ruleExistsInIdBlock(ctx.model, ctx.position, '- refIds', 'above') &&
-              ruleExistsInIdBlock(ctx.model, ctx.position, 'refid', 'both', 1)) ||
-              (ctx.position.column === 14 &&
-                ruleExistsInIdBlock(ctx.model, ctx.position, '          refIds', 'above') &&
-                ruleExistsInIdBlock(ctx.model, ctx.position, 'refid', 'both', 1)))
-          );
-        }
-
-        if (item.label === 'add threshold') {
-          return (
-            !exists &&
-            ctx.position.column === 13 &&
-            ruleExistsInIdBlock(ctx.model, ctx.position, 'thresholds', 'above') &&
-            ruleExistsInIdBlock(ctx.model, ctx.position, '- { color', 'both', 1)
-          );
-        }
-
-        return (
-          !exists &&
-          ctx.position.column === 11 &&
-          (ruleExistsInIdBlock(ctx.model, ctx.position, 'legends', 'above') ||
-            ruleExistsInIdBlock(ctx.model, ctx.position, 'refIds', 'above'))
-        );
+        return false;
       });
     },
   },
+
   {
+    key: 'inlineMetrics',
     condition: (ctx: EditorContext) => {
-      return isAfterComma(ctx.lineContent, ctx.position.column) && /-\s*{[^}]*\bcolor\s*:/.test(ctx.lineContent);
+      const analysis = analyzeBlockContext(ctx);
+      const currentLine = ctx.position.lineNumber - 1;
+
+      // Проверяем, находимся ли мы внутри inline-объекта
+      // Даже если есть закрывающая скобка, но курсор перед ней
+      const lineBeforeCursor = ctx.lineContent.substring(0, ctx.position.column - 1);
+      const isInInlineObject = /\{\s*[^}]*$/.test(lineBeforeCursor);
+
+      if (!isInInlineObject) {
+        return false;
+      }
+
+      // Проверяем, что находимся в пределах attributes блока
+      if (analysis.attributesBlockStart === -1) {
+        return false;
+      }
+
+      // Определяем, в каком массиве находимся (refIds или legends)
+      let inRefIdsArray = false;
+      let inLegendsArray = false;
+
+      for (let i = currentLine; i >= analysis.attributesBlockStart; i--) {
+        const line = analysis.lineContents[i].trim();
+        if (line.startsWith('refIds:')) {
+          inRefIdsArray = true;
+          break;
+        }
+        if (line.startsWith('legends:')) {
+          inLegendsArray = true;
+          break;
+        }
+        if (line.startsWith('metrics:') && i !== currentLine) {
+          break;
+        }
+      }
+
+      return (inRefIdsArray || inLegendsArray) && isInInlineObject;
     },
     items: (ctx: EditorContext): SuggestionItem[] => {
-      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.THRESHOLD];
+      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.LEGEND];
 
+      return allItems.filter((item) => {
+        // Проверяем только часть строки до курсора
+        const lineBeforeCursor = ctx.lineContent.substring(0, ctx.position.column - 1);
+        return !new RegExp(`\\b${item.label}\\s*:`).test(lineBeforeCursor);
+      });
+    },
+  },
+
+  {
+    condition: (ctx: EditorContext) => /-\s*{[^}]*\bcolor\s*:/.test(ctx.lineContent),
+    items: (ctx: EditorContext): SuggestionItem[] => {
+      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.THRESHOLD];
       return allItems.filter((item) => !new RegExp(`${item.label}:`).test(ctx.lineContent));
     },
   },
   {
     key: 'defConfig',
-    condition: (ctx: EditorContext) =>
-      isConditionMet(ctx, 3) && ruleExistsInIdBlock(ctx.model, ctx.position, 'changes', 'above', Infinity, true),
+    condition: (ctx: EditorContext) => {
+      const analysis = analyzeBlockContext(ctx);
+      return isConditionMet(ctx, 3) && analysis.hasChanges;
+    },
     items: [...SUGGESTION_GROUPS.DEFS],
   },
   {
     key: 'thresholds',
-    condition: (ctx: EditorContext) =>
-      isConditionMet(ctx, 1) &&
-      !ruleExistsInIdBlock(ctx.model, ctx.position, 'changes', 'above', Infinity, true) &&
-      ruleExistsInIdBlock(ctx.model, ctx.position, 'changes', 'below', Infinity, true) &&
-      !ruleExistsInIdBlock(ctx.model, ctx.position, 'thresholds', 'both'),
+    condition: (ctx: EditorContext) => {
+      const analysis = analyzeBlockContext(ctx);
+      const hasChangesBelow = analysis.lineContents.some(
+        (line, idx) => idx > ctx.position.lineNumber - 1 && line.includes('changes:')
+      );
+
+      return isConditionMet(ctx, 1) && hasChangesBelow && !analysis.hasThresholds;
+    },
     items: [...SUGGESTION_GROUPS.ROOT],
   },
 ];

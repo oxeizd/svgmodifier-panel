@@ -1,9 +1,9 @@
-import { RegexCheck } from './utils/helpers';
 import { DataExtractor } from './dataExtractor';
 import { getMetricsData } from './dataProcessor';
+import { RegexCheck, getMappingMatch } from './utils/helpers';
 import { formatValues } from './utils/ValueTransformer';
 import { parseSvgDocument, applyChangesToElements } from './svgUpdater';
-import { Change, ColorDataEntry, TooltipContent, ExpandedItem, Metric } from './types';
+import { Change, ColorDataEntry, TooltipContent, ExpandedItem, Metric, ValueMapping } from './types';
 
 export function svgModifier(svg: string, changes: Change[], dataFrame: any[]) {
   const parser = new DOMParser();
@@ -26,17 +26,29 @@ export function svgModifier(svg: string, changes: Change[], dataFrame: any[]) {
 
   const getElementsByIdOrRegex = (id: string): Array<[string, SVGElement]> => {
     const allEntries = Array.from(svgElementsMap.entries());
+    const checkid = id && !id.startsWith('cell-') ? `cell-${id}` : id;
 
-    return RegexCheck(id)
-      ? allEntries.filter(([key]) => new RegExp(id).test(key))
-      : allEntries.filter(([key]) => key === id);
+    return RegexCheck(checkid)
+      ? allEntries.filter(([key]) => new RegExp(checkid).test(key))
+      : allEntries.filter(([key]) => key === checkid);
+  };
+
+  const normalizeMetrics = (m: any) => {
+    if (m == null) {
+      return undefined;
+    }
+    return Array.isArray(m) ? m : [m];
   };
 
   const proccesingRules = (extractedValueMap: Map<string, any>, tooltipData: TooltipContent[]) => {
     const allRUles: ExpandedItem[] = [];
     for (const rule of changes) {
-      const ruleItems: ExpandedItem[] = [];
       const attributes = rule.attributes;
+      if (!attributes) {
+        continue;
+      }
+
+      const ruleItems: ExpandedItem[] = [];
       const configIds = Array.isArray(rule.id) ? rule.id : [rule.id ?? ''];
 
       for (const rawId of configIds) {
@@ -48,12 +60,15 @@ export function svgModifier(svg: string, changes: Change[], dataFrame: any[]) {
         const elements = getElementsByIdOrRegex(id);
 
         for (const [svgId, svgElem] of elements) {
+          const attrsCopy = { ...attributes };
+          attrsCopy.metrics = normalizeMetrics(attrsCopy.metrics);
+
           ruleItems.push({
             id: svgId,
             schema,
             selector,
             svgElement: svgElem,
-            attributes: schema ? applySchema(attributes, schema) : attributes,
+            attributes: schema ? applySchema(attrsCopy, schema) : attrsCopy,
             colorDataEntries: [],
           });
         }
@@ -78,6 +93,8 @@ export function svgModifier(svg: string, changes: Change[], dataFrame: any[]) {
       if (item.schema) {
         const originalMetrics = item.attributes.metrics;
         item.attributes = applySchema(item.attributes, item.schema);
+
+        item.attributes.metrics = normalizeMetrics(item.attributes.metrics);
 
         if (item.attributes.metrics && item.attributes.metrics !== originalMetrics) {
           const individualMetricConfig = getMetricsData({
@@ -244,27 +261,42 @@ export function svgModifier(svg: string, changes: Change[], dataFrame: any[]) {
   };
 
   const createTooltipData = (ids: ExpandedItem[], tooltipData: TooltipContent[]) => {
-    for (let i = 0; i < ids.length; i++) {
-      const { id, attributes, colorDataEntries } = ids[i];
-      if (!colorDataEntries || colorDataEntries.length === 0) {
+    for (const { id, attributes, colorDataEntries } of ids) {
+      if (!colorDataEntries?.length || !attributes.tooltip?.show) {
         continue;
       }
 
-      if (attributes.tooltip?.show) {
-        for (let j = 0; j < colorDataEntries.length; j++) {
-          const entry = colorDataEntries[j];
-          tooltipData.push({
-            id,
-            label: (entry.label ?? '').replace(/_prfx\d+/g, ''),
-            color: entry.color ?? '',
-            metric: entry.unit ? formatValues(entry.metric, entry.unit) : String(entry.metric ?? ''),
-            title: entry.title ?? '',
-            textAbove: attributes.tooltip.textAbove,
-            textBelow: attributes.tooltip.textBelow,
-          });
-        }
+      for (const entry of colorDataEntries) {
+        const metricValue = formatMetricValue(entry, attributes.valueMapping);
+
+        tooltipData.push({
+          id,
+          label: (entry.label ?? '').replace(/_prfx\d+/g, ''),
+          color: entry.color ?? '',
+          metric: metricValue,
+          title: entry.title ?? '',
+          textAbove: attributes.tooltip.textAbove,
+          textBelow: attributes.tooltip.textBelow,
+        });
       }
     }
+  };
+
+  const formatMetricValue = (entry: ColorDataEntry, valueMapping?: ValueMapping[]): string => {
+    if (entry.metric == null) {
+      return '';
+    }
+
+    if (valueMapping) {
+      const mappedValue = getMappingMatch(valueMapping, entry.metric);
+      if (mappedValue !== undefined) {
+        return mappedValue;
+      }
+    } else if (entry.unit) {
+      return formatValues(entry.metric, entry.unit);
+    }
+
+    return String(entry.metric);
   };
 
   return {

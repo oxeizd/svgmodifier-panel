@@ -6,7 +6,7 @@ export interface Change {
     tooltip?: Tooltip;
     label?: string;
     labelColor?: string;
-    labelMapping?: LabelMapping[];
+    valueMapping?: ValueMapping[];
     metrics?: Metric | Metric[];
   };
 }
@@ -17,7 +17,7 @@ export interface Tooltip {
   textBelow?: string;
 }
 
-export interface LabelMapping {
+export interface ValueMapping {
   condition: string;
   value: number;
   label: string;
