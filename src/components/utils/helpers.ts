@@ -1,4 +1,4 @@
-import { ValueMapping } from 'components/types';
+import { Metric, ValueMapping } from 'components/types';
 
 /**
  * Форматирует число с заданным количеством десятичных знаков.
@@ -69,10 +69,8 @@ export function getMappingMatch(mappings: ValueMapping[] | undefined, value: num
     return undefined;
   }
 
-  // Сначала сортируем маппинги
   const sortedMappings = sortMappings(mappings);
 
-  // Затем ищем подходящий маппинг (с конца для условий > и >=)
   for (let i = sortedMappings.length - 1; i >= 0; i--) {
     const mapping = sortedMappings[i];
     if (mapping.value !== undefined && mapping.condition && compareValues(value, mapping.value, mapping.condition)) {
@@ -82,9 +80,6 @@ export function getMappingMatch(mappings: ValueMapping[] | undefined, value: num
   return undefined;
 }
 
-/**
- *
- */
 function sortMappings(mappings: ValueMapping[]): ValueMapping[] {
   return [...mappings].sort((a, b) => {
     const aVal = a.value ?? 0;
@@ -94,4 +89,80 @@ function sortMappings(mappings: ValueMapping[]): ValueMapping[] {
 
     return aIsHighPriority === bIsHighPriority ? aVal - bVal : aIsHighPriority ? -1 : 1;
   });
+}
+
+/**
+ * Schemas for quick configuration setup
+ */
+export function applySchema(attributes: any, schema: string) {
+  if (!schema) {
+    return attributes;
+  }
+
+  const result = { ...attributes };
+
+  const schemaActions: Record<string, () => void> = {
+    basic: () => {
+      delete result.label;
+      delete result.labelColor;
+      result.tooltip = result.tooltip || { show: true };
+      if (result.metrics) {
+        result.metrics = result.metrics.map((metric: Metric) => ({
+          ...metric,
+          filling: 'fill',
+          baseColor: metric.baseColor || '#00ff00',
+        }));
+      }
+    },
+    stroke: () => {
+      const propsToDelete = ['link', 'label', 'labelColor', 'tooltip'];
+      propsToDelete.forEach((p) => delete result[p]);
+      if (result.metrics) {
+        result.metrics = result.metrics.map((metric: Metric) => ({
+          ...metric,
+          filling: 'stroke',
+          baseColor: '',
+        }));
+      }
+    },
+    strokeBase: () => {
+      const propsToDelete = ['link', 'label', 'labelColor', 'tooltip'];
+      propsToDelete.forEach((p) => delete result[p]);
+      if (result.metrics) {
+        result.metrics = result.metrics.map((metric: Metric) => ({
+          ...metric,
+          filling: 'stroke',
+        }));
+      }
+    },
+    text: () => {
+      delete result.link;
+      delete result.tooltip;
+      result.label = result.label || 'replace';
+      result.labelColor = result.labelColor || 'metric';
+      if (result.metrics) {
+        result.metrics = result.metrics.map((metric: Metric) => ({
+          ...metric,
+          filling: 'none',
+          baseColor: metric.baseColor || '',
+        }));
+      }
+    },
+    table: () => {
+      delete result.link;
+      delete result.tooltip;
+      result.label = result.label || 'replace';
+      result.labelColor = result.labelColor || 'metric';
+      if (result.metrics) {
+        result.metrics = result.metrics.map((metric: Metric) => ({
+          ...metric,
+          filling: 'fill, 20',
+          baseColor: metric.baseColor || '#00ff00',
+        }));
+      }
+    },
+  };
+
+  schemaActions[schema]?.();
+  return result;
 }

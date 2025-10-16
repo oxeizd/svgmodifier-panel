@@ -1,9 +1,9 @@
 import { DataExtractor } from './dataExtractor';
 import { getMetricsData } from './dataProcessor';
-import { RegexCheck, getMappingMatch } from './utils/helpers';
 import { formatValues } from './utils/ValueTransformer';
 import { parseSvgDocument, applyChangesToElements } from './svgUpdater';
-import { Change, ColorDataEntry, TooltipContent, ExpandedItem, Metric, ValueMapping } from './types';
+import { RegexCheck, applySchema, getMappingMatch } from './utils/helpers';
+import { Change, ColorDataEntry, TooltipContent, ExpandedItem, ValueMapping } from './types';
 
 export function svgModifier(svg: string, changes: Change[], dataFrame: any[]) {
   const parser = new DOMParser();
@@ -113,79 +113,6 @@ export function svgModifier(svg: string, changes: Change[], dataFrame: any[]) {
 
     applyChangesToElements(allRUles);
     createTooltipData(allRUles, tooltipData);
-  };
-
-  const applySchema = (attributes: any, schema: string) => {
-    if (!schema) {
-      return attributes;
-    }
-
-    const result = { ...attributes };
-
-    const schemaActions: Record<string, () => void> = {
-      basic: () => {
-        delete result.label;
-        delete result.labelColor;
-        result.tooltip = result.tooltip || { show: true };
-        if (result.metrics) {
-          result.metrics = result.metrics.map((metric: Metric) => ({
-            ...metric,
-            filling: 'fill',
-            baseColor: metric.baseColor || '#00ff00',
-          }));
-        }
-      },
-      stroke: () => {
-        const propsToDelete = ['link', 'label', 'labelColor', 'tooltip'];
-        propsToDelete.forEach((p) => delete result[p]);
-        if (result.metrics) {
-          result.metrics = result.metrics.map((metric: Metric) => ({
-            ...metric,
-            filling: 'stroke',
-            baseColor: '',
-          }));
-        }
-      },
-      strokeBase: () => {
-        const propsToDelete = ['link', 'label', 'labelColor', 'tooltip'];
-        propsToDelete.forEach((p) => delete result[p]);
-        if (result.metrics) {
-          result.metrics = result.metrics.map((metric: Metric) => ({
-            ...metric,
-            filling: 'stroke',
-          }));
-        }
-      },
-      text: () => {
-        delete result.link;
-        delete result.tooltip;
-        result.label = result.label || 'replace';
-        result.labelColor = result.labelColor || 'metric';
-        if (result.metrics) {
-          result.metrics = result.metrics.map((metric: Metric) => ({
-            ...metric,
-            filling: 'none',
-            baseColor: metric.baseColor || '',
-          }));
-        }
-      },
-      table: () => {
-        delete result.link;
-        delete result.tooltip;
-        result.label = result.label || 'replace';
-        result.labelColor = result.labelColor || 'metric';
-        if (result.metrics) {
-          result.metrics = result.metrics.map((metric: Metric) => ({
-            ...metric,
-            filling: 'fill, 20',
-            baseColor: metric.baseColor || '#00ff00',
-          }));
-        }
-      },
-    };
-
-    schemaActions[schema]?.();
-    return result;
   };
 
   const metricsComparison = (
