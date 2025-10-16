@@ -36,7 +36,7 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
 
       for (const entry of configSchema) {
         try {
-          if (entry.condition && !entry.condition(context)) {
+          if (entry.condition && !(await entry.condition(context))) {
             continue;
           }
 
@@ -74,34 +74,55 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
   );
 
   const handleEditorDidMount = useCallback(
-    (editor: monacoEditor.editor.IStandaloneCodeEditor, monaco: typeof monacoEditor) => {
-      const provider = monaco.languages.registerCompletionItemProvider('yaml', {
-        triggerCharacters: ['\n', ' ', ':'],
-        provideCompletionItems,
+    async (editor: monacoEditor.editor.IStandaloneCodeEditor, monaco: typeof monacoEditor) => {
+      let provider: monacoEditor.IDisposable;
+
+      await new Promise<void>((resolve) => {
+        provider = monaco.languages.registerCompletionItemProvider('yaml', {
+          triggerCharacters: ['\n', ' ', ':'],
+          provideCompletionItems,
+        });
+
+        setTimeout(() => {
+          resolve();
+        }, 0);
       });
 
-      let resizeTimeout: NodeJS.Timeout;
-      const resizeObserver = new ResizeObserver(() => {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => editor.layout(), 50);
+      await new Promise<void>((resolve) => {
+        let resizeTimeout: NodeJS.Timeout;
+        const resizeObserver = new ResizeObserver(() => {
+          clearTimeout(resizeTimeout);
+          resizeTimeout = setTimeout(() => {
+            editor.layout();
+          }, 50);
+        });
+
+        const container = editor.getDomNode();
+        if (container) {
+          resizeObserver.observe(container);
+        }
+
+        const handleWindowResize = () => {
+          clearTimeout(resizeTimeout);
+          resizeTimeout = setTimeout(() => editor.layout(), 50);
+        };
+        window.addEventListener('resize', handleWindowResize);
+
+        (editor as any).__cleanup = () => {
+          provider.dispose();
+          resizeObserver.disconnect();
+          window.removeEventListener('resize', handleWindowResize);
+          clearTimeout(resizeTimeout);
+        };
+
+        resolve();
       });
 
-      const container = editor.getDomNode();
-      if (container) {
-        resizeObserver.observe(container);
-      }
-
-      const handleWindowResize = () => {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => editor.layout(), 50);
-      };
-      window.addEventListener('resize', handleWindowResize);
-
-      return () => {
-        provider.dispose();
-        resizeObserver.disconnect();
-        window.removeEventListener('resize', handleWindowResize);
-        clearTimeout(resizeTimeout);
+      return async () => {
+        const cleanup = (editor as any).__cleanup;
+        if (cleanup) {
+          cleanup();
+        }
       };
     },
     [provideCompletionItems]
