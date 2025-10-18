@@ -8,9 +8,15 @@ import YAML from 'yaml';
 const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(
   ({ options, data, width, height, replaceVariables }) => {
     const svgContainerRef = useRef<HTMLDivElement>(null);
-    const [modifiedSvg, setModifiedSvg] = useState<string>('');
+    const [modifiedSvg, setModifiedSvg] = useState('');
     const [tooltipData, setTooltipData] = useState<TooltipContent[]>([]);
-    const { svgCode, metricsMapping: rawMapping } = options.jsonData;
+    const {
+      svgCode,
+      metricsMapping: rawMapping,
+      customRelativeTime,
+      svgAspectRatio,
+      fieldsCustomRelativeTime,
+    } = options.jsonData;
 
     const metricsMapping: Change[] = useMemo(() => {
       try {
@@ -23,11 +29,17 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(
     }, [rawMapping, replaceVariables]);
 
     const modifySvgAsync = useCallback(async () => {
-      const { modifiedSvg, tooltipData } = svgModifier(svgCode, metricsMapping, data.series);
-
+      const { modifiedSvg, tooltipData } = svgModifier(
+        svgCode,
+        metricsMapping,
+        data.series,
+        svgAspectRatio,
+        customRelativeTime,
+        fieldsCustomRelativeTime
+      );
       setModifiedSvg(modifiedSvg);
       setTooltipData(tooltipData);
-    }, [svgCode, metricsMapping, data.series]);
+    }, [svgCode, metricsMapping, data.series, svgAspectRatio, customRelativeTime, fieldsCustomRelativeTime]);
 
     useEffect(() => {
       modifySvgAsync();

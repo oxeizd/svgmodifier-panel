@@ -1,20 +1,27 @@
-import { DataExtractor } from './dataExtractor';
+import { extractValues } from './dataExtractor';
 import { getMetricsData } from './dataProcessor';
 import { formatValues } from './utils/ValueTransformer';
 import { parseSvgDocument, applyChangesToElements } from './svgUpdater';
 import { RegexCheck, applySchema, getMappingMatch } from './utils/helpers';
 import { Change, ColorDataEntry, TooltipContent, ExpandedItem, ValueMapping } from './types';
 
-export function svgModifier(svg: string, changes: Change[], dataFrame: any[]) {
+export function svgModifier(
+  svg: string,
+  changes: Change[],
+  dataFrame: any[],
+  svgAspectRatio: string,
+  customRelativeTime: string,
+  fieldRelativeTime: string
+) {
   const parser = new DOMParser();
   const serializer = new XMLSerializer();
 
-  const { doc, elementsMap } = parseSvgDocument(svg, parser);
+  const { doc, elementsMap } = parseSvgDocument(svg, parser, svgAspectRatio);
   const svgElementsMap: Map<string, SVGElement> = elementsMap;
 
   const modify = (): { modifiedSvg: string; tooltipData: TooltipContent[] } => {
     const tooltipData: TooltipContent[] = [];
-    const extractedValueMap = new DataExtractor(dataFrame).extractValues();
+    const extractedValueMap = extractValues(dataFrame, customRelativeTime, fieldRelativeTime);
 
     proccesingRules(extractedValueMap, tooltipData);
 
@@ -226,16 +233,5 @@ export function svgModifier(svg: string, changes: Change[], dataFrame: any[]) {
     return String(entry.metric);
   };
 
-  return {
-    modify,
-  };
-}
-
-export function modifySvg(
-  svg: string,
-  changes: Change[],
-  dataFrame: any[]
-): { modifiedSvg: string; tooltipData: TooltipContent[] } {
-  const modifier = svgModifier(svg, changes, dataFrame);
-  return modifier.modify();
+  return modify();
 }

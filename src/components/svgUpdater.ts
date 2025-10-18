@@ -4,12 +4,16 @@ import { getMappingMatch } from './utils/helpers';
 /**
  * Парсит SVG строку в DOM документ и извлекает элементы с ID начинающимися на "cell"
  */
-export const parseSvgDocument = (svg: string, parser: DOMParser) => {
+export const parseSvgDocument = (svg: string, parser: DOMParser, svgAspectRatio: string) => {
   const doc = parser.parseFromString(svg, 'image/svg+xml');
   const svgElement = doc.documentElement;
 
   svgElement.setAttribute('width', '100%');
   svgElement.setAttribute('height', '100%');
+
+  if (svgAspectRatio !== 'disable') {
+    svgElement.setAttribute('preserveAspectRatio', svgAspectRatio);
+  }
 
   const elementsMap = new Map<string, SVGElement>();
   const elements = doc.querySelectorAll<SVGElement>('[id^="cell"]');

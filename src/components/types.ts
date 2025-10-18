@@ -94,5 +94,8 @@ export interface PanelOptions {
   jsonData: {
     svgCode: string;
     metricsMapping: string;
+    svgAspectRatio: string;
+    customRelativeTime: string;
+    fieldsCustomRelativeTime: string;
   };
 }
