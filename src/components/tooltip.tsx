@@ -1,25 +1,93 @@
 import ReactDOM from 'react-dom';
 import { useTheme2 } from '@grafana/ui';
 import { TooltipContent } from './types';
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState, useCallback, useEffect } from 'react';
 
-export const Tooltip: React.FC<{
-  visible: boolean;
-  x: number;
-  y: number;
-  content: TooltipContent[];
-}> = ({ visible, x, y, content }) => {
-  const [adjustedCoords, setAdjustedCoords] = useState({ x, y });
+interface TooltipProps {
+  containerRef: React.RefObject<HTMLDivElement>;
+  tooltipData: TooltipContent[];
+}
+
+export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) => {
+  const [tooltip, setTooltip] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    content: [] as TooltipContent[],
+  });
+
+  const [adjustedCoords, setAdjustedCoords] = useState({ x: 0, y: 0 });
   const tooltipRef = useRef<HTMLDivElement>(null);
   const theme = useTheme2();
 
-  useLayoutEffect(() => {
-    if (visible && tooltipRef.current) {
-      const tooltip = tooltipRef.current;
-      const rect = tooltip.getBoundingClientRect();
+  const tooltipDataRef = useRef<TooltipContent[]>([]);
+  tooltipDataRef.current = tooltipData;
 
-      let newX = x;
-      let newY = y;
+  const handleMouseOver = useCallback(
+    (e: MouseEvent) => {
+      const targetElement = e.target as Element | null;
+      if (!targetElement) {
+        return;
+      }
+
+      let currentElement: Element | null = targetElement;
+      while (currentElement && currentElement !== containerRef.current) {
+        if (currentElement.id) {
+          const currentId = currentElement.id;
+          const hasTooltipData = tooltipDataRef.current.some((td) => td.id === currentId);
+
+          if (hasTooltipData) {
+            const relatedMetrics = tooltipDataRef.current.filter((td) => td.id === currentId);
+            setTooltip({
+              visible: true,
+              x: e.clientX + 10,
+              y: e.clientY,
+              content: relatedMetrics,
+            });
+            return;
+          }
+        }
+        currentElement = currentElement.parentElement;
+      }
+
+      setTooltip((prev) => ({ ...prev, visible: false }));
+    },
+    [containerRef]
+  );
+
+  const handleMouseOut = useCallback(
+    (e: MouseEvent) => {
+      const relatedTarget = e.relatedTarget as Node | null;
+
+      if (!containerRef.current?.contains(relatedTarget)) {
+        setTooltip((prev) => ({ ...prev, visible: false }));
+      }
+    },
+    [containerRef]
+  );
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.addEventListener('mouseover', handleMouseOver as EventListener);
+    container.addEventListener('mouseout', handleMouseOut as EventListener);
+
+    return () => {
+      container.removeEventListener('mouseover', handleMouseOver as EventListener);
+      container.removeEventListener('mouseout', handleMouseOut as EventListener);
+    };
+  }, [containerRef, handleMouseOver, handleMouseOut]);
+
+  useLayoutEffect(() => {
+    if (tooltip.visible && tooltipRef.current) {
+      const tooltipElement = tooltipRef.current;
+      const rect = tooltipElement.getBoundingClientRect();
+
+      let newX = tooltip.x;
+      let newY = tooltip.y;
 
       if (newX + rect.width > window.innerWidth) {
         newX = window.innerWidth - rect.width - 10;
@@ -37,9 +105,23 @@ export const Tooltip: React.FC<{
 
       setAdjustedCoords({ x: newX, y: newY });
     }
-  }, [visible, x, y]);
+  }, [tooltip.visible, tooltip.x, tooltip.y]);
 
-  if (!visible) {
+  function getUniqueLinesByKey(key: 'textAbove' | 'textBelow') {
+    return Array.from(
+      new Set(
+        tooltip.content.reduce<string[]>((acc, item) => {
+          const value = item[key];
+          if (value) {
+            acc.push(...value.replace(/\\n/g, '\n').split('\n'));
+          }
+          return acc;
+        }, [])
+      )
+    );
+  }
+
+  if (!tooltip.visible) {
     return null;
   }
 
@@ -52,34 +134,6 @@ export const Tooltip: React.FC<{
     second: '2-digit',
     hour12: false,
   }).format(new Date());
-
-  const textAbove = content.filter((item) => item.textAbove);
-  const textBelow = content.filter((item) => item.textBelow);
-
-  // Используем Set для уникальных значений
-  const uniqueTextAbove: string[] = Array.from(
-    new Set(
-      textAbove.reduce<string[]>((acc, item) => {
-        if (item.textAbove) {
-          const processedText = item.textAbove.replace(/\\n/g, '\n').split('\n');
-          acc.push(...processedText);
-        }
-        return acc;
-      }, [])
-    )
-  );
-
-  const uniqueTextBelow: string[] = Array.from(
-    new Set(
-      textBelow.reduce<string[]>((acc, item) => {
-        if (item.textBelow) {
-          const processedText = item.textBelow.replace(/\\n/g, '\n').split('\n');
-          acc.push(...processedText);
-        }
-        return acc;
-      }, [])
-    )
-  );
 
   const tooltipStyle: React.CSSProperties = {
     position: 'fixed',
@@ -98,6 +152,9 @@ export const Tooltip: React.FC<{
     whiteSpace: 'normal',
   };
 
+  const uniqueTextAbove = getUniqueLinesByKey('textAbove');
+  const uniqueTextBelow = getUniqueLinesByKey('textBelow');
+
   return ReactDOM.createPortal(
     <div ref={tooltipRef} style={tooltipStyle}>
       <div style={{ color: '#A0A0A0', fontSize: '12px', marginBottom: '8px' }}>{currentDateTime}</div>
@@ -115,7 +172,7 @@ export const Tooltip: React.FC<{
         </div>
       )}
 
-      {content.map((item, index) => (
+      {tooltip.content.map((item, index) => (
         <div key={`metric-${index}`} style={{ marginBottom: '4px' }}>
           {item.title && <div style={{ color: '#A0A0A0', fontWeight: '300', marginBottom: '2px' }}>{item.title}</div>}
           <span style={{ color: `${theme.colors.text.primary}`, fontWeight: '500' }}>{item.label}: </span>

@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { PanelOptions, TooltipContent, Change } from './types';
-import { modifySvg } from './mainProcessor';
+import { svgModifier } from './mainProcessor';
 import { PanelProps } from '@grafana/data';
 import { Tooltip } from './tooltip';
 import YAML from 'yaml';
@@ -8,113 +8,30 @@ import YAML from 'yaml';
 const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(
   ({ options, data, width, height, replaceVariables }) => {
     const svgContainerRef = useRef<HTMLDivElement>(null);
-    const svgCode = useMemo(
-      () =>
-        options.jsonData.svgCode ||
-        '<svg width="100%" height="100%" style="background-color:rgba(240, 240, 240, 0);"></svg>',
-      [options.jsonData.svgCode]
-    );
-    const dataFrame = data.series;
-    const [tooltip, setTooltip] = useState({
-      visible: false,
-      x: 0,
-      y: 0,
-      content: [] as TooltipContent[],
-    });
-
-    const [modifiedSvg, setModifiedSvg] = useState('');
+    const [modifiedSvg, setModifiedSvg] = useState<string>('');
     const [tooltipData, setTooltipData] = useState<TooltipContent[]>([]);
+    const { svgCode, metricsMapping: rawMapping } = options.jsonData;
 
-    const tooltipDataRef = useRef<TooltipContent[]>([]);
-    tooltipDataRef.current = tooltipData;
-
-    const replaceVariable = useCallback(
-      (metricsMapping: string): string => {
-        if (!replaceVariables) {
-          return metricsMapping;
-        }
-        return replaceVariables(metricsMapping);
-      },
-      [replaceVariables]
-    );
-
-    const changes: Change[] = useMemo(() => {
+    const metricsMapping: Change[] = useMemo(() => {
       try {
-        const processedMetricsMapping = replaceVariable(options.jsonData.metricsMapping);
-        const metricsMapping = YAML.parse(processedMetricsMapping);
+        const processed = replaceVariables ? replaceVariables(rawMapping) : rawMapping;
+        const metricsMapping = YAML.parse(processed);
         return metricsMapping.changes || [];
       } catch {
         return [];
       }
-    }, [options.jsonData.metricsMapping, replaceVariable]); // Added replaceVariable to dependencies
+    }, [rawMapping, replaceVariables]);
 
     const modifySvgAsync = useCallback(async () => {
-      const { modifiedSvg, tooltipData } = modifySvg(svgCode, changes, dataFrame);
+      const { modifiedSvg, tooltipData } = svgModifier(svgCode, metricsMapping, data.series);
 
       setModifiedSvg(modifiedSvg);
       setTooltipData(tooltipData);
-    }, [svgCode, changes, dataFrame]);
+    }, [svgCode, metricsMapping, data.series]);
 
     useEffect(() => {
       modifySvgAsync();
     }, [modifySvgAsync]);
-
-    const handleMouseOver = useCallback(
-      (e: MouseEvent) => {
-        const targetElement = e.target as Element | null;
-        if (!targetElement) {
-          return;
-        }
-
-        let currentElement: Element | null = targetElement;
-        while (currentElement && currentElement !== svgContainerRef.current) {
-          if (currentElement.id) {
-            const currentId = currentElement.id;
-            const hasTooltipData = tooltipDataRef.current.some((td) => td.id === currentId);
-
-            if (hasTooltipData) {
-              const relatedMetrics = tooltipDataRef.current.filter((td) => td.id === currentId);
-              setTooltip({
-                visible: true,
-                x: e.clientX + 10,
-                y: e.clientY,
-                content: relatedMetrics,
-              });
-              return;
-            }
-          }
-          currentElement = currentElement.parentElement;
-        }
-
-        if (tooltip.visible) {
-          setTooltip((prev) => ({ ...prev, visible: false }));
-        }
-      },
-      [tooltip.visible]
-    );
-
-    const handleMouseOut = useCallback((e: MouseEvent) => {
-      const relatedTarget = e.relatedTarget as Node | null;
-
-      if (!svgContainerRef.current?.contains(relatedTarget)) {
-        setTooltip((prev) => ({ ...prev, visible: false }));
-      }
-    }, []);
-
-    useEffect(() => {
-      const container = svgContainerRef.current;
-      if (!container) {
-        return;
-      }
-
-      container.addEventListener('mouseover', handleMouseOver as EventListener);
-      container.addEventListener('mouseout', handleMouseOut as EventListener);
-
-      return () => {
-        container.removeEventListener('mouseover', handleMouseOver as EventListener);
-        container.removeEventListener('mouseout', handleMouseOut as EventListener);
-      };
-    }, [handleMouseOver, handleMouseOut]);
 
     return (
       <div
@@ -129,7 +46,7 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(
         }}
       >
         <div
-          dangerouslySetInnerHTML={{ __html: modifiedSvg }}
+          dangerouslySetInnerHTML={{ __html: modifiedSvg || '' }}
           style={{
             display: 'block',
             height: `${height}px`,
@@ -137,7 +54,7 @@ const SvgPanel: React.FC<PanelProps<PanelOptions>> = React.memo(
           }}
         />
 
-        <Tooltip visible={tooltip.visible} x={tooltip.x} y={tooltip.y} content={tooltip.content} />
+        <Tooltip containerRef={svgContainerRef} tooltipData={tooltipData} />
       </div>
     );
   }
