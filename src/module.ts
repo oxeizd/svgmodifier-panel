@@ -25,7 +25,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         editor: YamlEditor,
       })
       .addSelect({
-        category: ['Svg settings'],
+        category: ['SVG settings'],
         path: 'jsonData.svgAspectRatio',
         name: 'Aspect Ratio',
         description: 'how the SVG should maintain its aspect ratio',
