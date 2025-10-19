@@ -7,28 +7,28 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
   .setPanelOptions((builder) => {
     return builder
       .addTextInput({
-        category: ['Configuration'],
+        category: ['Standard options'],
         path: 'jsonData.svgCode',
         name: 'SVG Code',
-        description: 'Enter your SVG code here',
+        description: 'enter your SVG code here',
         settings: {
           rows: 3,
           useTextarea: true,
         },
       })
       .addCustomEditor({
-        category: ['Configuration'],
+        category: ['Standard options'],
         id: 'metricsMapping',
         path: 'jsonData.metricsMapping',
         name: 'Metrics Mapping',
-        description: 'Enter metrics mapping in Yaml format. CTRL+SPACE for tips',
+        description: 'enter metrics mapping in Yaml format. CTRL+SPACE for tips',
         editor: YamlEditor,
       })
       .addSelect({
-        category: ['SVG Settings'],
+        category: ['Svg settings'],
         path: 'jsonData.svgAspectRatio',
         name: 'Aspect Ratio',
-        description: 'How the SVG should maintain its aspect ratio',
+        description: 'how the SVG should maintain its aspect ratio',
         defaultValue: 'disable',
         settings: {
           options: [
@@ -42,17 +42,17 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         },
       })
       .addTextInput({
-        category: ['Relative time Settings'],
+        category: ['Relative time'],
         path: 'jsonData.customRelativeTime',
         name: 'Custom relative time',
-        description: 'custom time format for all fields (e.g., 2h30m, 1d6h)',
+        description: 'time format for all fields (e.g., 2h30m, 1d6h)',
         defaultValue: '',
         settings: {
           placeholder: '30m',
         },
       })
       .addTextInput({
-        category: ['Relative time Settings'],
+        category: ['Relative time'],
         path: 'jsonData.fieldsCustomRelativeTime',
         name: 'Field relative time',
         description: 'field time format (e.g., A: 2h30m, B: 1d6h)',
