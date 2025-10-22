@@ -5,15 +5,24 @@ import { StandardEditorProps } from '@grafana/data';
 import { configSchema as importedConfigSchema } from './yamlSchema';
 
 interface EditorInstance {
+  provider?: { dispose: () => void };
   cleanup?: () => void;
+  container?: HTMLElement | null;
 }
 
 const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) => {
   const configSchema = useMemo(() => importedConfigSchema, []);
-  const editorRef = useRef<EditorInstance | null>(null);
+  const editorRef = useRef<EditorInstance>({});
 
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: any) => {
+      if (editorRef.current.provider) {
+        try {
+          editorRef.current.provider.dispose();
+        } catch (e) {}
+        editorRef.current.provider = undefined;
+      }
+
       const provideCompletionItems = async (model: any, position: any) => {
         try {
           const lineContent = model.getLineContent(position.lineNumber);
@@ -72,57 +81,83 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
                   range,
                 });
               }
-            } catch (error) {
-              console.warn('Error processing schema entry:', error);
-            }
+            } catch (error) {}
           }
 
           return { suggestions };
         } catch (error) {
-          console.error('Error in completion provider:', error);
           return { suggestions: [] };
         }
       };
 
-      // Регистрируем провайдер
       const provider = monaco.languages.registerCompletionItemProvider('yaml', {
         triggerCharacters: ['\n', ' ', ':'],
         provideCompletionItems,
       });
+      editorRef.current.provider = provider;
 
-      // Настройка ResizeObserver
-      const container = editor.getDomNode();
-      if (!container) {
-        return;
-      }
+      const container = editor.getDomNode?.() || null;
+      editorRef.current.container = container;
 
-      let resizeTimeout: NodeJS.Timeout;
+      let resizeTimeout: number | null = null;
       const resizeObserver = new ResizeObserver(() => {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => editor.layout(), 50);
+        if (resizeTimeout !== null) {
+          window.clearTimeout(resizeTimeout);
+        }
+        resizeTimeout = window.setTimeout(() => editor.layout(), 50) as unknown as number;
       });
 
-      resizeObserver.observe(container);
+      if (container) {
+        try {
+          resizeObserver.observe(container);
+        } catch (e) {}
+      }
 
       const handleWindowResize = () => {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => editor.layout(), 50);
+        if (resizeTimeout !== null) {
+          window.clearTimeout(resizeTimeout);
+        }
+        resizeTimeout = window.setTimeout(() => editor.layout(), 50) as unknown as number;
       };
 
       window.addEventListener('resize', handleWindowResize);
 
       const cleanup = () => {
-        provider.dispose();
-        resizeObserver.disconnect();
+        try {
+          provider.dispose();
+        } catch (e) {}
+        try {
+          resizeObserver.disconnect();
+        } catch (e) {}
         window.removeEventListener('resize', handleWindowResize);
-        clearTimeout(resizeTimeout);
+        if (resizeTimeout !== null) {
+          window.clearTimeout(resizeTimeout);
+          resizeTimeout = null;
+        }
+        editorRef.current.provider = undefined;
+        editorRef.current.container = null;
       };
 
-      editorRef.current = { cleanup };
+      editorRef.current.cleanup = cleanup;
       return cleanup;
     },
     [configSchema]
   );
+
+  React.useEffect(() => {
+    const current = editorRef.current;
+    return () => {
+      if (current?.cleanup) {
+        try {
+          current.cleanup();
+        } catch (e) {}
+      } else if (current?.provider) {
+        try {
+          current.provider.dispose();
+        } catch (e) {}
+      }
+    };
+  }, []);
 
   const handleChange = useCallback(
     (newValue: string) => {
@@ -130,14 +165,6 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
     },
     [onChange]
   );
-
-  React.useEffect(() => {
-    return () => {
-      if (editorRef.current?.cleanup) {
-        editorRef.current.cleanup();
-      }
-    };
-  }, []);
 
   const defaultValue = 'changes:\n  ';
 
