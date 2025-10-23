@@ -205,7 +205,7 @@ export const configSchema = [
           return (
             !exists &&
             ctx.position.column === 9 &&
-            analysis.currentBlockRules.has('labelMapping') &&
+            analysis.currentBlockRules.has('valueMapping') &&
             analysis.lineContents.some((line) => line.includes('- { condition'))
           );
         }

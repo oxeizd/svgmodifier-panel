@@ -1,5 +1,3 @@
-import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api';
-
 export type SuggestionItem = {
   label: string;
   insertText: string;
@@ -10,22 +8,21 @@ export type EditorContext = {
   currentIndent: number;
   lineContent: string;
   prevLine: string;
-  position: monacoEditor.Position;
-  model: monacoEditor.editor.ITextModel;
+  position: any;
+  model: any;
   lines?: string[];
 };
-
 /**
  * monacoEditor options
  */
-export const MONACO_OPTIONS: monacoEditor.editor.IStandaloneEditorConstructionOptions = {
+export const MONACO_OPTIONS = {
   // Базовые настройки
-  lineNumbers: 'on',
+  lineNumbers: 'on' as const,
   lineNumbersMinChars: 3,
   tabSize: 2,
   insertSpaces: true,
   minimap: { enabled: false },
-  wordWrap: 'off',
+  wordWrap: 'off' as const,
   scrollBeyondLastLine: false,
   automaticLayout: true,
   // Автодополнение
@@ -39,8 +36,8 @@ export const MONACO_OPTIONS: monacoEditor.editor.IStandaloneEditorConstructionOp
     strings: false,
   },
   // Автозакрывание
-  autoClosingBrackets: 'always',
-  autoClosingQuotes: 'always',
+  autoClosingBrackets: 'always' as const,
+  autoClosingQuotes: 'always' as const,
 };
 
 /**
