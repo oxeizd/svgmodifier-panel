@@ -1,18 +1,10 @@
-import { extractValues } from './dataExtractor';
 import { getMetricsData } from './dataProcessor';
 import { formatValues } from './utils/ValueTransformer';
 import { parseSvgDocument, applyChangesToElements } from './svgUpdater';
 import { RegexCheck, applySchema, getMappingMatch } from './utils/helpers';
 import { Change, ColorDataEntry, TooltipContent, ExpandedItem, ValueMapping } from './types';
 
-export function svgModifier(
-  svg: string,
-  changes: Change[],
-  dataFrame: any[],
-  svgAspectRatio: string,
-  customRelativeTime: string,
-  fieldRelativeTime: string
-) {
+export function svgModifier(svg: string, changes: Change[], extractedValueMap: any, svgAspectRatio: string) {
   const parser = new DOMParser();
   const serializer = new XMLSerializer();
 
@@ -21,7 +13,6 @@ export function svgModifier(
 
   const modify = (): { modifiedSvg: string; tooltipData: TooltipContent[] } => {
     const tooltipData: TooltipContent[] = [];
-    const extractedValueMap = extractValues(dataFrame, customRelativeTime, fieldRelativeTime);
 
     proccesingRules(extractedValueMap, tooltipData);
 

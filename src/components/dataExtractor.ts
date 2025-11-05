@@ -1,9 +1,9 @@
-import { DataFrame, Field, FieldType } from '@grafana/data';
+import { DataFrame, Field, FieldType, TimeRange } from '@grafana/data';
 
-export function extractValues(dataFrame: DataFrame[], customRelativeTime: string, fieldRelativeTime: string) {
+export function extractValues(dataFrame: DataFrame[], customRT: string, fieldRT: string, timeRange: TimeRange) {
   const valueMap = new Map<string, { values: Map<string, { values: string[]; timestamps: number[] }> }>();
 
-  const fieldTimeSettings = fieldRelativeTime ? parseFieldTimeSettings(fieldRelativeTime) : new Map();
+  const fieldTimeSettings = fieldRT ? parseFieldTimeSettings(fieldRT) : new Map();
 
   for (let i = 0; i < dataFrame.length; i++) {
     const frame: DataFrame = dataFrame[i];
@@ -25,12 +25,12 @@ export function extractValues(dataFrame: DataFrame[], customRelativeTime: string
 
     if (fieldTimeSettings.has(refId)) {
       timeToUse = fieldTimeSettings.get(refId);
-    } else if (customRelativeTime) {
-      timeToUse = customRelativeTime;
+    } else if (customRT) {
+      timeToUse = customRT;
     }
 
     if (timeToUse) {
-      const result = getRelativeTimeRange(timestamps, values, timeToUse);
+      const result = getRelativeTimeRange(timestamps, values, timeToUse, timeRange);
       timestamps = result.timestamps;
       values = result.values;
     }
@@ -80,59 +80,16 @@ function resolveDisplayName(field: Field): string {
   return field.name || 'unnamed';
 }
 
-function getRelativeTimeRange(
-  timestamps: number[],
-  values: string[],
-  relativeTime: string
-): {
-  timestamps: number[];
-  values: string[];
-} {
-  const timeUnits: { [key: string]: number } = {
-    m: 60 * 1000,
-    h: 60 * 60 * 1000,
-    d: 24 * 60 * 60 * 1000,
-  };
-
-  const unit = relativeTime.slice(-1);
-  const value = parseInt(relativeTime.slice(0, -1), 10);
-
-  if (!timeUnits[unit]) {
-    return { timestamps, values };
-  }
-
-  const timeRangeMs = value * timeUnits[unit];
-  const lastTimestamp = timestamps[timestamps.length - 1];
-  const startTime = lastTimestamp - timeRangeMs;
-
-  // Находим индексы элементов, попадающих в диапазон
-  const filteredIndices: number[] = [];
-  for (let i = 0; i < timestamps.length; i++) {
-    if (timestamps[i] >= startTime && timestamps[i] <= lastTimestamp) {
-      filteredIndices.push(i);
-    }
-  }
-
-  // Фильтруем оба массива по найденным индексам
-  const relativeTimeStamps = filteredIndices.map((i) => timestamps[i]);
-  const Values = filteredIndices.map((i) => values[i]);
-
-  return {
-    timestamps: relativeTimeStamps,
-    values: Values,
-  };
-}
-
-function parseFieldTimeSettings(fieldsCustomRelativeTime?: string): Map<string, string> {
+function parseFieldTimeSettings(fieldsRT?: string): Map<string, string> {
   const fieldTimeMap = new Map<string, string>();
 
-  if (!fieldsCustomRelativeTime?.trim()) {
+  if (!fieldsRT?.trim()) {
     return fieldTimeMap;
   }
 
   try {
     // Разделяем по точкам с запятой
-    const rules = fieldsCustomRelativeTime.split(';').filter((rule) => rule.trim());
+    const rules = fieldsRT.split(';').filter((rule) => rule.trim());
 
     for (const rule of rules) {
       const [fieldsPart, timePart] = rule.split(':').map((part) => part.trim());
@@ -155,4 +112,54 @@ function parseFieldTimeSettings(fieldsCustomRelativeTime?: string): Map<string, 
   } catch {}
 
   return fieldTimeMap;
+}
+
+function getRelativeTimeRange(
+  timestamps: number[],
+  values: string[],
+  relativeTime: string,
+  timeRange: TimeRange
+): {
+  timestamps: number[];
+  values: string[];
+} {
+  const timeUnits: { [key: string]: number } = {
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000,
+  };
+  const unit = relativeTime.slice(-1);
+  const value = parseInt(relativeTime.slice(0, -1), 10);
+
+  if (!timeUnits[unit]) {
+    return { timestamps, values };
+  }
+
+  const endTime = timeRange.to.valueOf();
+  const timeRangeMs = value * timeUnits[unit];
+  const startTime = endTime - timeRangeMs;
+  console.log(startTime, endTime, timeRangeMs);
+  // Находим индексы элементов, попадающих в диапазон
+  const filteredIndices: number[] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    if (timestamps[i] >= startTime && timestamps[i] <= endTime) {
+      filteredIndices.push(i);
+    }
+  }
+
+  if (filteredIndices.length === 0) {
+    return {
+      timestamps: [],
+      values: [],
+    };
+  }
+
+  // Фильтруем оба массива по найденным индексам
+  const relativeTimeStamps = filteredIndices.map((i) => timestamps[i]);
+  const Values = filteredIndices.map((i) => values[i]);
+
+  return {
+    timestamps: relativeTimeStamps,
+    values: Values,
+  };
 }
