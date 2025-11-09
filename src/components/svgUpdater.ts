@@ -1,10 +1,12 @@
 import { ColorDataEntry, ValueMapping, ExpandedItem } from './types';
 import { getMappingMatch } from './utils/helpers';
 
+const parser = new DOMParser();
+
 /**
  * Парсит SVG строку в DOM документ и извлекает элементы с ID начинающимися на "cell"
  */
-export const parseSvgDocument = (svg: string, parser: DOMParser, svgAspectRatio: string) => {
+export function parseSvgDocument(svg: string, svgAspectRatio: string) {
   const doc = parser.parseFromString(svg, 'image/svg+xml');
   const svgElement = doc.documentElement;
 
@@ -25,7 +27,7 @@ export const parseSvgDocument = (svg: string, parser: DOMParser, svgAspectRatio:
   });
 
   return { doc, elementsMap };
-};
+}
 
 /**
  * Применяет изменения к элементам SVG батчем
@@ -41,24 +43,25 @@ export function applyChangesToElements(items: ExpandedItem[]): void {
     }
 
     const { link, label, labelColor, valueMapping } = item.attributes ?? {};
-
     const linksArray = Array.isArray(link) ? (link as string[]) : undefined;
     const linkForThis = linksArray ? linksArray[i] : link;
-
     const maxEntries = item.maxEntry ?? undefined;
-    operations.push(() => {
-      const labelElements = findLabelElements(svgElement);
 
+    operations.push(() => {
       if (linkForThis !== undefined) {
         addLinksToSvgElements(svgElement, linkForThis.toString());
       }
 
-      if (label) {
-        setLabelContent(labelElements, label, maxEntries?.label, maxEntries?.metric, valueMapping);
-      }
+      if (label || labelColor) {
+        const labelElements = findLabelElements(svgElement);
 
-      if (labelColor) {
-        applyColorToLabels(labelElements, labelColor, maxEntries?.color);
+        if (label) {
+          setLabelContent(labelElements, label, maxEntries?.label, maxEntries?.metric, valueMapping);
+        }
+
+        if (labelColor) {
+          applyColorToLabels(labelElements, labelColor, maxEntries?.color);
+        }
       }
 
       if (maxEntries) {
@@ -70,16 +73,28 @@ export function applyChangesToElements(items: ExpandedItem[]): void {
   executeBatchOperations(operations);
 }
 
+function executeBatchOperations(operations: Array<() => void>): void {
+  if (operations.length === 0) {
+    return;
+  }
+
+  const style = document.createElement('style');
+  style.textContent = '* { transition: none !important; animation: none !important; }';
+  document.head.appendChild(style);
+
+  try {
+    operations.forEach((op) => op());
+  } finally {
+    document.head.removeChild(style);
+  }
+}
+
 /**
  * Добавляет ссылки к SVG элементам батчем
  */
 function addLinksToSvgElements(svgElement: SVGElement, link: string): void {
   const parent = svgElement.parentNode;
-  if (!parent) {
-    return;
-  }
-
-  if (svgElement.hasAttribute('data-has-link')) {
+  if (!parent || svgElement.hasAttribute('data-has-link')) {
     return;
   }
 
@@ -93,25 +108,6 @@ function addLinksToSvgElements(svgElement: SVGElement, link: string): void {
   linkElement.appendChild(svgElement);
 }
 
-function executeBatchOperations(operations: Array<() => void>): void {
-  if (operations.length === 0) {
-    return;
-  }
-
-  // Временное отключение перерисовки (если работает с живым DOM)
-  const style = document.createElement('style');
-  style.textContent = '* { transition: none !important; animation: none !important; }';
-  document.head.appendChild(style);
-
-  try {
-    // Выполняем все операции
-    operations.forEach((op) => op());
-  } finally {
-    // Восстанавливаем стили
-    document.head.removeChild(style);
-  }
-}
-
 function applyColortoElement(element: SVGElement, entry: ColorDataEntry): void {
   if (!entry.color) {
     return;
@@ -122,79 +118,86 @@ function applyColortoElement(element: SVGElement, entry: ColorDataEntry): void {
   const fillingType = entryFilling[0];
   const opacity = Number.parseInt(entryFilling[1] || '100', 10);
 
-  // Предварительная подготовка данных
-  const modifications: Array<{ element: SVGElement; attributes: Array<[string, string]> }> = [];
-
   for (const el of styleableElements) {
     const parentGroup = el.closest('g');
     if (el.tagName === 'text' || parentGroup?.querySelector('text')) {
       continue;
     }
 
-    const defStyle = el.getAttribute('style');
-    const strokeValue = el.getAttribute('stroke');
+    applyColorToElementRecursive(el, entry.color, fillingType, opacity);
+  }
+}
 
-    const attributes: Array<[string, string]> = [];
-
-    if (entry.filling) {
-      if (!isNaN(opacity) && opacity >= 0 && opacity <= 100) {
-        attributes.push(['opacity', (opacity / 100).toString()]);
+/**
+ * Рекурсивно применяет цвет к элементу и его дочерним элементам
+ */
+function applyColorToElementRecursive(element: SVGElement, color: string, fillingType: string, opacity: number): void {
+  if (element.hasChildNodes()) {
+    for (let child of element.children) {
+      if (child instanceof SVGElement) {
+        applyColorToElementRecursive(child, color, fillingType, opacity);
       }
-
-      switch (fillingType) {
-        case 'fill':
-          attributes.push(['fill', entry.color]);
-          break;
-        case 'stroke':
-          attributes.push(['stroke', entry.color]);
-          break;
-        case 'none':
-          if (defStyle) {
-            attributes.push(['style', defStyle]);
-          }
-          break;
-        case 'fs':
-          attributes.push(['fill', entry.color]);
-          attributes.push(['stroke', entry.color]);
-          break;
-        default:
-          if (defStyle) {
-            attributes.push(['style', defStyle]);
-          }
-      }
-    } else {
-      if (strokeValue !== 'none') {
-        attributes.push(['stroke', entry.color]);
-      }
-      attributes.push(['fill', entry.color]);
-    }
-
-    if (attributes.length > 0) {
-      modifications.push({ element: el, attributes });
     }
   }
 
-  modifications.forEach(({ element, attributes }) => {
-    element.removeAttribute('style');
-    attributes.forEach(([name, value]) => {
-      element.setAttribute(name, value);
-    });
-  });
+  const defStyle = element.getAttribute('style');
+  const strokeValue = element.getAttribute('stroke');
+
+  element.removeAttribute('style');
+
+  if (fillingType) {
+    if (!isNaN(opacity) && opacity >= 0 && opacity <= 100) {
+      element.setAttribute('opacity', (opacity / 100).toString());
+    }
+
+    switch (fillingType) {
+      case 'fill':
+        element.setAttribute('fill', color);
+        break;
+      case 'stroke':
+        element.setAttribute('stroke', color);
+        break;
+      case 'none':
+        if (defStyle) {
+          element.setAttribute('style', defStyle);
+        }
+        break;
+      case 'fs':
+        element.setAttribute('fill', color);
+        element.setAttribute('stroke', color);
+        break;
+      default:
+        if (defStyle) {
+          element.setAttribute('style', defStyle);
+        }
+    }
+  } else {
+    if (strokeValue !== 'none') {
+      element.setAttribute('stroke', color);
+    }
+    element.setAttribute('fill', color);
+  }
 }
 
 function findLabelElements(element: SVGElement): Array<SVGTextElement | HTMLElement> {
   const elements: Array<SVGTextElement | HTMLElement> = [];
 
-  const textElement = element.querySelector('text');
-  if (textElement) {
-    elements.push(textElement);
+  function findTextElementsRecursive(el: Element): void {
+    if (el.tagName === 'text') {
+      elements.push(el as SVGTextElement);
+    } else if (el.tagName === 'foreignObject') {
+      const htmlElement = el.querySelector('div');
+      if (htmlElement) {
+        elements.push(htmlElement);
+      }
+    } else {
+      for (let child of el.children) {
+        findTextElementsRecursive(child);
+      }
+    }
   }
 
-  const htmlElement = element.querySelector('foreignObject')?.querySelector('div');
-  if (htmlElement) {
-    elements.push(htmlElement);
-  }
-
+  findTextElementsRecursive(element);
   return elements;
 }
 
@@ -205,50 +208,85 @@ function setLabelContent(
   metricValue?: number | undefined,
   mappings?: ValueMapping[]
 ): void {
-  let content = '';
+  if (elements.length === 0) {
+    return;
+  }
 
   const displayValue =
     metricValue === undefined ? '' : getMappingMatch(mappings, metricValue) ?? metricValue.toString();
 
+  let content = '';
+
   switch (label) {
     case 'replace':
-      content = displayValue || '';
+      content = displayValue;
       break;
     case 'legend':
-      if (metricLabel) {
-        content = metricLabel;
-      }
-      break;
-    case 'legend +':
-      content = metricLabel + ': ' + displayValue;
+      content = metricLabel || '';
       break;
     case 'colon':
-      content = metricLabel + ': ' + displayValue;
+      content = metricLabel ? `${metricLabel}: ${displayValue}` : displayValue;
       break;
     case 'space':
-      content = label + ' ' + displayValue;
+      content = metricLabel ? `${metricLabel} ${displayValue}` : displayValue;
       break;
     default:
       content = label;
       break;
   }
 
-  elements.forEach((el) => {
-    if (el instanceof HTMLElement && el.closest('foreignObject')) {
-      const originalHTML = el.innerHTML;
-      const match = originalHTML.match(/^(<[^>]*>)?([^<]*)(<\/[^>]*>)?$/);
+  for (let i = 0; i < elements.length; i++) {
+    const el = elements[i];
 
-      if (match) {
-        const prefix = match[1] || '';
-        const suffix = match[3] || '';
-        el.innerHTML = prefix + content + suffix;
-      } else {
-        el.textContent = content;
-      }
+    if (el instanceof HTMLElement && el.closest('foreignObject')) {
+      updateElementContentRecursive(el, content);
     } else {
       el.textContent = content;
     }
-  });
+  }
+}
+
+/**
+ * Рекурсивно обновляет содержимое элемента с сохранением структуры
+ */
+function updateElementContentRecursive(element: Element, content: string): void {
+  if (element.hasChildNodes()) {
+    let textNodes: Text[] = [];
+
+    for (let child of element.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        textNodes.push(child as Text);
+      }
+    }
+
+    if (textNodes.length === 1) {
+      textNodes[0].textContent = content;
+    } else if (textNodes.length > 1) {
+      textNodes[0].textContent = content;
+      for (let i = 1; i < textNodes.length; i++) {
+        textNodes[i].parentNode?.removeChild(textNodes[i]);
+      }
+    } else {
+      let foundTextContainer = false;
+
+      for (let child of element.children) {
+        if (child.children.length === 0 && child.textContent?.trim()) {
+          child.textContent = content;
+          foundTextContainer = true;
+          break;
+        } else {
+          updateElementContentRecursive(child, content);
+          foundTextContainer = true;
+        }
+      }
+
+      if (!foundTextContainer) {
+        element.textContent = content;
+      }
+    }
+  } else {
+    element.textContent = content;
+  }
 }
 
 function applyColorToLabels(
@@ -265,26 +303,38 @@ function applyColorToLabels(
     return;
   }
 
-  elements.forEach((el) => {
+  for (let i = 0; i < elements.length; i++) {
+    const el = elements[i];
+
     if (!el || !el.isConnected) {
-      return;
+      continue;
     }
 
-    if (el instanceof SVGTextElement) {
-      el.setAttribute('fill', color);
-      el.querySelectorAll('text').forEach((textEl) => {
-        textEl.setAttribute('fill', color);
-        textEl.removeAttribute('stroke');
-      });
-    } else if (el instanceof HTMLElement) {
-      el.style.color = color;
-      el.querySelectorAll('[style*="color"], [fill]').forEach((colorEl) => {
-        if (colorEl instanceof SVGElement && colorEl.hasAttribute('fill')) {
-          colorEl.setAttribute('fill', color);
-        } else if (colorEl instanceof HTMLElement) {
-          colorEl.style.color = color;
+    applyColorToLabelRecursive(el, color);
+  }
+}
+
+function applyColorToLabelRecursive(element: SVGTextElement | HTMLElement, color: string): void {
+  if (element instanceof SVGTextElement) {
+    element.setAttribute('fill', color);
+    element.removeAttribute('stroke');
+
+    if (element.hasChildNodes()) {
+      for (let child of element.children) {
+        if (child instanceof SVGTextElement) {
+          applyColorToLabelRecursive(child, color);
         }
-      });
+      }
     }
-  });
+  } else if (element instanceof HTMLElement) {
+    element.style.color = color;
+
+    if (element.hasChildNodes()) {
+      for (let child of element.children) {
+        if (child instanceof HTMLElement || child instanceof SVGElement) {
+          applyColorToLabelRecursive(child as any, color);
+        }
+      }
+    }
+  }
 }

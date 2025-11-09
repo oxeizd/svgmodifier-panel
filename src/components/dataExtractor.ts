@@ -138,7 +138,7 @@ function getRelativeTimeRange(
   const endTime = timeRange.to.valueOf();
   const timeRangeMs = value * timeUnits[unit];
   const startTime = endTime - timeRangeMs;
-  
+
   // Находим индексы элементов, попадающих в диапазон
   const filteredIndices: number[] = [];
   for (let i = 0; i < timestamps.length; i++) {

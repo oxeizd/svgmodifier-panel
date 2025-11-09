@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { PanelOptions, TooltipContent, Change } from './types';
 import { extractValues } from './dataExtractor';
 import { svgModifier } from './mainProcessor';
@@ -9,42 +9,77 @@ import YAML from 'yaml';
 interface Props extends PanelProps<PanelOptions> {}
 
 const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange, replaceVariables }) => {
-  const svgContainerRef = useRef<HTMLDivElement>(null);
-  const [modifiedSvg, setModifiedSvg] = useState('');
-  const [tooltipData, setTooltipData] = useState<TooltipContent[]>([]);
-  const {
-    svgCode,
-    metricsMapping: rawMapping,
-    customRelativeTime,
-    svgAspectRatio,
-    fieldsCustomRelativeTime,
-  } = options.jsonData;
+  const mountedRef = useRef(true);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const metricsMapping: Change[] = useMemo(() => {
-    try {
-      const processed = replaceVariables ? replaceVariables(rawMapping) : rawMapping;
-      const metricsMapping = YAML.parse(processed);
-      return metricsMapping.changes || [];
-    } catch {
-      return [];
-    }
-  }, [rawMapping, replaceVariables]);
+  const [svg, setSvg] = useState<string>('');
+  const [tooltips, setTooltips] = useState<TooltipContent[]>([]);
 
-  const modifySvgAsync = useCallback(async () => {
-    const extractedValueMap = extractValues(data.series, customRelativeTime, fieldsCustomRelativeTime, timeRange);
-
-    const { modifiedSvg, tooltipData } = svgModifier(svgCode, metricsMapping, extractedValueMap, svgAspectRatio);
-    setModifiedSvg(modifiedSvg);
-    setTooltipData(tooltipData);
-  }, [svgCode, metricsMapping, data.series, svgAspectRatio, customRelativeTime, fieldsCustomRelativeTime, timeRange]);
+  const jsonData = options.jsonData;
+  const svgCode = jsonData.svgCode;
+  const metricsMapping = jsonData.metricsMapping;
+  const svgAspectRatio = jsonData.svgAspectRatio;
+  const customRelativeTime = jsonData.customRelativeTime;
+  const fieldsCustomRelativeTime = jsonData.fieldsCustomRelativeTime;
 
   useEffect(() => {
-    modifySvgAsync();
-  }, [modifySvgAsync]);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const parseMetricsChanges = (): Change[] => {
+      try {
+        const substituted = replaceVariables ? replaceVariables(metricsMapping) : metricsMapping;
+        const parsed = YAML.parse(substituted);
+        return parsed?.changes ?? [];
+      } catch {
+        return [];
+      }
+    };
+
+    const buildExtractedValues = () =>
+      extractValues(data.series, customRelativeTime, fieldsCustomRelativeTime, timeRange);
+
+    const updateSvgAndTooltips = async () => {
+      const metricsChanges = parseMetricsChanges();
+      const extracted = buildExtractedValues();
+
+      try {
+        const { modifiedSvg, tooltipData } = await svgModifier(svgCode, metricsChanges, extracted, svgAspectRatio);
+
+        if (!mountedRef.current) {
+          return;
+        }
+
+        setSvg(modifiedSvg);
+        setTooltips(tooltipData);
+      } catch {
+        if (!mountedRef.current) {
+          return;
+        }
+        setSvg('');
+        setTooltips([]);
+      }
+    };
+
+    updateSvgAndTooltips();
+  }, [
+    svgCode,
+    metricsMapping,
+    replaceVariables,
+    data.series,
+    customRelativeTime,
+    fieldsCustomRelativeTime,
+    timeRange,
+    svgAspectRatio,
+  ]);
 
   return (
     <div
-      ref={svgContainerRef}
+      ref={containerRef}
       style={{
         position: 'relative',
         height: `${height}px`,
@@ -55,15 +90,14 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange, re
       }}
     >
       <div
-        dangerouslySetInnerHTML={{ __html: modifiedSvg }}
+        dangerouslySetInnerHTML={{ __html: svg }}
         style={{
           display: 'block',
           height: `${height}px`,
           width: `${width}px`,
         }}
       />
-
-      <Tooltip containerRef={svgContainerRef} tooltipData={tooltipData} />
+      <Tooltip containerRef={containerRef} tooltipData={tooltips} />
     </div>
   );
 };

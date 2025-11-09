@@ -5,10 +5,9 @@ import { RegexCheck, applySchema, getMappingMatch } from './utils/helpers';
 import { Change, ColorDataEntry, TooltipContent, ExpandedItem, ValueMapping } from './types';
 
 export function svgModifier(svg: string, changes: Change[], extractedValueMap: any, svgAspectRatio: string) {
-  const parser = new DOMParser();
   const serializer = new XMLSerializer();
 
-  const { doc, elementsMap } = parseSvgDocument(svg, parser, svgAspectRatio);
+  const { doc, elementsMap } = parseSvgDocument(svg, svgAspectRatio);
   const svgElementsMap: Map<string, SVGElement> = elementsMap;
 
   const modify = (): { modifiedSvg: string; tooltipData: TooltipContent[] } => {
