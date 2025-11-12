@@ -10,14 +10,14 @@ interface ElementColorMappingParams {
 }
 
 export function getMetricsData(params: ElementColorMappingParams): { colorDataArray: ColorDataEntry[] } {
+  const colorDataArray: ColorDataEntry[] = [];
   const { inputMetrics, metricData: extractedValueMap } = params;
   const metrics = Array.isArray(inputMetrics) ? inputMetrics : [inputMetrics];
-  const colorDataArray: ColorDataEntry[] = [];
+
+  let refCounter = 1;
+  let legendCounter = 1;
 
   for (const metric of metrics) {
-    let refCounter = 1;
-    let legendCounter = 1;
-
     metric.refIds?.forEach((ref) => {
       const metricData = extractedValueMap.get(ref.refid);
       if (!metricData) {
@@ -31,7 +31,8 @@ export function getMetricsData(params: ElementColorMappingParams): { colorDataAr
       }
 
       const filteredItems = applyFilterToData(items, ref.filter);
-      createColorEntriesFromData(filteredItems, metric, ref, false, `r${refCounter++}`);
+      createColorEntriesFromData(filteredItems, metric, ref, false, `r${refCounter}`);
+      refCounter++;
     });
 
     metric.legends?.forEach((legend) => {
@@ -55,8 +56,9 @@ export function getMetricsData(params: ElementColorMappingParams): { colorDataAr
           metric,
           legend,
           true,
-          `l${legendCounter++}`
+          `l${legendCounter}`
         );
+        legendCounter++;
       }
     });
   }
