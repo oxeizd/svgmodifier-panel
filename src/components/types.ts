@@ -80,13 +80,14 @@ export interface ColorDataEntry {
   title?: string;
 }
 
-export type ExpandedItem = {
-  id: string;
-  schema: string;
-  selector: string;
-  svgElement: SVGElement;
-  attributes: Change['attributes'];
-  colorDataEntries: ColorDataEntry[];
+export type items = {
+  SVGElem: SVGElement;
+  additional: Array<{
+    schema: string;
+    attributes: Change['attributes'];
+    colorData: ColorDataEntry[];
+  }>;
+  attributes?: Change['attributes'] | undefined;
   maxEntry?: ColorDataEntry;
 };
 

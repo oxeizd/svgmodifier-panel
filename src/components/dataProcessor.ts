@@ -9,7 +9,7 @@ interface ElementColorMappingParams {
   metricData: MetricDataMap;
 }
 
-export function getMetricsData(params: ElementColorMappingParams): { colorDataArray: ColorDataEntry[] } {
+export function getMetricsData(params: ElementColorMappingParams): ColorDataEntry[] {
   const colorDataArray: ColorDataEntry[] = [];
   const { inputMetrics, metricData: extractedValueMap } = params;
   const metrics = Array.isArray(inputMetrics) ? inputMetrics : [inputMetrics];
@@ -31,7 +31,7 @@ export function getMetricsData(params: ElementColorMappingParams): { colorDataAr
       }
 
       const filteredItems = applyFilterToData(items, ref.filter);
-      createColorEntriesFromData(filteredItems, metric, ref, false, `r${refCounter}`);
+      createColorEntries(filteredItems, metric, ref, false, `r${refCounter}`);
       refCounter++;
     });
 
@@ -51,19 +51,13 @@ export function getMetricsData(params: ElementColorMappingParams): { colorDataAr
       }
 
       if (filteredItems.length > 0) {
-        createColorEntriesFromData(
-          applyFilterToData(filteredItems, legend.filter),
-          metric,
-          legend,
-          true,
-          `l${legendCounter}`
-        );
+        createColorEntries(applyFilterToData(filteredItems, legend.filter), metric, legend, true, `l${legendCounter}`);
         legendCounter++;
       }
     });
   }
 
-  function createColorEntriesFromData(
+  function createColorEntries(
     data: Array<{ displayName: string; value: number; globalKey?: string }>,
     metric: Metric,
     config: RefIds | Legends,
@@ -105,7 +99,8 @@ export function getMetricsData(params: ElementColorMappingParams): { colorDataAr
       });
     }
   }
-  return { colorDataArray };
+
+  return colorDataArray;
 }
 
 function getThresholds(config: RefIds | Legends, metric: Metric): Threshold[] | undefined {

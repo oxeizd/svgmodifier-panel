@@ -1,227 +1,284 @@
 import { getMetricsData } from './dataProcessor';
 import { formatValues } from './utils/ValueTransformer';
-import { parseSvgDocument, applyChangesToElements } from './svgUpdater';
+import { svgUpdater, applyChangesToElements } from './svgUpdater';
 import { RegexCheck, applySchema, getMappingMatch } from './utils/helpers';
-import { Change, ColorDataEntry, TooltipContent, ExpandedItem, ValueMapping } from './types';
+import { Change, ColorDataEntry, items, TooltipContent, ValueMapping } from './types';
 
 export function svgModifier(svg: string, changes: Change[], extractedValueMap: any, svgAspectRatio: string) {
   const serializer = new XMLSerializer();
+  const tooltipData: TooltipContent[] = [];
+  const ConfigMap: Map<string, items> = new Map();
 
-  const { doc, elementsMap } = parseSvgDocument(svg, svgAspectRatio);
-  const svgElementsMap: Map<string, SVGElement> = elementsMap;
+  const { doc, elementsMap } = svgUpdater(svg, svgAspectRatio);
 
-  const modify = (): { modifiedSvg: string; tooltipData: TooltipContent[] } => {
-    const tooltipData: TooltipContent[] = [];
-
-    proccesingRules(extractedValueMap, tooltipData);
-
-    return {
-      modifiedSvg: serializer.serializeToString(doc),
-      tooltipData,
-    };
-  };
-
-  const getElementsByIdOrRegex = (id: string): Array<[string, SVGElement]> => {
-    const allEntries = Array.from(svgElementsMap.entries());
-    const checkid = id && !id.startsWith('cell-') ? `cell-${id}` : id;
-
-    return RegexCheck(checkid)
-      ? allEntries.filter(([key]) => new RegExp(checkid).test(key))
-      : allEntries.filter(([key]) => key === checkid);
-  };
-
-  const normalizeMetrics = (m: any) => {
-    if (m == null) {
-      return undefined;
+  for (const rule of changes) {
+    if (!rule.id && !rule.attributes) {
+      continue;
     }
-    return Array.isArray(m) ? m : [m];
-  };
 
-  const proccesingRules = (extractedValueMap: Map<string, any>, tooltipData: TooltipContent[]) => {
-    const allRUles: ExpandedItem[] = [];
-    for (const rule of changes) {
-      const attributes = rule.attributes;
-      if (!attributes) {
+    const config = rule.attributes;
+    const elements = getElementsByIdOrRegex(rule.id, elementsMap);
+
+    let metricsData: ColorDataEntry[] = [];
+    let elemsLength = elements.length;
+
+    if (config?.metrics) {
+      metricsData = getMetricsData({ inputMetrics: config.metrics, metricData: extractedValueMap });
+    }
+
+    elements.forEach((el, index) => {
+      const [id, schema, selector, svgElement] = el;
+
+      let colordata: ColorDataEntry[] = [];
+      let configUsed = config;
+
+      if (schema && schema.length > 0) {
+        const schemaConfig = applySchema(config, schema);
+
+        if (schemaConfig?.metrics) {
+          const schemaColorData = getMetricsData({ inputMetrics: schemaConfig.metrics, metricData: extractedValueMap });
+          colordata = processRuleIds(schemaColorData, selector, elemsLength, index, schemaConfig.autoConfig);
+          configUsed = schemaConfig;
+        }
+      } else {
+        colordata = processRuleIds(metricsData, selector, elemsLength, index, config?.autoConfig);
+      }
+
+      if (colordata.length > 0) {
+        pushToMap(ConfigMap, id, schema, svgElement, configUsed, colordata);
+      }
+    });
+  }
+
+  getMaxMetric(ConfigMap);
+  applyChangesToElements(ConfigMap);
+  createTooltipData(ConfigMap, tooltipData);
+
+  return {
+    modSVG: serializer.serializeToString(doc),
+    tooltipData,
+  };
+}
+
+function processRuleIds(
+  metricsData: ColorDataEntry[],
+  selector: string,
+  elemsLength: number,
+  index: number,
+  autoConfig?: boolean
+): ColorDataEntry[] {
+  const metricsLength = metricsData.length;
+  const colordata: ColorDataEntry[] = [];
+
+  if (selector && selector.includes('@')) {
+    const selectors: string[][] = selector.split('|').map((s: string) => s.split('@'));
+
+    for (const [type, idx] of selectors) {
+      if (idx) {
+        const indexes = idx.split(',').map(Number);
+
+        if (type === 'r' || type === 'l') {
+          const matchingEntries = metricsData.filter((entry) =>
+            indexes.some((index) => entry.object === `${type}${index}`)
+          );
+
+          colordata.push(...matchingEntries);
+        }
+      }
+    }
+  } else if (autoConfig === true) {
+    if (metricsLength === elemsLength) {
+      colordata.push(metricsData[index]);
+    } else if (metricsLength < elemsLength) {
+      if (index < metricsLength) {
+        colordata.push(metricsData[index]);
+      }
+    } else {
+      const lastIndex = elemsLength - 1;
+      if (index < lastIndex) {
+        colordata.push(metricsData[index]);
+      } else {
+        colordata.push(...metricsData.slice(lastIndex));
+      }
+    }
+  } else {
+    colordata.push(...metricsData);
+  }
+  return colordata;
+}
+
+function pushToMap(
+  configMap: Map<string, items>,
+  id: string,
+  schema: string,
+  svgElement: SVGElement,
+  settings: Change['attributes'],
+  colordata: ColorDataEntry[]
+) {
+  if (configMap.has(id)) {
+    const existingItem = configMap.get(id);
+    if (existingItem) {
+      existingItem.additional.push({
+        schema: schema,
+        attributes: settings,
+        colorData: colordata,
+      });
+    }
+  } else {
+    configMap.set(id, {
+      SVGElem: svgElement,
+      additional: [
+        {
+          schema: schema,
+          attributes: settings,
+          colorData: colordata,
+        },
+      ],
+    });
+  }
+}
+
+function getMaxMetric(items: Map<string, items>) {
+  for (const [, item] of items) {
+    if (!item.additional?.length) {
+      item.maxEntry = undefined;
+      continue;
+    }
+
+    let bestEntry: ColorDataEntry | undefined;
+    let bestLvl = Number.NEGATIVE_INFINITY;
+    let bestMetric = Number.NEGATIVE_INFINITY;
+    let bestAttributes: Change['attributes'] | undefined = undefined;
+
+    for (const additional of item.additional) {
+      if (!additional.colorData) {
         continue;
       }
 
-      const ruleItems: ExpandedItem[] = [];
-      const configIds = Array.isArray(rule.id) ? rule.id : [rule.id ?? ''];
+      for (const entry of additional.colorData) {
+        const currentLvl = entry.lvl ?? Number.NEGATIVE_INFINITY;
+        const currentMetric = entry.metric ?? Number.NEGATIVE_INFINITY;
 
-      for (const rawId of configIds) {
-        const configId = (rawId ?? '').split(':');
-        const id = configId[0] ?? undefined;
-        const schema = configId[1] ?? undefined;
-        const selector = configId.slice(2).join(':') ?? undefined;
-
-        const elements = getElementsByIdOrRegex(id);
-
-        for (const [svgId, svgElem] of elements) {
-          const attrsCopy = { ...attributes };
-          attrsCopy.metrics = normalizeMetrics(attrsCopy.metrics);
-
-          ruleItems.push({
-            id: svgId,
-            schema,
-            selector,
-            svgElement: svgElem,
-            attributes: schema ? applySchema(attrsCopy, schema) : attrsCopy,
-            colorDataEntries: [],
-          });
-        }
-      }
-
-      if (attributes.metrics) {
-        const metricConfig = getMetricsData({
-          inputMetrics: attributes.metrics,
-          metricData: extractedValueMap,
-        });
-
-        if (metricConfig) {
-          metricsComparison(ruleItems, metricConfig, attributes.autoConfig || false);
-          getMaxMetric(ruleItems);
-        }
-      }
-
-      allRUles.push(...ruleItems);
-    }
-
-    for (const item of allRUles) {
-      if (item.schema) {
-        const originalMetrics = item.attributes.metrics;
-        item.attributes = applySchema(item.attributes, item.schema);
-
-        item.attributes.metrics = normalizeMetrics(item.attributes.metrics);
-
-        if (item.attributes.metrics && item.attributes.metrics !== originalMetrics) {
-          const individualMetricConfig = getMetricsData({
-            inputMetrics: item.attributes.metrics,
-            metricData: extractedValueMap,
-          });
-
-          if (individualMetricConfig) {
-            item.colorDataEntries = [];
-            metricsComparison([item], individualMetricConfig, false);
-            getMaxMetric([item]);
-          }
+        if (currentLvl > bestLvl || (currentLvl === bestLvl && currentMetric > bestMetric)) {
+          bestLvl = currentLvl;
+          bestMetric = currentMetric;
+          bestEntry = entry;
+          bestAttributes = additional.attributes;
         }
       }
     }
 
-    applyChangesToElements(allRUles);
-    createTooltipData(allRUles, tooltipData);
-  };
+    item.attributes = bestAttributes;
+    item.maxEntry = bestEntry;
+  }
+}
 
-  const metricsComparison = (
-    ids: ExpandedItem[],
-    processedData: { colorDataArray: ColorDataEntry[] },
-    autoConfig: boolean
-  ) => {
-    const allEntries = processedData.colorDataArray;
-    const idsLen = ids.length;
-
-    for (let i = 0; i < idsLen; i++) {
-      if (ids[i].selector && ids[i].selector.includes('@')) {
-        const selectors: string[][] = ids[i].selector.split('|').map((s: string) => s.split('@'));
-
-        for (const [type, idx] of selectors) {
-          if (idx) {
-            const indexes = idx.split(',').map(Number);
-
-            if (type === 'r' || type === 'l') {
-              const matchingEntries = allEntries.filter((entry) =>
-                indexes.some((index) => entry.object === `${type}${index}`)
-              );
-
-              ids[i].colorDataEntries.push(...matchingEntries);
-            }
-          }
-        }
-      } else if (autoConfig === true) {
-        if (i < allEntries.length) {
-          ids[i].colorDataEntries.push(allEntries[i]);
-        }
-      } else if (autoConfig === false) {
-        ids[i].colorDataEntries = [...allEntries];
-      }
-    }
-
-    if (autoConfig && allEntries.length > idsLen) {
-      let lastId = null;
-
-      for (let i = ids.length - 1; i >= 0; i--) {
-        if (!ids[i].selector) {
-          lastId = i;
-          break;
-        }
-      }
-
-      if (lastId !== null) {
-        for (let i = idsLen; i < allEntries.length; i++) {
-          ids[lastId].colorDataEntries.push(allEntries[i]);
-        }
-      }
-    }
-  };
-
-  const getMaxMetric = (ids: ExpandedItem[]) => {
-    for (const item of ids) {
-      if (!item.colorDataEntries || item.colorDataEntries.length === 0) {
-        item.maxEntry = undefined;
+function createTooltipData(ConfigMap: Map<string, items>, tooltipData: TooltipContent[]) {
+  for (const [id, item] of ConfigMap) {
+    for (const additional of item.additional ?? []) {
+      if (!additional.colorData || !additional.attributes?.tooltip) {
         continue;
       }
 
-      let best = item.colorDataEntries[0];
-      for (let i = 1; i < item.colorDataEntries.length; i++) {
-        const cur = item.colorDataEntries[i];
-        const curLvl = cur.lvl ?? Number.NEGATIVE_INFINITY;
-        const bestLvl = best.lvl ?? Number.NEGATIVE_INFINITY;
-        if (curLvl > bestLvl || (curLvl === bestLvl && cur.metric > best.metric)) {
-          best = cur;
-        }
-      }
-      item.maxEntry = best;
-    }
-  };
+      const { textAbove, textBelow } = additional.attributes.tooltip;
 
-  const createTooltipData = (ids: ExpandedItem[], tooltipData: TooltipContent[]) => {
-    for (const { id, attributes, colorDataEntries } of ids) {
-      if (!colorDataEntries?.length || !attributes.tooltip?.show) {
-        continue;
-      }
-
-      for (const entry of colorDataEntries) {
-        const metricValue = formatMetricValue(entry, attributes.valueMapping);
-
+      for (const entry of additional.colorData) {
         tooltipData.push({
           id,
           label: (entry.label ?? '').replace(/_prfx\d+/g, ''),
           color: entry.color ?? '',
-          metric: metricValue,
+          metric: formatMetricValue(entry, additional.attributes.valueMapping),
           title: entry.title ?? '',
-          textAbove: attributes.tooltip.textAbove,
-          textBelow: attributes.tooltip.textBelow,
+          textAbove,
+          textBelow,
         });
       }
     }
-  };
+  }
+}
 
-  const formatMetricValue = (entry: ColorDataEntry, valueMapping?: ValueMapping[]): string => {
-    if (entry.metric == null) {
-      return '';
+function formatMetricValue(entry: ColorDataEntry, valueMapping?: ValueMapping[]): string {
+  if (entry.metric == null) {
+    return '';
+  }
+
+  if (valueMapping) {
+    const mappedValue = getMappingMatch(valueMapping, entry.metric);
+    if (mappedValue !== undefined) {
+      return mappedValue;
+    }
+  } else if (entry.unit) {
+    return formatValues(entry.metric, entry.unit);
+  }
+
+  return String(entry.metric);
+}
+
+function getElementsByIdOrRegex(
+  id: string | string[],
+  map: Map<string, SVGElement>
+): Array<[string, string, string, SVGElement]> {
+  const getElement = (currentId: string): Array<[string, string, string, SVGElement]> => {
+    const parsed = parseId(currentId);
+    if (!parsed) {
+      return [];
+    }
+    const [id, schema, selector] = parsed;
+
+    const checkid = id && !id.startsWith('cell-') ? `cell-${id}` : id;
+
+    if (!RegexCheck(checkid)) {
+      const element = map.get(checkid);
+      return element ? [[checkid, schema, selector, element]] : [];
     }
 
-    if (valueMapping) {
-      const mappedValue = getMappingMatch(valueMapping, entry.metric);
-      if (mappedValue !== undefined) {
-        return mappedValue;
+    const regex = new RegExp(checkid);
+    return Array.from(map.entries())
+      .filter(([key]) => regex.test(key))
+      .map(([key, element]) => [key, schema, selector, element]);
+  };
+
+  if (Array.isArray(id)) {
+    return id.flatMap((currentId) => getElement(currentId));
+  }
+
+  return getElement(id);
+}
+
+function parseId(raw: string): [id: string, schema: string, selector: string] | null {
+  const input = String(raw ?? '').trim();
+  if (!input) {
+    return null;
+  }
+
+  if (!input.includes(':')) {
+    return [input, '', ''];
+  }
+
+  const parts = input.split(':');
+  const id = parts[0];
+
+  let schema = '';
+  let selector = '';
+
+  if (parts.length >= 2) {
+    const secondPart = parts[1];
+
+    if (secondPart.includes('@')) {
+      selector = secondPart;
+      if (parts.length >= 3) {
+        selector += ':' + parts.slice(2).join(':');
       }
-    } else if (entry.unit) {
-      return formatValues(entry.metric, entry.unit);
+    } else {
+      schema = secondPart !== '' ? secondPart : '';
+      if (parts.length >= 3) {
+        const selectorRaw = parts.slice(2).join(':');
+        if (selectorRaw && selectorRaw.includes('@')) {
+          selector = selectorRaw;
+        }
+      }
     }
+  }
 
-    return String(entry.metric);
-  };
-
-  return modify();
+  return [id, schema, selector];
 }

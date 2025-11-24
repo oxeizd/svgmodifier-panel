@@ -13,7 +13,7 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange, re
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [svg, setSvg] = useState<string>('');
-  const [tooltips, setTooltips] = useState<TooltipContent[]>([]);
+  const [tooltip, setTooltip] = useState<TooltipContent[]>([]);
 
   const jsonData = options.jsonData;
   const svgCode = jsonData.svgCode;
@@ -44,24 +44,23 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange, re
       extractValues(data.series, customRelativeTime, fieldsCustomRelativeTime, timeRange);
 
     const updateSvgAndTooltips = async () => {
-      const metricsChanges = parseMetricsChanges();
+      const cfg = parseMetricsChanges();
       const extracted = buildExtractedValues();
-
       try {
-        const { modifiedSvg, tooltipData } = await svgModifier(svgCode, metricsChanges, extracted, svgAspectRatio);
+        const { modSVG, tooltipData } = await svgModifier(svgCode, cfg, extracted, svgAspectRatio);
 
         if (!mountedRef.current) {
           return;
         }
 
-        setSvg(modifiedSvg);
-        setTooltips(tooltipData);
+        setSvg(modSVG);
+        setTooltip(tooltipData);
       } catch {
         if (!mountedRef.current) {
           return;
         }
         setSvg('');
-        setTooltips([]);
+        setTooltip([]);
       }
     };
 
@@ -97,7 +96,7 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange, re
           width: `${width}px`,
         }}
       />
-      <Tooltip containerRef={containerRef} tooltipData={tooltips} />
+      <Tooltip containerRef={containerRef} tooltipData={tooltip} />
     </div>
   );
 };

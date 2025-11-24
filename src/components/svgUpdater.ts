@@ -1,4 +1,4 @@
-import { ColorDataEntry, ValueMapping, ExpandedItem } from './types';
+import { ColorDataEntry, ValueMapping, items } from './types';
 import { getMappingMatch } from './utils/helpers';
 
 const parser = new DOMParser();
@@ -6,7 +6,7 @@ const parser = new DOMParser();
 /**
  * Парсит SVG строку в DOM документ и извлекает элементы с ID начинающимися на "cell"
  */
-export function parseSvgDocument(svg: string, svgAspectRatio: string) {
+export function svgUpdater(svg: string, svgAspectRatio: string) {
   const doc = parser.parseFromString(svg, 'image/svg+xml');
   const svgElement = doc.documentElement;
 
@@ -32,43 +32,43 @@ export function parseSvgDocument(svg: string, svgAspectRatio: string) {
 /**
  * Применяет изменения к элементам SVG батчем
  */
-export function applyChangesToElements(items: ExpandedItem[]): void {
+export function applyChangesToElements(items: Map<string, items>): void {
+  let index = 0;
   const operations: Array<() => void> = [];
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const svgElement = item.svgElement;
-    if (!svgElement) {
-      continue;
-    }
+  items.forEach((el, key) => {
+    const svgElement = el.SVGElem;
+    const link = el.attributes?.link;
+    const label = el.attributes?.label;
+    const labelColor = el.attributes?.labelColor;
+    const valueMapping = el.attributes?.valueMapping;
+    const mEntry = el.maxEntry;
 
-    const { link, label, labelColor, valueMapping } = item.attributes ?? {};
-    const linksArray = Array.isArray(link) ? (link as string[]) : undefined;
-    const linkForThis = linksArray ? linksArray[i] : link;
-    const maxEntries = item.maxEntry ?? undefined;
+    const linkForEl = Array.isArray(link) && index < link.length ? link[index] : link;
 
     operations.push(() => {
-      if (linkForThis !== undefined) {
-        addLinksToSvgElements(svgElement, linkForThis.toString());
+      if (linkForEl) {
+        addLinksToSvgElements(svgElement, linkForEl.toString());
       }
 
       if (label || labelColor) {
         const labelElements = findLabelElements(svgElement);
 
         if (label) {
-          setLabelContent(labelElements, label, maxEntries?.label, maxEntries?.metric, valueMapping);
+          setLabelContent(labelElements, label, mEntry?.label, mEntry?.metric, valueMapping);
         }
 
         if (labelColor) {
-          applyColorToLabels(labelElements, labelColor, maxEntries?.color);
+          applyColorToLabels(labelElements, labelColor, mEntry?.color);
         }
       }
 
-      if (maxEntries) {
-        applyColortoElement(svgElement, maxEntries);
+      if (mEntry) {
+        applyColortoElement(svgElement, mEntry);
       }
     });
-  }
+    index++;
+  });
 
   executeBatchOperations(operations);
 }
