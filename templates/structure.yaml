@@ -17,10 +17,9 @@ changes:
         textAbove: 'sample text'
         textBelow: 'sample text'
       metrics:
-        - refIds:
+        - queries:
             - { refid: 'A', calculation: 'last', label: 'a', sum: 'a', unit: 'seconds', thresholds: *cfg }
             - { refid: '' }
-          legends:
             - { legend: '' }
             - { legend: '' }
           baseColor: '#00ff00'
@@ -30,10 +29,9 @@ changes:
           thresholds:
             - { color: 'orange', value: 10 }
             - { color: 'red', value: 20 }
-        - refIds:
+        - queries:
             - { refid: 'A', calculation: 'last', label: 'a', sum: 'a', unit: 'seconds', thresholds: *cfg }
             - { refid: '' }
-          legends:
             - { legend: '' }
             - { legend: '' }
           baseColor: '#00ff00'
@@ -56,10 +54,9 @@ changes:
         textAbove: 'sample text'
         textBelow: 'sample text'
       metrics:
-        refIds:
+        queries:
           - { refid: 'A', calculation: 'last', label: 'a', sum: 'a', unit: 'seconds', thresholds: *cfg }
           - { refid: '' }
-        legends:
           - { legend: '' }
           - { legend: '' }
         baseColor: '#00ff00'

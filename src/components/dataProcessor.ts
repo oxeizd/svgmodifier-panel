@@ -1,113 +1,220 @@
 import { compareValues, matchPattern, roundToFixed } from './utils/helpers';
-import { Legends, Metric, RefIds, Threshold, ColorDataEntry } from './types';
+import { Metric, BaseRef, Threshold, ColorDataEntry } from './types';
 
+type MetricsDataMap = Map<string, { values: Map<string, { values: string[]; timestamps: number[] }> }>;
+type QueriesArray = Array<{ displayName: string; value: number; globalKey?: string }>;
 type CalculationMethod = 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
-type MetricDataMap = Map<string, { values: Map<string, { values: string[]; timestamps: number[] }> }>;
 
-interface ElementColorMappingParams {
-  inputMetrics: Metric | Metric[];
-  metricData: MetricDataMap;
-}
-
-export function getMetricsData(params: ElementColorMappingParams): ColorDataEntry[] {
-  const colorDataArray: ColorDataEntry[] = [];
-  const { inputMetrics, metricData: extractedValueMap } = params;
-  const metrics = Array.isArray(inputMetrics) ? inputMetrics : [inputMetrics];
+export function getMetricsData(metrics: Metric | Metric[], extractedValueMap: MetricsDataMap): ColorDataEntry[] {
+  const metricsArray = Array.isArray(metrics) ? metrics : [metrics];
+  const colorData: ColorDataEntry[] = [];
 
   let refCounter = 1;
   let legendCounter = 1;
 
-  for (const metric of metrics) {
-    metric.refIds?.forEach((ref) => {
-      const metricData = extractedValueMap.get(ref.refid);
-      if (!metricData) {
-        return;
-      }
-      const items: Array<{ displayName: string; value: number }> = [];
+  for (const metric of metricsArray) {
+    const processedMetric = processLegacyMetric(metric);
 
-      for (const [innerKey, values] of metricData.values) {
-        const value = calculateValue(values.values.map(Number), ref.calculation || 'last');
-        items.push({ displayName: innerKey, value });
-      }
-
-      const filteredItems = applyFilterToData(items, ref.filter);
-      createColorEntries(filteredItems, metric, ref, false, `r${refCounter}`);
-      refCounter++;
-    });
-
-    metric.legends?.forEach((legend) => {
-      const filteredItems: Array<{ displayName: string; value: number; globalKey: string }> = [];
-
-      for (const [globalKey, metricData] of extractedValueMap) {
-        for (const [innerKey, values] of metricData.values) {
-          if (matchPattern(legend.legend, innerKey)) {
-            filteredItems.push({
-              displayName: innerKey,
-              value: calculateValue(values.values.map(Number), legend.calculation || 'last'),
-              globalKey,
-            });
-          }
-        }
-      }
-
-      if (filteredItems.length > 0) {
-        createColorEntries(applyFilterToData(filteredItems, legend.filter), metric, legend, true, `l${legendCounter}`);
+    processedMetric.queries?.forEach((query) => {
+      if (query.refid) {
+        processRefid(query, metric, extractedValueMap, colorData, refCounter);
+        refCounter++;
+      } else if (query.legend) {
+        processLegend(query, metric, extractedValueMap, colorData, legendCounter);
         legendCounter++;
       }
     });
   }
 
-  function createColorEntries(
-    data: Array<{ displayName: string; value: number; globalKey?: string }>,
-    metric: Metric,
-    config: RefIds | Legends,
-    isLegend: boolean,
-    key: string
-  ) {
-    const { baseColor, displayText, decimal, filling } = metric;
-
-    const sumMode = 'sum' in config && config.sum;
-    const thresholdsToUse = getThresholds(config, metric);
-
-    const addEntry = (value: number, label: string) => {
-      const colorResult = getMetricColor(value, extractedValueMap, thresholdsToUse, baseColor);
-
-      const entry: ColorDataEntry = {
-        object: key,
-        label: label,
-        color: colorResult.color,
-        lvl: colorResult.lvl,
-        metric: roundToFixed(value, decimal),
-        filling: filling || '',
-        unit: config.unit,
-        title: config.title,
-      };
-
-      colorDataArray.push(entry);
-    };
-
-    if (sumMode) {
-      if (data.length === 0) {
-        return;
-      }
-
-      const sumValue = data.reduce((acc, item) => acc + item.value, 0);
-      addEntry(sumValue, config.label || displayText || config.sum!);
-    } else {
-      data.forEach((item) => {
-        addEntry(item.value, config.label || displayText || item.displayName);
-      });
-    }
-  }
-
-  return colorDataArray;
+  return colorData;
 }
 
-function getThresholds(config: RefIds | Legends, metric: Metric): Threshold[] | undefined {
+function processLegacyMetric(metric: any): Metric {
+  // Если нет legacy полей, возвращаем как есть
+  if (!metric.refIds && !metric.legends) {
+    return metric;
+  }
+
+  // Создаем копию метрики
+  const newMetric = { ...metric };
+
+  // Создаем массив queries из legacy структур
+  const queries: any[] = [];
+
+  // Преобразуем refIds
+  if (metric.refIds && Array.isArray(metric.refIds)) {
+    metric.refIds.forEach((item: any) => {
+      if (item && item.refid) {
+        queries.push({ ...item });
+      }
+    });
+  }
+
+  // Преобразуем legends
+  if (metric.legends && Array.isArray(metric.legends)) {
+    metric.legends.forEach((item: any) => {
+      if (item && item.legend) {
+        queries.push({ ...item });
+      }
+    });
+  }
+
+  // Заменяем старые поля на queries
+  if (queries.length > 0) {
+    newMetric.queries = queries;
+  }
+
+  // Удаляем старые поля
+  delete (newMetric as any).refIds;
+  delete (newMetric as any).legends;
+
+  return newMetric;
+}
+
+function processRefid(
+  query: BaseRef & { refid: string },
+  metric: Metric,
+  extractedValueMap: MetricsDataMap,
+  colorData: ColorDataEntry[],
+  counter: number
+): void {
+  const extractedData = extractedValueMap.get(query.refid);
+
+  if (!extractedData) {
+    return;
+  }
+
+  const queries: QueriesArray = [];
+  for (const [innerKey, values] of extractedData.values) {
+    const value = calculateValue(values.values.map(Number), query.calculation || 'last');
+    queries.push({ displayName: innerKey, value });
+  }
+
+  const finalQueries = filterData(queries, query.filter);
+
+  if (finalQueries) {
+    processFinalQueries(finalQueries, query, metric, extractedValueMap, colorData, `r${counter}`, counter);
+  }
+}
+
+function processLegend(
+  query: BaseRef & { legend: string },
+  metric: Metric,
+  extractedValueMap: MetricsDataMap,
+  colorData: ColorDataEntry[],
+  counter: number
+): void {
+  const queries: QueriesArray = [];
+
+  for (const [globalKey, metricData] of extractedValueMap) {
+    for (const [innerKey, values] of metricData.values) {
+      if (matchPattern(query.legend, innerKey)) {
+        queries.push({
+          displayName: innerKey,
+          value: calculateValue(values.values.map(Number), query.calculation || 'last'),
+          globalKey,
+        });
+      }
+    }
+  }
+  const finalQueries = filterData(queries, query.filter);
+
+  if (finalQueries) {
+    processFinalQueries(finalQueries, query, metric, extractedValueMap, colorData, `r${counter}`, counter);
+  }
+}
+
+function processFinalQueries(
+  finalQueries: QueriesArray,
+  query: BaseRef,
+  metric: Metric,
+  extractedValueMap: MetricsDataMap,
+  colorData: ColorDataEntry[],
+  objectId: string,
+  counter: number
+): void {
+  const sumMode = 'sum' in query && query.sum;
+  const thresholdsToUse = getThresholds(query, metric);
+  const title = getTitle(query, counter);
+  const { filling, decimal } = metric;
+  const { unit } = query;
+
+  if (query.sum && sumMode) {
+    const sumValue = getSum(finalQueries);
+    const colorResult = getMetricColor(sumValue, extractedValueMap, thresholdsToUse, metric.baseColor);
+    const label = query.sum || metric.displayText || '';
+    const metricValue = roundToFixed(sumValue, decimal);
+
+    addColorDataEntry(
+      colorData,
+      objectId,
+      label,
+      colorResult.color,
+      colorResult.lvl,
+      metricValue,
+      filling,
+      unit,
+      title
+    );
+  } else {
+    finalQueries.forEach((fquery) => {
+      const colorResult = getMetricColor(fquery.value, extractedValueMap, thresholdsToUse, metric.baseColor);
+      const label = fquery.displayName || metric.displayText || '';
+      const metricValue = roundToFixed(fquery.value, decimal);
+
+      addColorDataEntry(
+        colorData,
+        objectId,
+        label,
+        colorResult.color,
+        colorResult.lvl,
+        metricValue,
+        filling,
+        unit,
+        title
+      );
+    });
+  }
+}
+
+function addColorDataEntry(
+  colorData: ColorDataEntry[],
+  object: string,
+  label: string,
+  color: string,
+  lvl: number,
+  metric: number,
+  filling?: string,
+  unit?: string,
+  title?: string
+) {
+  const entry: ColorDataEntry = {
+    object: object,
+    label: label,
+    color: color,
+    lvl: lvl,
+    metricValue: metric,
+    filling: filling,
+    unit: unit,
+    title: title,
+  };
+
+  colorData.push(entry);
+}
+
+function getTitle(query: BaseRef, counter: number): string {
+  return query.title && counter === 1 ? query.title : '';
+}
+
+function getSum(data: QueriesArray): number {
+  return data.reduce((acc, item) => acc + item.value, 0);
+}
+
+function getThresholds(config: BaseRef, metric: Metric): Threshold[] | undefined {
   return 'thresholds' in config && config.thresholds?.length ? config.thresholds : metric.thresholds;
 }
 
-function applyFilterToData(
+function filterData(
   data: Array<{ displayName: string; value: number }>,
   filter?: string
 ): Array<{ displayName: string; value: number }> {
@@ -182,7 +289,7 @@ function calculateValue(values: number[], method: CalculationMethod): number {
   return result;
 }
 
-function getMetricColor(value: number, ValueMap: MetricDataMap, thresholds?: Threshold[], baseColor?: string) {
+function getMetricColor(value: number, ValueMap: MetricsDataMap, thresholds?: Threshold[], baseColor?: string) {
   let color = baseColor || '';
   let lvl = 1;
 
@@ -206,7 +313,7 @@ function getMetricColor(value: number, ValueMap: MetricDataMap, thresholds?: Thr
   return { color, lvl };
 }
 
-function evaluateThresholdCondition(condition: string, ValueMap: MetricDataMap): boolean {
+function evaluateThresholdCondition(condition: string, ValueMap: MetricsDataMap): boolean {
   let result = false;
   try {
     const now = new Date();

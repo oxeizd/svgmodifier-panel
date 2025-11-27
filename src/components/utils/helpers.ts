@@ -1,4 +1,18 @@
 import { Metric, ValueMapping } from 'components/types';
+import YAML from 'yaml';
+
+/**
+ **/
+export function parseYamlConfig(yamlContent: string, replaceVariables?: (content: string) => string): any[] {
+  try {
+    const yaml = replaceVariables ? replaceVariables(yamlContent) : yamlContent;
+    const parsedYaml = YAML.parse(yaml, { maxAliasCount: 10000 });
+
+    return parsedYaml?.changes ?? [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Форматирует число с заданным количеством десятичных знаков.

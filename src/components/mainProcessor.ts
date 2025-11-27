@@ -2,12 +2,12 @@ import { getMetricsData } from './dataProcessor';
 import { formatValues } from './utils/ValueTransformer';
 import { svgUpdater, applyChangesToElements } from './svgUpdater';
 import { RegexCheck, applySchema, getMappingMatch } from './utils/helpers';
-import { Change, ColorDataEntry, items, TooltipContent, ValueMapping } from './types';
+import { Change, ColorDataEntry, DataMap, TooltipContent, ValueMapping } from './types';
 
 export function svgModifier(svg: string, changes: Change[], extractedValueMap: any, svgAspectRatio: string) {
   const serializer = new XMLSerializer();
   const tooltipData: TooltipContent[] = [];
-  const ConfigMap: Map<string, items> = new Map();
+  const configMap: Map<string, DataMap> = new Map();
 
   const { doc, elementsMap } = svgUpdater(svg, svgAspectRatio);
 
@@ -16,43 +16,12 @@ export function svgModifier(svg: string, changes: Change[], extractedValueMap: a
       continue;
     }
 
-    const config = rule.attributes;
-    const elements = getElementsByIdOrRegex(rule.id, elementsMap);
-
-    let metricsData: ColorDataEntry[] = [];
-    let elemsLength = elements.length;
-
-    if (config?.metrics) {
-      metricsData = getMetricsData({ inputMetrics: config.metrics, metricData: extractedValueMap });
-    }
-
-    elements.forEach((el, index) => {
-      const [id, schema, selector, svgElement] = el;
-
-      let colordata: ColorDataEntry[] = [];
-      let configUsed = config;
-
-      if (schema && schema.length > 0) {
-        const schemaConfig = applySchema(config, schema);
-
-        if (schemaConfig?.metrics) {
-          const schemaColorData = getMetricsData({ inputMetrics: schemaConfig.metrics, metricData: extractedValueMap });
-          colordata = processRuleIds(schemaColorData, selector, elemsLength, index, schemaConfig.autoConfig);
-          configUsed = schemaConfig;
-        }
-      } else {
-        colordata = processRuleIds(metricsData, selector, elemsLength, index, config?.autoConfig);
-      }
-
-      if (colordata.length > 0) {
-        pushToMap(ConfigMap, id, schema, svgElement, configUsed, colordata);
-      }
-    });
+    processRule(rule, elementsMap, extractedValueMap, configMap);
   }
 
-  getMaxMetric(ConfigMap);
-  applyChangesToElements(ConfigMap);
-  createTooltipData(ConfigMap, tooltipData);
+  getMaxMetric(configMap);
+  applyChangesToElements(configMap);
+  createTooltipData(configMap, tooltipData);
 
   return {
     modSVG: serializer.serializeToString(doc),
@@ -60,7 +29,47 @@ export function svgModifier(svg: string, changes: Change[], extractedValueMap: a
   };
 }
 
-function processRuleIds(
+function processRule(
+  rule: Change,
+  elementsMap: Map<string, SVGElement>,
+  extractedValueMap: any,
+  configMap: Map<string, DataMap>
+): void {
+  const config = rule.attributes;
+  const elements = getElementsByIdOrRegex(rule.id, elementsMap);
+
+  let metricsData: ColorDataEntry[] = [];
+  let elemsLength = elements.length;
+
+  if (config?.metrics) {
+    metricsData = getMetricsData(config.metrics, extractedValueMap);
+  }
+
+  elements.forEach((el, index) => {
+    const [id, schema, selector, svgElement] = el;
+
+    let colordata: ColorDataEntry[] = [];
+    let configUsed = config;
+
+    if (schema && schema.length > 0) {
+      const schemaConfig = applySchema(config, schema);
+
+      if (schemaConfig?.metrics) {
+        const schemaColorData = getMetricsData(schemaConfig.metrics, extractedValueMap);
+        colordata = addMetrics(schemaColorData, selector, elemsLength, index, schemaConfig.autoConfig);
+        configUsed = schemaConfig;
+      }
+    } else {
+      colordata = addMetrics(metricsData, selector, elemsLength, index, config?.autoConfig);
+    }
+
+    if (colordata.length > 0) {
+      pushToMap(configMap, id, schema, svgElement, configUsed, colordata);
+    }
+  });
+}
+
+function addMetrics(
   metricsData: ColorDataEntry[],
   selector: string,
   elemsLength: number,
@@ -108,7 +117,7 @@ function processRuleIds(
 }
 
 function pushToMap(
-  configMap: Map<string, items>,
+  configMap: Map<string, DataMap>,
   id: string,
   schema: string,
   svgElement: SVGElement,
@@ -138,7 +147,7 @@ function pushToMap(
   }
 }
 
-function getMaxMetric(items: Map<string, items>) {
+function getMaxMetric(items: Map<string, DataMap>) {
   for (const [, item] of items) {
     if (!item.additional?.length) {
       item.maxEntry = undefined;
@@ -157,7 +166,7 @@ function getMaxMetric(items: Map<string, items>) {
 
       for (const entry of additional.colorData) {
         const currentLvl = entry.lvl ?? Number.NEGATIVE_INFINITY;
-        const currentMetric = entry.metric ?? Number.NEGATIVE_INFINITY;
+        const currentMetric = entry.metricValue ?? Number.NEGATIVE_INFINITY;
 
         if (currentLvl > bestLvl || (currentLvl === bestLvl && currentMetric > bestMetric)) {
           bestLvl = currentLvl;
@@ -173,7 +182,7 @@ function getMaxMetric(items: Map<string, items>) {
   }
 }
 
-function createTooltipData(ConfigMap: Map<string, items>, tooltipData: TooltipContent[]) {
+function createTooltipData(ConfigMap: Map<string, DataMap>, tooltipData: TooltipContent[]) {
   for (const [id, item] of ConfigMap) {
     for (const additional of item.additional ?? []) {
       if (!additional.colorData || !additional.attributes?.tooltip) {
@@ -198,20 +207,20 @@ function createTooltipData(ConfigMap: Map<string, items>, tooltipData: TooltipCo
 }
 
 function formatMetricValue(entry: ColorDataEntry, valueMapping?: ValueMapping[]): string {
-  if (entry.metric == null) {
+  if (entry.metricValue == null) {
     return '';
   }
 
   if (valueMapping) {
-    const mappedValue = getMappingMatch(valueMapping, entry.metric);
+    const mappedValue = getMappingMatch(valueMapping, entry.metricValue);
     if (mappedValue !== undefined) {
       return mappedValue;
     }
   } else if (entry.unit) {
-    return formatValues(entry.metric, entry.unit);
+    return formatValues(entry.metricValue, entry.unit);
   }
 
-  return String(entry.metric);
+  return String(entry.metricValue);
 }
 
 function getElementsByIdOrRegex(

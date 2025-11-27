@@ -1,4 +1,4 @@
-import { ColorDataEntry, ValueMapping, items } from './types';
+import { ColorDataEntry, ValueMapping, DataMap } from './types';
 import { getMappingMatch } from './utils/helpers';
 
 const parser = new DOMParser();
@@ -32,7 +32,7 @@ export function svgUpdater(svg: string, svgAspectRatio: string) {
 /**
  * Применяет изменения к элементам SVG батчем
  */
-export function applyChangesToElements(items: Map<string, items>): void {
+export function applyChangesToElements(items: Map<string, DataMap>): void {
   let index = 0;
   const operations: Array<() => void> = [];
 
@@ -55,7 +55,7 @@ export function applyChangesToElements(items: Map<string, items>): void {
         const labelElements = findLabelElements(svgElement);
 
         if (label) {
-          setLabelContent(labelElements, label, mEntry?.label, mEntry?.metric, valueMapping);
+          setLabelContent(labelElements, label, mEntry?.label, mEntry?.metricValue, valueMapping);
         }
 
         if (labelColor) {

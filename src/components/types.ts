@@ -11,6 +11,27 @@ export interface Change {
   };
 }
 
+export interface Metric {
+  queries?: QueryType[];
+  displayText?: string;
+  filling?: string;
+  baseColor?: string;
+  thresholds?: Threshold[];
+  decimal?: number;
+}
+
+export type QueryType = ({ legend: string; refid?: never } & BaseRef) | ({ refid: string; legend?: never } & BaseRef);
+
+export interface BaseRef {
+  filter?: string;
+  calculation?: 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
+  label?: string;
+  sum?: string;
+  unit?: string;
+  title?: string;
+  thresholds?: Threshold[];
+}
+
 export interface Tooltip {
   show: boolean;
   textAbove?: string;
@@ -21,34 +42,6 @@ export interface ValueMapping {
   condition: string;
   value: number;
   label: string;
-}
-
-export interface Metric {
-  refIds?: RefIds[];
-  legends?: Legends[];
-  displayText?: string;
-  filling?: string;
-  baseColor?: string;
-  thresholds?: Threshold[];
-  decimal?: number;
-}
-
-interface BaseRef {
-  filter?: string;
-  calculation?: 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
-  label?: string;
-  sum?: string;
-  unit?: string;
-  title?: string;
-  thresholds: Threshold[];
-}
-
-export interface RefIds extends BaseRef {
-  refid: string;
-}
-
-export interface Legends extends BaseRef {
-  legend: string;
 }
 
 export interface Threshold {
@@ -74,13 +67,13 @@ export interface ColorDataEntry {
   label: string;
   color: string;
   lvl: number;
-  metric: number;
+  metricValue: number;
   filling?: string;
   unit?: string;
   title?: string;
 }
 
-export type items = {
+export type DataMap = {
   SVGElem: SVGElement;
   additional: Array<{
     schema: string;

@@ -1,10 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { PanelOptions, TooltipContent, Change } from './types';
-import { extractValues } from './dataExtractor';
-import { svgModifier } from './mainProcessor';
 import { PanelProps } from '@grafana/data';
 import { Tooltip } from './tooltip';
-import YAML from 'yaml';
+import { extractValues } from './dataExtractor';
+import { svgModifier } from './mainProcessor';
+import { parseYamlConfig } from './utils/helpers';
+import { PanelOptions, TooltipContent } from './types';
 
 interface Props extends PanelProps<PanelOptions> {}
 
@@ -14,6 +14,8 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange, re
 
   const [svg, setSvg] = useState<string>('');
   const [tooltip, setTooltip] = useState<TooltipContent[]>([]);
+  const [processeChanges, setProcessedChanges] = useState<any[]>([]);
+  const [configError, setConfigError] = useState<boolean>(false);
 
   const jsonData = options.jsonData;
   const svgCode = jsonData.svgCode;
@@ -30,24 +32,40 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange, re
   }, []);
 
   useEffect(() => {
-    const parseMetricsChanges = (): Change[] => {
+    if (metricsMapping) {
       try {
-        const substituted = replaceVariables ? replaceVariables(metricsMapping) : metricsMapping;
-        const parsed = YAML.parse(substituted);
-        return parsed?.changes ?? [];
-      } catch {
-        return [];
+        const processed = parseYamlConfig(metricsMapping, replaceVariables);
+        setProcessedChanges(processed);
+        setConfigError(false);
+      } catch (error) {
+        console.error('Error parsing metrics mapping:', error);
+        setProcessedChanges([]);
+        setConfigError(true);
       }
-    };
+    } else {
+      setProcessedChanges([]);
+      setConfigError(false);
+    }
+  }, [metricsMapping, replaceVariables]);
 
+  useEffect(() => {
     const buildExtractedValues = () =>
       extractValues(data.series, customRelativeTime, fieldsCustomRelativeTime, timeRange);
 
     const updateSvgAndTooltips = async () => {
-      const cfg = parseMetricsChanges();
       const extracted = buildExtractedValues();
+
       try {
-        const { modSVG, tooltipData } = await svgModifier(svgCode, cfg, extracted, svgAspectRatio);
+        if (configError) {
+          if (!mountedRef.current) {
+            return;
+          }
+          setSvg(svgCode);
+          setTooltip([]);
+          return;
+        }
+
+        const { modSVG, tooltipData } = await svgModifier(svgCode, processeChanges, extracted, svgAspectRatio);
 
         if (!mountedRef.current) {
           return;
@@ -55,20 +73,23 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange, re
 
         setSvg(modSVG);
         setTooltip(tooltipData);
-      } catch {
+      } catch (error) {
         if (!mountedRef.current) {
           return;
         }
-        setSvg('');
+
+        setSvg(svgCode);
         setTooltip([]);
       }
     };
 
-    updateSvgAndTooltips();
+    if (svgCode) {
+      updateSvgAndTooltips();
+    }
   }, [
     svgCode,
-    metricsMapping,
-    replaceVariables,
+    processeChanges,
+    configError,
     data.series,
     customRelativeTime,
     fieldsCustomRelativeTime,

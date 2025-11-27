@@ -233,7 +233,7 @@ export const configSchema = [
     },
     items: (ctx: EditorContext): SuggestionItem[] => {
       const analysis = analyzeBlockContext(ctx);
-      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.METRICS, ...SUGGESTION_GROUPS.LEGEND];
+      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.METRICS];
 
       const currentLine = ctx.position.lineNumber - 1;
       const line = ctx.lineContent;
@@ -255,30 +255,28 @@ export const configSchema = [
 
       // Определяем, внутри ли мы блока metrics (в пределах attributes)
       const isInMetrics = isInMetricsBlockForPosition(analysis, currentLine);
-      // Определим, внутри ли масива legends или refIds — ищем ближайшие вверх строки в пределах attributesBlock
-      let inLegendsArray = false;
-      let inRefIdsArray = false;
-      let isthresholdsArray = false;
+
+      // Определим, внутри ли массива legends или refIds — ищем ближайшие вверх строки в пределах attributesBlock
+      let inQueriesArray = false;
+      let inThresholdsArray = false; // Исправлено: было isthresholdsArray
+
       if (analysis.attributesBlockStart !== -1) {
         for (let i = currentLine; i >= analysis.attributesBlockStart; i--) {
           const l = analysis.lineContents[i].trim();
-          if (l.startsWith('legends:')) {
-            inLegendsArray = true;
+          if (l.startsWith('queries:')) {
+            inQueriesArray = true;
             break;
           }
-          if (l.startsWith('refIds:')) {
-            inRefIdsArray = true;
+          if (l.startsWith('thresholds:')) {
+            inThresholdsArray = true; // Исправлено: было isthresholdsArray
             break;
           }
           if (l.startsWith('metrics:') && i !== currentLine) {
             break;
           }
-          if (l.startsWith('thresholds:')) {
-            isthresholdsArray = true;
-            break;
-          }
         }
       }
+
       return allItems.filter((item) => {
         // Для inline-объекта проверяем только текущую строку, иначе — в attributes блоке
         const exists = isInsideObject
@@ -287,7 +285,7 @@ export const configSchema = [
 
         // На уровне атрибутов metrics (где refIds:, legends:, decimal:, baseColor и т.д.)
         if (isInMetrics) {
-          if (item.label === 'refIds' || item.label === 'legends') {
+          if (item.label === 'queries') {
             return !exists && ctx.position.column === 9;
           }
 
@@ -295,7 +293,9 @@ export const configSchema = [
             return !exists && ctx.position.column === 9;
           }
 
-          if (isthresholdsArray) {
+          // Внутри массива thresholds
+          if (inThresholdsArray) {
+            // Исправлено: было isthresholdsArray
             if (item.label === 'add threshold') {
               return (
                 !exists &&
@@ -306,16 +306,22 @@ export const configSchema = [
                   .some((l) => /\-\s*\{\s*color\s*:/.test(l))
               );
             }
-          }
-
-          if (inRefIdsArray) {
-            if (item.label === 'add refid') {
-              return !exists && ctx.position.column === 11 && ruleExistsInAttributesBlock(analysis, 'refIds');
+            // Добавляем свойства thresholds когда находимся внутри массива thresholds
+            if (['color', 'value', 'state'].includes(item.label)) {
+              const lineBeforeCursor = ctx.lineContent.substring(0, ctx.position.column - 1);
+              return !new RegExp(`\\b${item.label}\\s*:`).test(lineBeforeCursor);
             }
           }
-          if (inLegendsArray) {
-            if (item.label === 'add legend') {
-              return !exists && ctx.position.column === 11 && ruleExistsInAttributesBlock(analysis, 'legends');
+
+          // Внутри массива queries - показываем refId и legends
+          if (inQueriesArray) {
+            if (item.label === 'add query') {
+              return !exists && ctx.position.column === 11 && ruleExistsInAttributesBlock(analysis, 'queries');
+            }
+            // Показываем refId и legend когда находимся внутри массива queries
+            if (['refId', 'legend'].includes(item.label)) {
+              const lineBeforeCursor = ctx.lineContent.substring(0, ctx.position.column - 1);
+              return !new RegExp(`\\b${item.label}\\s*:`).test(lineBeforeCursor);
             }
           }
           return false;
@@ -345,18 +351,18 @@ export const configSchema = [
         return false;
       }
 
-      // Определяем, в каком массиве находимся (refIds или legends)
-      let inRefIdsArray = false;
-      let inLegendsArray = false;
+      // Определяем, в каком массиве находимся (queries или thresholds)
+      let inQueriesArray = false;
+      let inThresholdsArray = false;
 
       for (let i = currentLine; i >= analysis.attributesBlockStart; i--) {
         const line = analysis.lineContents[i].trim();
-        if (line.startsWith('refIds:')) {
-          inRefIdsArray = true;
+        if (line.startsWith('queries:')) {
+          inQueriesArray = true;
           break;
         }
-        if (line.startsWith('legends:')) {
-          inLegendsArray = true;
+        if (line.startsWith('thresholds:')) {
+          inThresholdsArray = true;
           break;
         }
         if (line.startsWith('metrics:') && i !== currentLine) {
@@ -364,16 +370,44 @@ export const configSchema = [
         }
       }
 
-      return (inRefIdsArray || inLegendsArray) && isInInlineObject;
+      return (inQueriesArray || inThresholdsArray) && isInInlineObject;
     },
     items: (ctx: EditorContext): SuggestionItem[] => {
-      const allItems: SuggestionItem[] = [...SUGGESTION_GROUPS.LEGEND];
+      const analysis = analyzeBlockContext(ctx);
+      const currentLine = ctx.position.lineNumber - 1;
 
-      return allItems.filter((item) => {
-        // Проверяем только часть строки до курсора
-        const lineBeforeCursor = ctx.lineContent.substring(0, ctx.position.column - 1);
-        return !new RegExp(`\\b${item.label}\\s*:`).test(lineBeforeCursor);
-      });
+      // Определяем, в каком массиве находимся
+      let inQueriesArray = false;
+      let inThresholdsArray = false;
+
+      for (let i = currentLine; i >= analysis.attributesBlockStart; i--) {
+        const line = analysis.lineContents[i].trim();
+        if (line.startsWith('queries:')) {
+          inQueriesArray = true;
+          break;
+        }
+        if (line.startsWith('thresholds:')) {
+          inThresholdsArray = true;
+          break;
+        }
+        if (line.startsWith('metrics:') && i !== currentLine) {
+          break;
+        }
+      }
+
+      if (inQueriesArray) {
+        return [...SUGGESTION_GROUPS.QUERY].filter((item) => {
+          const lineBeforeCursor = ctx.lineContent.substring(0, ctx.position.column - 1);
+          return !new RegExp(`\\b${item.label}\\s*:`).test(lineBeforeCursor);
+        });
+      } else if (inThresholdsArray) {
+        return [...SUGGESTION_GROUPS.THRESHOLD].filter((item) => {
+          const lineBeforeCursor = ctx.lineContent.substring(0, ctx.position.column - 1);
+          return !new RegExp(`\\b${item.label}\\s*:`).test(lineBeforeCursor);
+        });
+      }
+
+      return [];
     },
   },
 

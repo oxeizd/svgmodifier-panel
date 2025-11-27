@@ -59,10 +59,8 @@ export const SUGGESTION_TEMPLATES = {
   METRICS: 'metrics:\n  ',
 
   // metrics
-  REFIDS: "refIds:\n  - { refid: '${1}' }",
-  LEGENDS: "legends:\n  - { legend: '${1}' }",
-  ADD_LEGEND: "- { legend: '${1}' }",
-  ADD_REFID: "- { refid: '${1}' }",
+  QUERIES: "queries:\n  - { ${1|refid,legend|}: '${2}' }",
+  ADD_QUERY: "- { ${1|refid,legend|}: '${2}' }",
   DECIMAL: 'decimal: 0',
   BASE_COLOR: "baseColor: 'rgba(50, 172,45, 0.97)'",
   FILLING: "filling: '${1|fill,stroke,fs,fill\\, 20,none|}'",
@@ -84,8 +82,8 @@ export const SUGGESTION_TEMPLATES = {
 
   // defs
   DEF_CONFIG:
-    `- id: ''\n  attributes:\n    tooltip:\n      show: true\n    metrics:\n      refIds:\n` +
-    `       - { refid: '' }\n      baseColor: '#00ff00'\n      thresholds:\n        - { color: 'orange', value: 10 }`,
+    `- id: ''\n  attributes:\n    tooltip:\n      show: true\n    metrics:\n      queries:\n` +
+    `        - { refid: '' }\n      baseColor: '#00ff00'\n      thresholds:\n        - { color: 'orange', value: 10 }`,
   THRESHOLDS_ROOT: `thresholds:\n  name: &name\n  - { color: 'orange', value: 10 }\n  - { color: 'red', value: 20 }`,
 } as const;
 
@@ -108,10 +106,8 @@ export const SUGGESTION_GROUPS = {
   ],
 
   METRICS: [
-    { label: 'refIds', insertText: SUGGESTION_TEMPLATES.REFIDS },
-    { label: 'legends', insertText: SUGGESTION_TEMPLATES.LEGENDS },
-    { label: 'add legend', insertText: SUGGESTION_TEMPLATES.ADD_LEGEND },
-    { label: 'add refid', insertText: SUGGESTION_TEMPLATES.ADD_REFID },
+    { label: 'queries', insertText: SUGGESTION_TEMPLATES.QUERIES },
+    { label: 'add query', insertText: SUGGESTION_TEMPLATES.ADD_QUERY },
     { label: 'decimal', insertText: SUGGESTION_TEMPLATES.DECIMAL },
     { label: 'baseColor', insertText: SUGGESTION_TEMPLATES.BASE_COLOR },
     { label: 'filling', insertText: SUGGESTION_TEMPLATES.FILLING },
@@ -120,7 +116,7 @@ export const SUGGESTION_GROUPS = {
     { label: 'add threshold', insertText: SUGGESTION_TEMPLATES.ADD_THRESHOLD },
   ],
 
-  LEGEND: [
+  QUERY: [
     { label: 'filter', insertText: SUGGESTION_TEMPLATES.FILTER },
     { label: 'label', insertText: SUGGESTION_TEMPLATES.LABEL_METRIC },
     { label: 'sum', insertText: SUGGESTION_TEMPLATES.SUM },
