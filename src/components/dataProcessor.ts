@@ -29,48 +29,6 @@ export function getMetricsData(metrics: Metric | Metric[], extractedValueMap: Me
   return colorData;
 }
 
-function processLegacyMetric(metric: any): Metric {
-  // Если нет legacy полей, возвращаем как есть
-  if (!metric.refIds && !metric.legends) {
-    return metric;
-  }
-
-  // Создаем копию метрики
-  const newMetric = { ...metric };
-
-  // Создаем массив queries из legacy структур
-  const queries: any[] = [];
-
-  // Преобразуем refIds
-  if (metric.refIds && Array.isArray(metric.refIds)) {
-    metric.refIds.forEach((item: any) => {
-      if (item && item.refid) {
-        queries.push({ ...item });
-      }
-    });
-  }
-
-  // Преобразуем legends
-  if (metric.legends && Array.isArray(metric.legends)) {
-    metric.legends.forEach((item: any) => {
-      if (item && item.legend) {
-        queries.push({ ...item });
-      }
-    });
-  }
-
-  // Заменяем старые поля на queries
-  if (queries.length > 0) {
-    newMetric.queries = queries;
-  }
-
-  // Удаляем старые поля
-  delete (newMetric as any).refIds;
-  delete (newMetric as any).legends;
-
-  return newMetric;
-}
-
 function processRefid(
   query: BaseRef & { refid: string },
   metric: Metric,
@@ -93,7 +51,7 @@ function processRefid(
   const finalQueries = filterData(queries, query.filter);
 
   if (finalQueries) {
-    processFinalQueries(finalQueries, query, metric, extractedValueMap, colorData, `r${counter}`, counter);
+    processFinalQueries(finalQueries, query, metric, extractedValueMap, colorData, `r${counter}`);
   }
 }
 
@@ -117,10 +75,11 @@ function processLegend(
       }
     }
   }
+
   const finalQueries = filterData(queries, query.filter);
 
   if (finalQueries) {
-    processFinalQueries(finalQueries, query, metric, extractedValueMap, colorData, `r${counter}`, counter);
+    processFinalQueries(finalQueries, query, metric, extractedValueMap, colorData, `r${counter}`);
   }
 }
 
@@ -130,80 +89,53 @@ function processFinalQueries(
   metric: Metric,
   extractedValueMap: MetricsDataMap,
   colorData: ColorDataEntry[],
-  objectId: string,
-  counter: number
+  object: string
 ): void {
   const sumMode = 'sum' in query && query.sum;
   const thresholdsToUse = getThresholds(query, metric);
-  const title = getTitle(query, counter);
   const { filling, decimal } = metric;
   const { unit } = query;
+  let title = getTitle(query.title, 0);
 
   if (query.sum && sumMode) {
     const sumValue = getSum(finalQueries);
-    const colorResult = getMetricColor(sumValue, extractedValueMap, thresholdsToUse, metric.baseColor);
+    const { color, lvl } = getMetricColor(sumValue, extractedValueMap, thresholdsToUse, metric.baseColor);
     const label = query.sum || metric.displayText || '';
     const metricValue = roundToFixed(sumValue, decimal);
 
-    addColorDataEntry(
-      colorData,
-      objectId,
+    colorData.push({
+      object,
       label,
-      colorResult.color,
-      colorResult.lvl,
+      color,
+      lvl,
       metricValue,
       filling,
       unit,
-      title
-    );
+      title,
+    });
   } else {
-    finalQueries.forEach((fquery) => {
-      const colorResult = getMetricColor(fquery.value, extractedValueMap, thresholdsToUse, metric.baseColor);
+    finalQueries.forEach((fquery, index) => {
+      const { color, lvl } = getMetricColor(fquery.value, extractedValueMap, thresholdsToUse, metric.baseColor);
       const label = fquery.displayName || metric.displayText || '';
       const metricValue = roundToFixed(fquery.value, decimal);
+      title = getTitle(query.title, index);
 
-      addColorDataEntry(
-        colorData,
-        objectId,
+      colorData.push({
+        object,
         label,
-        colorResult.color,
-        colorResult.lvl,
+        color,
+        lvl,
         metricValue,
         filling,
         unit,
-        title
-      );
+        title,
+      });
     });
   }
 }
 
-function addColorDataEntry(
-  colorData: ColorDataEntry[],
-  object: string,
-  label: string,
-  color: string,
-  lvl: number,
-  metric: number,
-  filling?: string,
-  unit?: string,
-  title?: string
-) {
-  const entry: ColorDataEntry = {
-    object: object,
-    label: label,
-    color: color,
-    lvl: lvl,
-    metricValue: metric,
-    filling: filling,
-    unit: unit,
-    title: title,
-  };
-
-  colorData.push(entry);
-}
-
-function getTitle(query: BaseRef, counter: number): string {
-  return query.title && counter === 1 ? query.title : '';
+function getTitle(query: BaseRef['title'], counter: number): string {
+  return query && counter === 0 ? query : '';
 }
 
 function getSum(data: QueriesArray): number {
@@ -214,47 +146,76 @@ function getThresholds(config: BaseRef, metric: Metric): Threshold[] | undefined
   return 'thresholds' in config && config.thresholds?.length ? config.thresholds : metric.thresholds;
 }
 
-function filterData(
-  data: Array<{ displayName: string; value: number }>,
-  filter?: string
-): Array<{ displayName: string; value: number }> {
-  if (!filter) {
+function filterData(data: QueriesArray, filter?: string): QueriesArray {
+  if (!filter || data.length === 0) {
     return data;
   }
 
-  const filteredData: Array<{ displayName: string; value: number }> = [];
+  const FILTER_DELIMITER = ',';
+  const EXCLUSION_PREFIX = '-';
+  const DATE_FILTER_PREFIX = '$date';
+  const ISO_DATE_PART_INDEX = 0;
+
+  const results: QueriesArray = [];
+
   const currentDate = new Date();
-  const filterParts = filter.split(',');
+  const filterCondition = filter.split(FILTER_DELIMITER);
 
-  for (let i = 0; i < data.length; i++) {
-    const item = data[i];
-    let shouldInclude = false;
+  const isExclusionFilter = (condition: string): boolean => condition.startsWith(EXCLUSION_PREFIX);
 
-    for (let j = 0; j < filterParts.length; j++) {
-      const trimmed = filterParts[j].trim();
-      const isExclusion = trimmed.startsWith('-');
-      const filterValue = isExclusion ? trimmed.slice(1) : trimmed;
+  const extractFilterValue = (condition: string): string =>
+    isExclusionFilter(condition) ? condition.slice(EXCLUSION_PREFIX.length) : condition;
 
-      if (filterValue.startsWith('$date')) {
-        const days = parseInt(filterValue.replace('$date', ''), 10) || 0;
-        const targetDate = new Date(currentDate);
-        targetDate.setDate(currentDate.getDate() - days);
-        if (item.displayName === targetDate.toISOString().split('T')[0]) {
-          shouldInclude = !isExclusion;
-          break;
-        }
-      } else if (matchPattern(filterValue, item.displayName)) {
-        shouldInclude = !isExclusion;
-        break;
-      }
+  const isDateFilter = (filterValue: string): boolean => filterValue.startsWith(DATE_FILTER_PREFIX);
+
+  const parseDaysFromDateFilter = (filterValue: string): number => {
+    const daysString = filterValue.replace(DATE_FILTER_PREFIX, '');
+    return parseInt(daysString, 10) || 0;
+  };
+
+  const calculateTargetDate = (daysAgo: number): string => {
+    const targetDate = new Date(currentDate);
+    targetDate.setDate(currentDate.getDate() - daysAgo);
+    return targetDate.toISOString().split('T')[ISO_DATE_PART_INDEX];
+  };
+
+  const matchesDateFilter = (filterValue: string, displayName: string): boolean => {
+    if (!isDateFilter(filterValue)) {
+      return false;
     }
 
-    if (shouldInclude) {
-      filteredData.push(item);
+    const daysAgo = parseDaysFromDateFilter(filterValue);
+    const targetDate = calculateTargetDate(daysAgo);
+    return displayName === targetDate;
+  };
+
+  const matchesPatternFilter = (filterValue: string, displayName: string): boolean =>
+    !isDateFilter(filterValue) && matchPattern(filterValue, displayName);
+
+  const shouldIncludeItem = (item: { displayName: string; value: number }): boolean => {
+    for (const condition of filterCondition) {
+      const trimmedCondition = condition.trim();
+      const filterValue = extractFilterValue(trimmedCondition);
+      const isExclusion = isExclusionFilter(trimmedCondition);
+
+      const isMatch =
+        matchesDateFilter(filterValue, item.displayName) || matchesPatternFilter(filterValue, item.displayName);
+
+      if (isMatch) {
+        return !isExclusion;
+      }
+    }
+    return false;
+  };
+
+  // Основная логика фильтрации
+  for (const item of data) {
+    if (shouldIncludeItem(item)) {
+      results.push(item);
     }
   }
 
-  return filteredData;
+  return results;
 }
 
 function calculateValue(values: number[], method: CalculationMethod): number {
@@ -363,4 +324,49 @@ function evaluateThresholdCondition(condition: string, ValueMap: MetricsDataMap)
   }
 
   return result;
+}
+
+/**
+ * Проверяет, legacy metrics
+ */
+function processLegacyMetric(metric: any): Metric {
+  // Если нет legacy полей, возвращаем как есть
+  if (!metric.refIds && !metric.legends) {
+    return metric;
+  }
+
+  // Создаем копию метрики
+  const newMetric = { ...metric };
+
+  // Создаем массив queries из legacy структур
+  const queries: any[] = [];
+
+  // Преобразуем refIds
+  if (metric.refIds && Array.isArray(metric.refIds)) {
+    metric.refIds.forEach((item: any) => {
+      if (item && item.refid) {
+        queries.push({ ...item });
+      }
+    });
+  }
+
+  // Преобразуем legends
+  if (metric.legends && Array.isArray(metric.legends)) {
+    metric.legends.forEach((item: any) => {
+      if (item && item.legend) {
+        queries.push({ ...item });
+      }
+    });
+  }
+
+  // Заменяем старые поля на queries
+  if (queries.length > 0) {
+    newMetric.queries = queries;
+  }
+
+  // Удаляем старые поля
+  delete (newMetric as any).refIds;
+  delete (newMetric as any).legends;
+
+  return newMetric;
 }
