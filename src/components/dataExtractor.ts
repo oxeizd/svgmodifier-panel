@@ -1,6 +1,6 @@
 import { DataFrame, Field, FieldType, TimeRange } from '@grafana/data';
 
-export function extractValues(dataFrame: DataFrame[], customRT: string, fieldRT: string, timeRange: TimeRange) {
+export async function extractValues(dataFrame: DataFrame[], customRT: string, fieldRT: string, timeRange: TimeRange) {
   const valueMap = new Map<string, { values: Map<string, { values: string[]; timestamps: number[] }> }>();
 
   const fieldTimeSettings = fieldRT ? parseFieldTimeSettings(fieldRT) : new Map();

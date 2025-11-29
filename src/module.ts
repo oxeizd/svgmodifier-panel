@@ -1,5 +1,5 @@
 import SvgPanel from 'components/svgPanel';
-import { PanelOptions } from 'components/types';
+import { PanelOptions } from 'types';
 import YamlEditor from 'components/yamlEditor/yamlEditor';
 import { PanelPlugin, FieldConfigProperty } from '@grafana/data';
 

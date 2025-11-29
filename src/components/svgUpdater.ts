@@ -1,4 +1,4 @@
-import { ColorDataEntry, ValueMapping, DataMap } from './types';
+import { ColorDataEntry, ValueMapping, DataMap } from '../types';
 import { getMappingMatch } from './utils/helpers';
 
 const parser = new DOMParser();
@@ -26,7 +26,10 @@ export function svgUpdater(svg: string, svgAspectRatio: string) {
     }
   });
 
-  return { doc, elementsMap };
+  return {
+    elementsMap,
+    tempDoc: doc,
+  };
 }
 
 /**
@@ -46,27 +49,29 @@ export function applyChangesToElements(items: Map<string, DataMap>): void {
 
     const linkForEl = Array.isArray(link) && index < link.length ? link[index] : link;
 
-    operations.push(() => {
-      if (linkForEl) {
-        addLinksToSvgElements(svgElement, linkForEl.toString());
-      }
-
-      if (label || labelColor) {
-        const labelElements = findLabelElements(svgElement);
-
-        if (label) {
-          setLabelContent(labelElements, label, mEntry?.label, mEntry?.metricValue, valueMapping);
+    if (svgElement) {
+      operations.push(() => {
+        if (linkForEl) {
+          addLinksToSvgElements(svgElement, linkForEl.toString());
         }
 
-        if (labelColor) {
-          applyColorToLabels(labelElements, labelColor, mEntry?.color);
-        }
-      }
+        if (label || labelColor) {
+          const labelElements = findLabelElements(svgElement);
 
-      if (mEntry) {
-        applyColortoElement(svgElement, mEntry);
-      }
-    });
+          if (label) {
+            setLabelContent(labelElements, label, mEntry?.label, mEntry?.metricValue, valueMapping);
+          }
+
+          if (labelColor) {
+            applyColorToLabels(labelElements, labelColor, mEntry?.color);
+          }
+        }
+
+        if (mEntry) {
+          applyColortoElement(svgElement, mEntry);
+        }
+      });
+    }
     index++;
   });
 

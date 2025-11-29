@@ -1,16 +1,15 @@
-import { Metric, ValueMapping } from 'components/types';
+import { DataMap, Metric, ValueMapping } from 'types';
 import YAML from 'yaml';
 
 /**
  **/
-export function parseYamlConfig(yamlContent: string, replaceVariables?: (content: string) => string): any[] {
+export function parseYamlConfig(yamlContent: string, replaceVariables?: (content: string) => string): any[] | null {
   try {
     const yaml = replaceVariables ? replaceVariables(yamlContent) : yamlContent;
     const parsedYaml = YAML.parse(yaml, { maxAliasCount: 10000 });
-
     return parsedYaml?.changes ?? [];
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -179,4 +178,31 @@ export function applySchema(attributes: any, schema: string) {
 
   schemaActions[schema]?.();
   return result;
+}
+
+export function cleanupResources(
+  elements: Map<string, SVGElement> | undefined,
+  tempDocument: Document | undefined,
+  configMap: Map<string, DataMap>
+): void {
+  if (elements) {
+    elements.clear();
+  }
+
+  if (tempDocument) {
+    const svgElement = tempDocument.documentElement;
+    if (svgElement) {
+      while (svgElement.firstChild) {
+        svgElement.removeChild(svgElement.firstChild);
+      }
+    }
+    (tempDocument as any) = null;
+  }
+
+  configMap.forEach((item) => {
+    if (item.SVGElem) {
+      item.SVGElem = null;
+    }
+  });
+  configMap.clear();
 }

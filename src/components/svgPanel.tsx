@@ -2,100 +2,69 @@ import React, { useRef, useState, useEffect } from 'react';
 import { PanelProps } from '@grafana/data';
 import { Tooltip } from './tooltip';
 import { extractValues } from './dataExtractor';
-import { svgModifier } from './mainProcessor';
+import { svgModify } from './mainProcessor';
 import { parseYamlConfig } from './utils/helpers';
-import { PanelOptions, TooltipContent } from './types';
+import { PanelOptions, TooltipContent } from '../types';
 
 interface Props extends PanelProps<PanelOptions> {}
 
 const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange, replaceVariables }) => {
-  const mountedRef = useRef(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
-
   const [svg, setSvg] = useState<string>('');
   const [tooltip, setTooltip] = useState<TooltipContent[]>([]);
-  const [processeChanges, setProcessedChanges] = useState<any[]>([]);
-  const [configError, setConfigError] = useState<boolean>(false);
+  const [mappingConfig, setMappingConfig] = useState<any[]>([]);
 
-  const jsonData = options.jsonData;
-  const svgCode = jsonData.svgCode;
-  const metricsMapping = jsonData.metricsMapping;
-  const svgAspectRatio = jsonData.svgAspectRatio;
-  const customRelativeTime = jsonData.customRelativeTime;
-  const fieldsCustomRelativeTime = jsonData.fieldsCustomRelativeTime;
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+  const { svgCode, metricsMapping, svgAspectRatio, customRelativeTime, fieldsCustomRelativeTime } = options.jsonData;
 
   useEffect(() => {
     if (metricsMapping) {
-      try {
-        const processed = parseYamlConfig(metricsMapping, replaceVariables);
-        setProcessedChanges(processed);
-        setConfigError(false);
-      } catch (error) {
-        console.error('Error parsing metrics mapping:', error);
-        setProcessedChanges([]);
-        setConfigError(true);
+      const config = parseYamlConfig(metricsMapping, replaceVariables);
+      if (config != null) {
+        setMappingConfig(config);
       }
     } else {
-      setProcessedChanges([]);
-      setConfigError(false);
+      setMappingConfig([]);
     }
   }, [metricsMapping, replaceVariables]);
 
   useEffect(() => {
-    const buildExtractedValues = () =>
-      extractValues(data.series, customRelativeTime, fieldsCustomRelativeTime, timeRange);
+    let isMounted = true;
 
     const updateSvgAndTooltips = async () => {
-      const extracted = buildExtractedValues();
+      if (!isMounted) {
+        return;
+      }
 
-      try {
-        if (configError) {
-          if (!mountedRef.current) {
-            return;
-          }
+      if (!mappingConfig.length) {
+        if (isMounted) {
           setSvg(svgCode);
           setTooltip([]);
-          return;
         }
+        return;
+      }
 
-        const { modSVG, tooltipData } = await svgModifier(svgCode, processeChanges, extracted, svgAspectRatio);
+      const extractedData = await extractValues(data.series, customRelativeTime, fieldsCustomRelativeTime, timeRange);
 
-        if (!mountedRef.current) {
-          return;
-        }
+      if (!isMounted) {
+        return;
+      }
 
-        setSvg(modSVG);
+      const { modifiedSVG, tooltipData } = await svgModify(svgCode, mappingConfig, extractedData, svgAspectRatio);
+
+      if (isMounted) {
+        setSvg(modifiedSVG);
         setTooltip(tooltipData);
-      } catch (error) {
-        if (!mountedRef.current) {
-          return;
-        }
-
-        setSvg(svgCode);
-        setTooltip([]);
       }
     };
 
     if (svgCode) {
       updateSvgAndTooltips();
     }
-  }, [
-    svgCode,
-    processeChanges,
-    configError,
-    data.series,
-    customRelativeTime,
-    fieldsCustomRelativeTime,
-    timeRange,
-    svgAspectRatio,
-  ]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [svgCode, mappingConfig, data.series, customRelativeTime, fieldsCustomRelativeTime, timeRange, svgAspectRatio]);
 
   return (
     <div
@@ -105,8 +74,6 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange, re
         height: `${height}px`,
         width: `${width}px`,
         overflow: 'hidden',
-        border: 'none',
-        boxShadow: 'none',
       }}
     >
       <div

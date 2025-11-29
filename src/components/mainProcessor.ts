@@ -1,32 +1,41 @@
 import { getMetricsData } from './dataProcessor';
 import { formatValues } from './utils/ValueTransformer';
 import { svgUpdater, applyChangesToElements } from './svgUpdater';
-import { RegexCheck, applySchema, getMappingMatch } from './utils/helpers';
-import { Change, ColorDataEntry, DataMap, TooltipContent, ValueMapping } from './types';
+import { RegexCheck, applySchema, cleanupResources, getMappingMatch } from './utils/helpers';
+import { Change, ColorDataEntry, DataMap, TooltipContent, ValueMapping } from '../types';
 
-export function svgModifier(svg: string, changes: Change[], extractedValueMap: any, svgAspectRatio: string) {
-  const serializer = new XMLSerializer();
+const serializer = new XMLSerializer();
+
+export async function svgModify(svg: string, changes: Change[], extractedValueMap: any, svgAspectRatio: string) {
   const tooltipData: TooltipContent[] = [];
   const configMap: Map<string, DataMap> = new Map();
+  let tempDocument: Document | undefined;
+  let elements: Map<string, SVGElement> | undefined;
 
-  const { doc, elementsMap } = svgUpdater(svg, svgAspectRatio);
+  try {
+    const { elementsMap, tempDoc } = svgUpdater(svg, svgAspectRatio);
+    tempDocument = tempDoc;
+    elements = elementsMap;
 
-  for (const rule of changes) {
-    if (!rule.id && !rule.attributes) {
-      continue;
+    for (const rule of changes) {
+      if (!rule.id && !rule.attributes) {
+        continue;
+      }
+
+      processRule(rule, elementsMap, extractedValueMap, configMap);
     }
 
-    processRule(rule, elementsMap, extractedValueMap, configMap);
+    getMaxMetric(configMap);
+    applyChangesToElements(configMap);
+    createTooltipData(configMap, tooltipData);
+
+    return {
+      modifiedSVG: serializer.serializeToString(tempDoc),
+      tooltipData,
+    };
+  } finally {
+    cleanupResources(elements, tempDocument, configMap);
   }
-
-  getMaxMetric(configMap);
-  applyChangesToElements(configMap);
-  createTooltipData(configMap, tooltipData);
-
-  return {
-    modSVG: serializer.serializeToString(doc),
-    tooltipData,
-  };
 }
 
 function processRule(
@@ -194,7 +203,7 @@ function createTooltipData(ConfigMap: Map<string, DataMap>, tooltipData: Tooltip
       for (const entry of additional.colorData) {
         tooltipData.push({
           id,
-          label: (entry.label ?? '').replace(/_prfx\d+/g, ''),
+          label: entry.label,
           color: entry.color ?? '',
           metric: formatMetricValue(entry, additional.attributes.valueMapping),
           title: entry.title ?? '',

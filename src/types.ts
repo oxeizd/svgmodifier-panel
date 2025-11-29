@@ -74,7 +74,7 @@ export interface ColorDataEntry {
 }
 
 export type DataMap = {
-  SVGElem: SVGElement;
+  SVGElem: SVGElement | null;
   additional: Array<{
     schema: string;
     attributes: Change['attributes'];
@@ -91,5 +91,11 @@ export interface PanelOptions {
     svgAspectRatio: string;
     customRelativeTime: string;
     fieldsCustomRelativeTime: string;
+  };
+  tootlip: {
+    sort: 'none' | 'ascending' | 'desceding';
+    maxWidth: number;
+    valuePosition: 'standart' | 'right';
+    hideZeros: boolean;
   };
 }

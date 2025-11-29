@@ -1,6 +1,6 @@
 import ReactDOM from 'react-dom';
 import { useTheme2 } from '@grafana/ui';
-import { TooltipContent } from './types';
+import { TooltipContent } from '../types';
 import React, { useLayoutEffect, useRef, useState, useCallback, useEffect } from 'react';
 
 interface TooltipProps {
@@ -9,6 +9,15 @@ interface TooltipProps {
 }
 
 export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) => {
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const tooltipDataRef = useRef<TooltipContent[]>([]);
+  const [adjustedCoords, setAdjustedCoords] = useState({ x: 0, y: 0 });
+  const isMounted = useRef(true);
+
+  const theme = useTheme2();
+
+  tooltipDataRef.current = tooltipData;
+
   const [tooltip, setTooltip] = useState({
     visible: false,
     x: 0,
@@ -16,15 +25,12 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) =
     content: [] as TooltipContent[],
   });
 
-  const [adjustedCoords, setAdjustedCoords] = useState({ x: 0, y: 0 });
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const theme = useTheme2();
-
-  const tooltipDataRef = useRef<TooltipContent[]>([]);
-  tooltipDataRef.current = tooltipData;
-
   const handleMouseOver = useCallback(
     (e: MouseEvent) => {
+      if (!isMounted.current) {
+        return;
+      }
+
       const targetElement = e.target as Element | null;
       if (!targetElement) {
         return;
@@ -38,35 +44,46 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) =
 
           if (hasTooltipData) {
             const relatedMetrics = tooltipDataRef.current.filter((td) => td.id === currentId);
-            setTooltip({
-              visible: true,
-              x: e.clientX + 10,
-              y: e.clientY,
-              content: relatedMetrics,
-            });
+            if (isMounted.current) {
+              setTooltip({
+                visible: true,
+                x: e.clientX + 10,
+                y: e.clientY,
+                content: relatedMetrics,
+              });
+            }
             return;
           }
         }
         currentElement = currentElement.parentElement;
       }
 
-      setTooltip((prev) => ({ ...prev, visible: false }));
-    },
-    [containerRef]
-  );
-
-  const handleMouseOut = useCallback(
-    (e: MouseEvent) => {
-      const relatedTarget = e.relatedTarget as Node | null;
-
-      if (!containerRef.current?.contains(relatedTarget)) {
+      if (isMounted.current) {
         setTooltip((prev) => ({ ...prev, visible: false }));
       }
     },
     [containerRef]
   );
 
+  const handleMouseOut = useCallback(
+    (e: MouseEvent) => {
+      if (!isMounted.current) {
+        return;
+      }
+
+      const relatedTarget = e.relatedTarget as Node | null;
+      if (!containerRef.current?.contains(relatedTarget)) {
+        if (isMounted.current) {
+          setTooltip((prev) => ({ ...prev, visible: false }));
+        }
+      }
+    },
+    [containerRef]
+  );
+
   useEffect(() => {
+    isMounted.current = true;
+
     const container = containerRef.current;
     if (!container) {
       return;
@@ -76,33 +93,38 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) =
     container.addEventListener('mouseout', handleMouseOut as EventListener);
 
     return () => {
+      isMounted.current = false;
       container.removeEventListener('mouseover', handleMouseOver as EventListener);
       container.removeEventListener('mouseout', handleMouseOut as EventListener);
     };
   }, [containerRef, handleMouseOver, handleMouseOut]);
 
   useLayoutEffect(() => {
-    if (tooltip.visible && tooltipRef.current) {
-      const tooltipElement = tooltipRef.current;
-      const rect = tooltipElement.getBoundingClientRect();
+    if (!tooltip.visible || !tooltipRef.current) {
+      return;
+    }
 
-      let newX = tooltip.x;
-      let newY = tooltip.y;
+    const tooltipElement = tooltipRef.current;
+    const rect = tooltipElement.getBoundingClientRect();
 
-      if (newX + rect.width > window.innerWidth) {
-        newX = window.innerWidth - rect.width - 10;
-      }
-      if (newX < 0) {
-        newX = 10;
-      }
+    let newX = tooltip.x;
+    let newY = tooltip.y;
 
-      if (newY + rect.height > window.innerHeight) {
-        newY = window.innerHeight - rect.height - 10;
-      }
-      if (newY < 0) {
-        newY = 10;
-      }
+    if (newX + rect.width > window.innerWidth) {
+      newX = window.innerWidth - rect.width - 10;
+    }
+    if (newX < 0) {
+      newX = 10;
+    }
 
+    if (newY + rect.height > window.innerHeight) {
+      newY = window.innerHeight - rect.height - 10;
+    }
+    if (newY < 0) {
+      newY = 10;
+    }
+
+    if (isMounted.current) {
       setAdjustedCoords({ x: newX, y: newY });
     }
   }, [tooltip.visible, tooltip.x, tooltip.y]);
@@ -120,6 +142,13 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) =
       )
     );
   }
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+      tooltipDataRef.current = [];
+    };
+  }, []);
 
   if (!tooltip.visible) {
     return null;

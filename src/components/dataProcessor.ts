@@ -1,5 +1,5 @@
-import { compareValues, matchPattern, roundToFixed } from './utils/helpers';
-import { Metric, BaseRef, Threshold, ColorDataEntry } from './types';
+import { compareValues, matchPattern, roundToFixed, RegexCheck } from './utils/helpers';
+import { Metric, BaseRef, Threshold, ColorDataEntry } from '../types';
 
 type MetricsDataMap = Map<string, { values: Map<string, { values: string[]; timestamps: number[] }> }>;
 type QueriesArray = Array<{ displayName: string; value: number; globalKey?: string }>;
@@ -15,12 +15,12 @@ export function getMetricsData(metrics: Metric | Metric[], extractedValueMap: Me
   for (const metric of metricsArray) {
     const processedMetric = processLegacyMetric(metric);
 
-    processedMetric.queries?.forEach((query) => {
-      if (query.refid) {
-        processRefid(query, metric, extractedValueMap, colorData, refCounter);
+    processedMetric.queries?.forEach((element) => {
+      if (element.refid) {
+        processRefid(element, metric, extractedValueMap, colorData, refCounter);
         refCounter++;
-      } else if (query.legend) {
-        processLegend(query, metric, extractedValueMap, colorData, legendCounter);
+      } else if (element.legend) {
+        processLegend(element, metric, extractedValueMap, colorData, legendCounter);
         legendCounter++;
       }
     });
@@ -30,33 +30,34 @@ export function getMetricsData(metrics: Metric | Metric[], extractedValueMap: Me
 }
 
 function processRefid(
-  query: BaseRef & { refid: string },
+  elementParams: BaseRef & { refid: string },
   metric: Metric,
   extractedValueMap: MetricsDataMap,
   colorData: ColorDataEntry[],
   counter: number
 ): void {
-  const extractedData = extractedValueMap.get(query.refid);
+  const extractedData = extractedValueMap.get(elementParams.refid);
 
   if (!extractedData) {
     return;
   }
 
   const queries: QueriesArray = [];
+
   for (const [innerKey, values] of extractedData.values) {
-    const value = calculateValue(values.values.map(Number), query.calculation || 'last');
+    const value = calculateValue(values.values.map(Number), elementParams.calculation || 'last');
     queries.push({ displayName: innerKey, value });
   }
 
-  const finalQueries = filterData(queries, query.filter);
+  const finalQueries = filterData(queries, elementParams.filter);
 
   if (finalQueries) {
-    processFinalQueries(finalQueries, query, metric, extractedValueMap, colorData, `r${counter}`);
+    processFinalQueries(finalQueries, elementParams, metric, extractedValueMap, colorData, `r${counter}`);
   }
 }
 
 function processLegend(
-  query: BaseRef & { legend: string },
+  elementParams: BaseRef & { legend: string },
   metric: Metric,
   extractedValueMap: MetricsDataMap,
   colorData: ColorDataEntry[],
@@ -66,41 +67,41 @@ function processLegend(
 
   for (const [globalKey, metricData] of extractedValueMap) {
     for (const [innerKey, values] of metricData.values) {
-      if (matchPattern(query.legend, innerKey)) {
+      if (matchPattern(elementParams.legend, innerKey)) {
         queries.push({
           displayName: innerKey,
-          value: calculateValue(values.values.map(Number), query.calculation || 'last'),
+          value: calculateValue(values.values.map(Number), elementParams.calculation || 'last'),
           globalKey,
         });
       }
     }
   }
 
-  const finalQueries = filterData(queries, query.filter);
+  const finalQueries = filterData(queries, elementParams.filter);
 
   if (finalQueries) {
-    processFinalQueries(finalQueries, query, metric, extractedValueMap, colorData, `r${counter}`);
+    processFinalQueries(finalQueries, elementParams, metric, extractedValueMap, colorData, `r${counter}`);
   }
 }
 
 function processFinalQueries(
   finalQueries: QueriesArray,
-  query: BaseRef,
+  elementParams: BaseRef,
   metric: Metric,
   extractedValueMap: MetricsDataMap,
   colorData: ColorDataEntry[],
   object: string
 ): void {
-  const sumMode = 'sum' in query && query.sum;
-  const thresholdsToUse = getThresholds(query, metric);
+  const sumMode = 'sum' in elementParams && elementParams.sum;
+  const thresholdsToUse = getThresholds(elementParams, metric);
   const { filling, decimal } = metric;
-  const { unit } = query;
-  let title = getTitle(query.title, 0);
+  const { unit } = elementParams;
+  let title = getTitle(elementParams.title, 0);
 
-  if (query.sum && sumMode) {
+  if (elementParams.sum && sumMode) {
     const sumValue = getSum(finalQueries);
     const { color, lvl } = getMetricColor(sumValue, extractedValueMap, thresholdsToUse, metric.baseColor);
-    const label = query.sum || metric.displayText || '';
+    const label = elementParams.sum || metric.displayText || '';
     const metricValue = roundToFixed(sumValue, decimal);
 
     colorData.push({
@@ -116,9 +117,9 @@ function processFinalQueries(
   } else {
     finalQueries.forEach((fquery, index) => {
       const { color, lvl } = getMetricColor(fquery.value, extractedValueMap, thresholdsToUse, metric.baseColor);
-      const label = fquery.displayName || metric.displayText || '';
+      const label = getLabel(fquery.displayName, elementParams.label, metric.displayText) || '';
       const metricValue = roundToFixed(fquery.value, decimal);
-      title = getTitle(query.title, index);
+      title = getTitle(elementParams.title, index);
 
       colorData.push({
         object,
@@ -132,6 +133,19 @@ function processFinalQueries(
       });
     });
   }
+}
+
+function getLabel(displayName: string, label?: string, displayText?: string): string {
+  if (label == null || label === undefined) {
+    label = displayText ?? displayName;
+  }
+
+  label = label.replace(/_prfx\d+/g, '');
+  if (!RegexCheck(label)) {
+    return label;
+  }
+
+  return label.includes('{legend}') ? label.replace(/\{legend\}/g, displayName) : label;
 }
 
 function getTitle(query: BaseRef['title'], counter: number): string {
