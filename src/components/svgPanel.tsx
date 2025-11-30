@@ -84,7 +84,7 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange, re
           width: `${width}px`,
         }}
       />
-      <Tooltip containerRef={containerRef} tooltipData={tooltip} />
+      <Tooltip containerRef={containerRef} tooltipData={tooltip} options={options.tooltip} timeRange={timeRange} />
     </div>
   );
 };

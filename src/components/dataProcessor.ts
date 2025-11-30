@@ -166,19 +166,15 @@ function filterData(data: QueriesArray, filter?: string): QueriesArray {
   }
 
   const FILTER_DELIMITER = ',';
+  const GROUP_DELIMITER = '|';
   const EXCLUSION_PREFIX = '-';
   const DATE_FILTER_PREFIX = '$date';
   const ISO_DATE_PART_INDEX = 0;
 
-  const results: QueriesArray = [];
-
   const currentDate = new Date();
-  const filterCondition = filter.split(FILTER_DELIMITER);
+  const filterGroups = filter.split(FILTER_DELIMITER);
 
   const isExclusionFilter = (condition: string): boolean => condition.startsWith(EXCLUSION_PREFIX);
-
-  const extractFilterValue = (condition: string): string =>
-    isExclusionFilter(condition) ? condition.slice(EXCLUSION_PREFIX.length) : condition;
 
   const isDateFilter = (filterValue: string): boolean => filterValue.startsWith(DATE_FILTER_PREFIX);
 
@@ -193,43 +189,50 @@ function filterData(data: QueriesArray, filter?: string): QueriesArray {
     return targetDate.toISOString().split('T')[ISO_DATE_PART_INDEX];
   };
 
-  const matchesDateFilter = (filterValue: string, displayName: string): boolean => {
-    if (!isDateFilter(filterValue)) {
-      return false;
+  const matchesCondition = (filterValue: string, displayName: string): boolean => {
+    if (isDateFilter(filterValue)) {
+      const daysAgo = parseDaysFromDateFilter(filterValue);
+      const targetDate = calculateTargetDate(daysAgo);
+      return displayName === targetDate;
     }
 
-    const daysAgo = parseDaysFromDateFilter(filterValue);
-    const targetDate = calculateTargetDate(daysAgo);
-    return displayName === targetDate;
+    return matchPattern(filterValue, displayName);
   };
 
-  const matchesPatternFilter = (filterValue: string, displayName: string): boolean =>
-    !isDateFilter(filterValue) && matchPattern(filterValue, displayName);
+  const includeGroups: string[][] = [];
+  const excludeGroups: string[][] = [];
 
-  const shouldIncludeItem = (item: { displayName: string; value: number }): boolean => {
-    for (const condition of filterCondition) {
-      const trimmedCondition = condition.trim();
-      const filterValue = extractFilterValue(trimmedCondition);
-      const isExclusion = isExclusionFilter(trimmedCondition);
+  for (const group of filterGroups) {
+    const trimmedGroup = group.trim();
+    const conditions = trimmedGroup.split(GROUP_DELIMITER).map((cond) => cond.trim());
 
-      const isMatch =
-        matchesDateFilter(filterValue, item.displayName) || matchesPatternFilter(filterValue, item.displayName);
-
-      if (isMatch) {
-        return !isExclusion;
-      }
-    }
-    return false;
-  };
-
-  // Основная логика фильтрации
-  for (const item of data) {
-    if (shouldIncludeItem(item)) {
-      results.push(item);
+    if (isExclusionFilter(trimmedGroup)) {
+      const excludeConditions = conditions.map((cond) =>
+        isExclusionFilter(cond) ? cond.slice(EXCLUSION_PREFIX.length) : cond
+      );
+      excludeGroups.push(excludeConditions);
+    } else {
+      includeGroups.push(conditions);
     }
   }
 
-  return results;
+  return data.filter((item) => {
+    for (const excludeGroup of excludeGroups) {
+      const shouldExclude = excludeGroup.some((condition) => matchesCondition(condition, item.displayName));
+      if (shouldExclude) {
+        return false;
+      }
+    }
+
+    if (includeGroups.length > 0) {
+      const shouldInclude = includeGroups.some((group) =>
+        group.some((condition) => matchesCondition(condition, item.displayName))
+      );
+      return shouldInclude;
+    }
+
+    return true;
+  });
 }
 
 function calculateValue(values: number[], method: CalculationMethod): number {

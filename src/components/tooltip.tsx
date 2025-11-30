@@ -1,14 +1,17 @@
 import ReactDOM from 'react-dom';
 import { useTheme2 } from '@grafana/ui';
-import { TooltipContent } from '../types';
+import { TimeRange } from '@grafana/data';
+import { TooltipContent, PanelOptions } from '../types';
 import React, { useLayoutEffect, useRef, useState, useCallback, useEffect } from 'react';
 
 interface TooltipProps {
   containerRef: React.RefObject<HTMLDivElement>;
   tooltipData: TooltipContent[];
+  options: PanelOptions['tooltip'];
+  timeRange: TimeRange;
 }
 
-export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) => {
+export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, options, timeRange }) => {
   const tooltipRef = useRef<HTMLDivElement>(null);
   const tooltipDataRef = useRef<TooltipContent[]>([]);
   const [adjustedCoords, setAdjustedCoords] = useState({ x: 0, y: 0 });
@@ -24,6 +27,57 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) =
     y: 0,
     content: [] as TooltipContent[],
   });
+
+  const formatTimeRange = (timeRange: TimeRange): string => {
+    const to = new Date(timeRange.to.valueOf());
+
+    const formatTime = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    };
+
+    return `${formatTime(to)}`;
+  };
+
+  const processTooltipContent = useCallback(
+    (content: TooltipContent[]): TooltipContent[] => {
+      let processed = [...content];
+
+      if (options.hideZeros) {
+        processed = processed.filter((item) => {
+          const numericValue = parseFloat(item.metric);
+          return !isNaN(numericValue) && numericValue !== 0;
+        });
+      }
+
+      // Сортировка
+      if (options.sort !== 'none') {
+        processed.sort((a, b) => {
+          const aValue = parseFloat(a.metric);
+          const bValue = parseFloat(b.metric);
+
+          if (isNaN(aValue) || isNaN(bValue)) {
+            return 0;
+          }
+
+          if (options.sort === 'ascending') {
+            return aValue - bValue;
+          } else {
+            return bValue - aValue;
+          }
+        });
+      }
+
+      return processed;
+    },
+    [options.hideZeros, options.sort]
+  );
 
   const handleMouseOver = useCallback(
     (e: MouseEvent) => {
@@ -44,12 +98,14 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) =
 
           if (hasTooltipData) {
             const relatedMetrics = tooltipDataRef.current.filter((td) => td.id === currentId);
-            if (isMounted.current) {
+            const processedMetrics = processTooltipContent(relatedMetrics);
+
+            if (isMounted.current && processedMetrics.length > 0) {
               setTooltip({
                 visible: true,
                 x: e.clientX + 10,
                 y: e.clientY,
-                content: relatedMetrics,
+                content: processedMetrics,
               });
             }
             return;
@@ -62,7 +118,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) =
         setTooltip((prev) => ({ ...prev, visible: false }));
       }
     },
-    [containerRef]
+    [containerRef, processTooltipContent]
   );
 
   const handleMouseOut = useCallback(
@@ -150,35 +206,26 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) =
     };
   }, []);
 
-  if (!tooltip.visible) {
+  if (!tooltip.visible || tooltip.content.length === 0) {
     return null;
   }
-
-  const currentDateTime = new Intl.DateTimeFormat('ru-RU', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).format(new Date());
 
   const tooltipStyle: React.CSSProperties = {
     position: 'fixed',
     left: adjustedCoords.x,
     top: adjustedCoords.y,
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: theme.colors.background.secondary,
     padding: '12px',
-    borderRadius: '3px',
+    borderRadius: '2px',
     pointerEvents: 'none',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+    boxShadow: '0 3px 12px rgba(0, 0, 0, 0.3)',
     zIndex: 1000,
-    maxWidth: '500px',
+    maxWidth: `${options.maxWidth}px` || '500px',
     overflow: 'hidden',
     wordWrap: 'break-word',
     border: `1px solid ${theme.colors.border.weak}`,
     whiteSpace: 'normal',
+    fontFamily: theme.typography.fontFamily,
   };
 
   const uniqueTextAbove = getUniqueLinesByKey('textAbove');
@@ -186,14 +233,33 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) =
 
   return ReactDOM.createPortal(
     <div ref={tooltipRef} style={tooltipStyle}>
-      <div style={{ color: '#A0A0A0', fontSize: '12px', marginBottom: '8px' }}>{currentDateTime}</div>
+      <div
+        style={{
+          color: theme.colors.text.primary,
+          fontSize: '12px',
+          marginBottom: '8px',
+        }}
+      >
+        {formatTimeRange(timeRange)}
+      </div>
+
+      <div
+        style={{
+          borderBottom: `1px solid ${theme.colors.border.weak}`,
+          margin: '0 -12px 8px -12px',
+        }}
+      />
 
       {uniqueTextAbove.length > 0 && (
-        <div style={{ marginBottom: '4px' }}>
+        <div style={{ marginBottom: '8px' }}>
           {uniqueTextAbove.map((line, index) => (
             <div
               key={`text-above-${index}`}
-              style={{ color: `${theme.colors.text.primary}`, fontSize: '14px', fontWeight: '600' }}
+              style={{
+                color: theme.colors.text.primary,
+                fontSize: '13px',
+                lineHeight: '1.4',
+              }}
             >
               {line}
             </div>
@@ -202,17 +268,71 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData }) =
       )}
 
       {tooltip.content.map((item, index) => (
-        <div key={`metric-${index}`} style={{ marginBottom: '4px' }}>
-          {item.title && <div style={{ color: '#A0A0A0', fontWeight: '300', marginBottom: '2px' }}>{item.title}</div>}
-          <span style={{ color: `${theme.colors.text.primary}`, fontWeight: '500' }}>{item.label}: </span>
-          <span style={{ color: item.color || `${theme.colors.text.primary}`, fontWeight: '600' }}>{item.metric}</span>
+        <div
+          key={`metric-${index}`}
+          style={{
+            marginBottom: '4px',
+            display: options.valuePosition === 'right' ? 'flex' : 'block',
+            justifyContent: options.valuePosition === 'right' ? 'space-between' : 'flex-start',
+            alignItems: 'flex-start',
+            lineHeight: '1.4',
+          }}
+        >
+          {item.title && (
+            <div
+              style={{
+                color: theme.colors.text.secondary,
+                marginBottom: '2px',
+                width: options.valuePosition === 'right' ? '100%' : 'auto',
+                fontSize: '12px',
+              }}
+            >
+              {item.title}
+            </div>
+          )}
+          <div
+            style={{
+              display: options.valuePosition === 'right' ? 'flex' : 'block',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              width: options.valuePosition === 'right' ? '100%' : 'auto',
+              flex: options.valuePosition === 'right' ? 1 : 'none',
+            }}
+          >
+            <span
+              style={{
+                color: theme.colors.text.primary,
+                marginRight: options.valuePosition === 'right' ? '8px' : '4px',
+                fontSize: '13px',
+              }}
+            >
+              {item.label}
+              {options.valuePosition === 'standard' && ': '}
+            </span>
+            <span
+              style={{
+                color: item.color || theme.colors.text.primary,
+                textAlign: options.valuePosition === 'right' ? 'right' : 'left',
+                fontSize: '13px',
+              }}
+            >
+              {item.metric}
+            </span>
+          </div>
         </div>
       ))}
 
       {uniqueTextBelow.length > 0 && (
-        <div style={{ marginTop: '4px' }}>
+        <div style={{ marginTop: '8px' }}>
           {uniqueTextBelow.map((line, index) => (
-            <div key={`text-below-${index}`} style={{ color: `${theme.colors.text.primary}`, fontSize: '12px' }}>
+            <div
+              key={`text-below-${index}`}
+              style={{
+                color: theme.colors.text.primary,
+                fontSize: '12px',
+                lineHeight: '1.4',
+              }}
+            >
               {line}
             </div>
           ))}

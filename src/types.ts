@@ -1,3 +1,19 @@
+export interface PanelOptions {
+  jsonData: {
+    svgCode: string;
+    metricsMapping: string;
+    svgAspectRatio: string;
+    customRelativeTime: string;
+    fieldsCustomRelativeTime: string;
+  };
+  tooltip: {
+    sort: 'none' | 'ascending' | 'descending';
+    maxWidth: number;
+    valuePosition: 'standard' | 'right';
+    hideZeros: boolean;
+  };
+}
+
 export interface Change {
   id: string | string[];
   attributes: {
@@ -83,19 +99,3 @@ export type DataMap = {
   attributes?: Change['attributes'] | undefined;
   maxEntry?: ColorDataEntry;
 };
-
-export interface PanelOptions {
-  jsonData: {
-    svgCode: string;
-    metricsMapping: string;
-    svgAspectRatio: string;
-    customRelativeTime: string;
-    fieldsCustomRelativeTime: string;
-  };
-  tootlip: {
-    sort: 'none' | 'ascending' | 'desceding';
-    maxWidth: number;
-    valuePosition: 'standart' | 'right';
-    hideZeros: boolean;
-  };
-}

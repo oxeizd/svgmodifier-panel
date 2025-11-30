@@ -62,6 +62,46 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
           useTextarea: true,
           placeholder: 'A,B,C,D: 30m; B: 15m;',
         },
+      })
+      .addRadio({
+        category: [' Tooltip'],
+        path: 'tooltip.sort',
+        name: 'Values sort order',
+        defaultValue: 'none',
+        settings: {
+          options: [
+            { value: 'none', label: 'None' },
+            { value: 'ascending', label: 'Ascending' },
+            { value: 'descending', label: 'Descending' },
+          ],
+        },
+      })
+      .addNumberInput({
+        category: [' Tooltip'],
+        path: 'tooltip.maxWidth',
+        name: 'Max width',
+        defaultValue: 500,
+        settings: {
+          integer: true,
+        },
+      })
+      .addRadio({
+        category: [' Tooltip'],
+        path: 'tooltip.valuePosition',
+        name: 'Value position',
+        defaultValue: 'standard',
+        settings: {
+          options: [
+            { value: 'standard', label: 'Standard' },
+            { value: 'right', label: 'Right' },
+          ],
+        },
+      })
+      .addBooleanSwitch({
+        category: [' Tooltip'],
+        path: 'tooltip.hideZeros',
+        name: 'Hide zeros',
+        defaultValue: false,
       });
   })
   .useFieldConfig({

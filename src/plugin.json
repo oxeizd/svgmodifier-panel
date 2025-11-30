@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
   "type": "panel",
-  "name": "Svg modifier",
+  "name": "SVG modifier",
   "id": "svgmodifier-panel",
   "info": {
     "keywords": ["panel"],
