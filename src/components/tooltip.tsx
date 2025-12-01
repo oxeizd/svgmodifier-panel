@@ -167,8 +167,9 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
     let newY = tooltip.y;
 
     if (newX + rect.width > window.innerWidth) {
-      newX = window.innerWidth - rect.width - 10;
+      newX = tooltip.x - rect.width - 10;
     }
+
     if (newX < 0) {
       newX = 10;
     }
@@ -271,10 +272,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
         <div
           key={`metric-${index}`}
           style={{
-            marginBottom: '4px',
-            display: options.valuePosition === 'right' ? 'flex' : 'block',
-            justifyContent: options.valuePosition === 'right' ? 'space-between' : 'flex-start',
-            alignItems: 'flex-start',
+            marginBottom: '2px',
             lineHeight: '1.4',
           }}
         >
@@ -282,21 +280,19 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
             <div
               style={{
                 color: theme.colors.text.secondary,
-                marginBottom: '2px',
-                width: options.valuePosition === 'right' ? '100%' : 'auto',
+                marginBottom: '3px',
                 fontSize: '12px',
               }}
             >
               {item.title}
             </div>
           )}
+
           <div
             style={{
               display: options.valuePosition === 'right' ? 'flex' : 'block',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              width: options.valuePosition === 'right' ? '100%' : 'auto',
-              flex: options.valuePosition === 'right' ? 1 : 'none',
+              justifyContent: options.valuePosition === 'right' ? 'space-between' : 'flex-start',
+              alignItems: options.valuePosition === 'right' ? 'center' : 'flex-start',
             }}
           >
             <span

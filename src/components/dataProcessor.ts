@@ -80,7 +80,7 @@ function processLegend(
   const finalQueries = filterData(queries, elementParams.filter);
 
   if (finalQueries) {
-    processFinalQueries(finalQueries, elementParams, metric, extractedValueMap, colorData, `r${counter}`);
+    processFinalQueries(finalQueries, elementParams, metric, extractedValueMap, colorData, `l${counter}`);
   }
 }
 
