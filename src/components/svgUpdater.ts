@@ -1,38 +1,33 @@
 import { ColorDataEntry, ValueMapping, DataMap } from '../types';
 import { getMappingMatch } from './utils/helpers';
 
-const parser = new DOMParser();
-
-/**
- * Парсит SVG строку в DOM документ и извлекает элементы с ID начинающимися на "cell"
+/*
+ * Парсит SVG-строку в Document, устанавливает базовые атрибуты
  */
-export function svgUpdater(svg: string, svgAspectRatio: string) {
-  const doc = parser.parseFromString(svg, 'image/svg+xml');
-  const svgElement = doc.documentElement;
+export function initSVG(svg: string, svgAspectRatio?: string): Document | null {
+  if (svg) {
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+    const svgDoc = doc.documentElement;
 
-  svgElement.setAttribute('width', '100%');
-  svgElement.setAttribute('height', '100%');
+    svgDoc.setAttribute('width', '100%');
+    svgDoc.setAttribute('height', '100%');
 
-  if (svgAspectRatio !== 'disable') {
-    svgElement.setAttribute('preserveAspectRatio', svgAspectRatio);
+    if (svgAspectRatio && svgAspectRatio !== 'disable') {
+      svgDoc.setAttribute('preserveAspectRatio', svgAspectRatio);
+    }
+
+    return doc;
   }
 
-  const elementsMap = new Map<string, SVGElement>();
-  const elements = doc.querySelectorAll<SVGElement>('[id^="cell"]');
-
-  elements.forEach((element) => {
-    if (element.id) {
-      elementsMap.set(element.id, element);
-    }
-  });
-
-  return {
-    elementsMap,
-    tempDoc: doc,
-  };
+  return null;
 }
 
-/**
+export function svgToString(doc: Document): string {
+  const serializer = new XMLSerializer();
+  return serializer.serializeToString(doc);
+}
+
+/*
  * Применяет изменения к элементам SVG батчем
  */
 export function applyChangesToElements(items: Map<string, DataMap>): void {

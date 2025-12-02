@@ -1,13 +1,18 @@
-import { DataMap, Metric, ValueMapping } from 'types';
+import { Change, DataMap, Metric, ValueMapping } from 'types';
 import YAML from 'yaml';
 
 /**
  **/
-export function parseYamlConfig(yamlContent: string, replaceVariables?: (content: string) => string): any[] | null {
+export function parseYamlConfig(yamlText: string, replaceVariables?: (content: string) => string): Change[] | null {
+  const options = { maxAliasCount: 10000 };
   try {
-    const yaml = replaceVariables ? replaceVariables(yamlContent) : yamlContent;
-    const parsedYaml = YAML.parse(yaml, { maxAliasCount: 10000 });
-    return parsedYaml?.changes ?? [];
+    const yaml = YAML.parse(yamlText, options);
+
+    if (yaml && 'changes' in yaml && Array.isArray(yaml.changes)) {
+      return yaml.changes as Change[];
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -108,82 +113,91 @@ function sortMappings(mappings: ValueMapping[]): ValueMapping[] {
  * Schemas for quick configuration setup
  */
 export function applySchema(attributes: any, schema: string) {
-  if (!schema) {
-    return attributes;
-  }
-
   const result = { ...attributes };
+
+  const processMetrics = (processor: (metric: Metric) => Metric) => {
+    if (!result.metrics) {
+      return;
+    }
+
+    if (Array.isArray(result.metrics)) {
+      result.metrics = result.metrics.map(processor);
+    } else if (typeof result.metrics === 'object' && result.metrics !== null) {
+      result.metrics = processor(result.metrics as Metric);
+    }
+  };
 
   const schemaActions: Record<string, () => void> = {
     basic: () => {
       delete result.label;
       delete result.labelColor;
       result.tooltip = result.tooltip || { show: true };
-      if (result.metrics) {
-        result.metrics = result.metrics.map((metric: Metric) => ({
-          ...metric,
-          filling: 'fill',
-          baseColor: metric.baseColor || '#00ff00',
-        }));
-      }
+
+      processMetrics((metric) => ({
+        ...metric,
+        filling: 'fill',
+        baseColor: metric.baseColor || '#00ff00',
+      }));
     },
     stroke: () => {
       const propsToDelete = ['link', 'label', 'labelColor', 'tooltip'];
       propsToDelete.forEach((p) => delete result[p]);
-      if (result.metrics) {
-        result.metrics = result.metrics.map((metric: Metric) => ({
-          ...metric,
-          filling: 'stroke',
-          baseColor: '',
-        }));
-      }
+
+      processMetrics((metric) => ({
+        ...metric,
+        filling: 'stroke',
+        baseColor: '',
+      }));
     },
     strokeBase: () => {
       const propsToDelete = ['link', 'label', 'labelColor', 'tooltip'];
       propsToDelete.forEach((p) => delete result[p]);
-      if (result.metrics) {
-        result.metrics = result.metrics.map((metric: Metric) => ({
-          ...metric,
-          filling: 'stroke',
-        }));
-      }
+
+      processMetrics((metric) => ({
+        ...metric,
+        filling: 'stroke',
+      }));
     },
     text: () => {
       delete result.link;
       delete result.tooltip;
       result.label = result.label || 'replace';
       result.labelColor = result.labelColor || 'metric';
-      if (result.metrics) {
-        result.metrics = result.metrics.map((metric: Metric) => ({
-          ...metric,
-          filling: 'none',
-          baseColor: metric.baseColor || '',
-        }));
-      }
+
+      processMetrics((metric) => ({
+        ...metric,
+        filling: 'none',
+        baseColor: metric.baseColor || '',
+      }));
     },
     table: () => {
       delete result.link;
       delete result.tooltip;
       result.label = result.label || 'replace';
       result.labelColor = result.labelColor || 'metric';
-      if (result.metrics) {
-        result.metrics = result.metrics.map((metric: Metric) => ({
-          ...metric,
-          filling: 'fill, 20',
-          baseColor: metric.baseColor || '#00ff00',
-        }));
-      }
+
+      processMetrics((metric) => ({
+        ...metric,
+        filling: 'fill, 20',
+        baseColor: metric.baseColor || '#00ff00',
+      }));
     },
   };
 
-  schemaActions[schema]?.();
+  const action = schemaActions[schema];
+  if (action) {
+    action();
+  } else {
+    console.warn(`Unknown schema: ${schema}`);
+  }
+
   return result;
 }
 
 export function cleanupResources(
   elements: Map<string, SVGElement> | undefined,
-  tempDocument: Document | undefined,
-  configMap: Map<string, DataMap>
+  configMap: Map<string, DataMap>,
+  tempDocument?: Document | undefined
 ): void {
   if (elements) {
     elements.clear();

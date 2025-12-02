@@ -1,40 +1,39 @@
 import { getMetricsData } from './dataProcessor';
 import { formatValues } from './utils/ValueTransformer';
-import { svgUpdater, applyChangesToElements } from './svgUpdater';
+import { applyChangesToElements } from './svgUpdater';
 import { RegexCheck, applySchema, cleanupResources, getMappingMatch } from './utils/helpers';
 import { Change, ColorDataEntry, DataMap, TooltipContent, ValueMapping } from '../types';
 
-const serializer = new XMLSerializer();
-
-export async function svgModify(svg: string, changes: Change[], extractedValueMap: any, svgAspectRatio: string) {
+export async function svgModify(svg: Document, changes: Change[], extractedValueMap: any) {
   const tooltipData: TooltipContent[] = [];
   const configMap: Map<string, DataMap> = new Map();
-  let tempDocument: Document | undefined;
-  let elements: Map<string, SVGElement> | undefined;
+  const elementsMap = new Map<string, SVGElement>();
 
   try {
-    const { elementsMap, tempDoc } = svgUpdater(svg, svgAspectRatio);
-    tempDocument = tempDoc;
-    elements = elementsMap;
+    const elements = svg.querySelectorAll<SVGElement>('[id^="cell"]');
 
-    for (const rule of changes) {
-      if (!rule.id && !rule.attributes) {
-        continue;
+    if (elements.length > 0) {
+      elements.forEach((element) => {
+        if (element.id) {
+          elementsMap.set(element.id, element);
+        }
+      });
+
+      for (const rule of changes) {
+        if (!rule.id && !rule.attributes) {
+          continue;
+        }
+
+        processRule(rule, elementsMap, extractedValueMap, configMap);
       }
 
-      processRule(rule, elementsMap, extractedValueMap, configMap);
+      getMaxMetric(configMap);
+      applyChangesToElements(configMap);
+      createTooltipData(configMap, tooltipData);
     }
-
-    getMaxMetric(configMap);
-    applyChangesToElements(configMap);
-    createTooltipData(configMap, tooltipData);
-
-    return {
-      modifiedSVG: serializer.serializeToString(tempDoc),
-      tooltipData,
-    };
+    return { svg: svg, tooltipData: tooltipData };
   } finally {
-    cleanupResources(elements, tempDocument, configMap);
+    cleanupResources(elementsMap, configMap);
   }
 }
 
@@ -55,26 +54,28 @@ function processRule(
   }
 
   elements.forEach((el, index) => {
-    const [id, schema, selector, svgElement] = el;
+    try {
+      const [id, schema, selector, svgElement] = el;
 
-    let colordata: ColorDataEntry[] = [];
-    let configUsed = config;
+      let colordata: ColorDataEntry[] = [];
+      let configUsed = config;
 
-    if (schema && schema.length > 0) {
-      const schemaConfig = applySchema(config, schema);
+      if (schema && schema.length > 0) {
+        const schemaConfig = applySchema(config, schema);
 
-      if (schemaConfig?.metrics) {
-        const schemaColorData = getMetricsData(schemaConfig.metrics, extractedValueMap);
-        colordata = addMetrics(schemaColorData, selector, elemsLength, index, schemaConfig.autoConfig);
-        configUsed = schemaConfig;
+        if (schemaConfig?.metrics) {
+          const schemaColorData = getMetricsData(schemaConfig.metrics, extractedValueMap);
+          colordata = addMetrics(schemaColorData, selector, elemsLength, index, schemaConfig.autoConfig);
+          configUsed = schemaConfig;
+        }
+      } else {
+        colordata = addMetrics(metricsData, selector, elemsLength, index, config?.autoConfig);
       }
-    } else {
-      colordata = addMetrics(metricsData, selector, elemsLength, index, config?.autoConfig);
-    }
 
-    if (colordata.length > 0) {
-      pushToMap(configMap, id, schema, svgElement, configUsed, colordata);
-    }
+      if (colordata.length > 0) {
+        pushToMap(configMap, id, schema, svgElement, configUsed, colordata);
+      }
+    } catch {}
   });
 }
 
