@@ -25,40 +25,42 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
     fieldsCustomRelativeTime: fieldsRelativeTime,
   } = options.jsonData;
 
-  const svgDoc = useMemo(() => {
-    return initSVG(svgCode, svgAspectRatio);
-  }, [svgCode, svgAspectRatio]);
-
   const mappingArray = useMemo(() => {
     return parseYamlConfig(metricsMapping);
   }, [metricsMapping]);
 
+  const svgDoc = useMemo(() => {
+    return initSVG(svgCode, svgAspectRatio);
+  }, [svgCode, svgAspectRatio]);
+
   useEffect(() => {
     isActiveRef.current = true;
 
+    if (!svgDoc) {
+      setsvgString('');
+      return;
+    }
+
     const processSvg = async () => {
-      if (!svgDoc) {
+      if (!mappingArray) {
+        setsvgString(svgToString(svgDoc));
+        setTooltip([]);
         return;
       }
 
-      if (mappingArray) {
-        const queriesData = await extractValues(data.series, RelativeTime, fieldsRelativeTime, timeRange);
+      const queriesData = await extractValues(data.series, RelativeTime, fieldsRelativeTime, timeRange);
 
-        if (queriesData && isActiveRef.current) {
-          const result = await svgModify(svgDoc, mappingArray, queriesData);
+      if (queriesData && isActiveRef.current) {
+        const result = await svgModify(svgDoc, mappingArray, queriesData);
 
-          if (result && isActiveRef.current) {
-            setsvgString(svgToString(result.svg));
-            setTooltip(result.tooltipData || []);
-          }
-
-          if (queriesData && typeof queriesData.clear === 'function') {
-            queriesData.clear();
-          }
+        if (result && isActiveRef.current) {
+          setsvgString(svgToString(result.svg));
+          setTooltip(result.tooltipData || []);
         }
-      } else if (isActiveRef.current) {
-        setsvgString(svgToString(svgDoc));
-        setTooltip([]);
+
+        if (typeof queriesData.clear === 'function') {
+          queriesData.clear();
+        }
       }
     };
 

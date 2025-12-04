@@ -54,28 +54,24 @@ function processRule(
   }
 
   elements.forEach((el, index) => {
-    try {
-      const [id, schema, selector, svgElement] = el;
+    const [id, schema, selector, svgElement] = el;
 
-      let colordata: ColorDataEntry[] = [];
-      let configUsed = config;
+    let colordata: ColorDataEntry[] = [];
+    let configUsed = config;
 
-      if (schema && schema.length > 0) {
-        const schemaConfig = applySchema(config, schema);
+    if (schema && schema.length > 0) {
+      const schemaConfig = applySchema(config, schema);
 
-        if (schemaConfig?.metrics) {
-          const schemaColorData = getMetricsData(schemaConfig.metrics, extractedValueMap);
-          colordata = addMetrics(schemaColorData, selector, elemsLength, index, schemaConfig.autoConfig);
-          configUsed = schemaConfig;
-        }
-      } else {
-        colordata = addMetrics(metricsData, selector, elemsLength, index, config?.autoConfig);
+      if (schemaConfig?.metrics) {
+        const schemaColorData = getMetricsData(schemaConfig.metrics, extractedValueMap);
+        colordata = addMetrics(schemaColorData, selector, elemsLength, index, schemaConfig.autoConfig);
+        configUsed = schemaConfig;
       }
+    } else {
+      colordata = addMetrics(metricsData, selector, elemsLength, index, config?.autoConfig);
+    }
 
-      if (colordata.length > 0) {
-        pushToMap(configMap, id, schema, svgElement, configUsed, colordata);
-      }
-    } catch {}
+    pushToMap(configMap, id, schema, svgElement, configUsed, colordata);
   });
 }
 
@@ -87,25 +83,49 @@ function addMetrics(
   autoConfig?: boolean
 ): ColorDataEntry[] {
   const metricsLength = metricsData.length;
+  if (metricsLength === 0) {
+    return metricsData;
+  }
+
   const colordata: ColorDataEntry[] = [];
 
-  if (selector && selector.includes('@')) {
-    const selectors: string[][] = selector.split('|').map((s: string) => s.split('@'));
+  if (selector && typeof selector === 'string') {
+    const expand = (s: string) => {
+      const cleanStr = s.startsWith('@') ? s.substring(1) : s;
+      const result = [];
 
-    for (const [type, idx] of selectors) {
-      if (idx) {
-        const indexes = idx.split(',').map(Number);
+      for (const p of cleanStr.split(',')) {
+        const trimmed = p.trim();
+        if (!trimmed) {
+          continue;
+        }
 
-        if (type === 'r' || type === 'l') {
-          const matchingEntries = metricsData.filter((entry) =>
-            indexes.some((index) => entry.object === `${type}${index}`)
-          );
+        const [a, b] = trimmed.split('-').map(Number);
 
-          colordata.push(...matchingEntries);
+        if (b === undefined) {
+          if (!isNaN(a)) {
+            result.push(a);
+          }
+        } else if (!isNaN(a) && !isNaN(b)) {
+          const step = a <= b ? 1 : -1;
+          for (let i = a; step > 0 ? i <= b : i >= b; i += step) {
+            result.push(i);
+          }
         }
       }
+
+      return result;
+    };
+
+    const expanded = expand(selector);
+    if (expanded.length > 0) {
+      const matchingEntries = metricsData.filter((entry) => expanded.some((i) => entry.object === i));
+      colordata.push(...matchingEntries);
+      return colordata;
     }
-  } else if (autoConfig === true) {
+  }
+
+  if (autoConfig === true) {
     if (metricsLength === elemsLength) {
       colordata.push(metricsData[index]);
     } else if (metricsLength < elemsLength) {
@@ -120,9 +140,10 @@ function addMetrics(
         colordata.push(...metricsData.slice(lastIndex));
       }
     }
-  } else {
-    colordata.push(...metricsData);
+    return colordata;
   }
+
+  colordata.push(...metricsData);
   return colordata;
 }
 
@@ -170,7 +191,10 @@ function getMaxMetric(items: Map<string, DataMap>) {
     let bestAttributes: Change['attributes'] | undefined = undefined;
 
     for (const additional of item.additional) {
-      if (!additional.colorData) {
+      if (additional.colorData.length === 0) {
+        if (additional.attributes) {
+          bestAttributes = additional.attributes;
+        }
         continue;
       }
 
@@ -274,28 +298,24 @@ function parseId(raw: string): [id: string, schema: string, selector: string] | 
     return [input, '', ''];
   }
 
-  const parts = input.split(':');
-  const id = parts[0];
-
+  const items = input.split(':');
+  const id = items[0];
   let schema = '';
   let selector = '';
 
-  if (parts.length >= 2) {
-    const secondPart = parts[1];
+  const isSelector = (item: string) => item?.[0] === '@' || (item?.[0] >= '0' && item?.[0] <= '9');
 
-    if (secondPart.includes('@')) {
-      selector = secondPart;
-      if (parts.length >= 3) {
-        selector += ':' + parts.slice(2).join(':');
-      }
+  if (items.length >= 2) {
+    const a = items[1];
+    const b = items[2];
+    if (isSelector(a)) {
+      selector = a;
+      schema = b;
+    } else if (isSelector(b)) {
+      selector = b;
+      schema = a;
     } else {
-      schema = secondPart !== '' ? secondPart : '';
-      if (parts.length >= 3) {
-        const selectorRaw = parts.slice(2).join(':');
-        if (selectorRaw && selectorRaw.includes('@')) {
-          selector = selectorRaw;
-        }
-      }
+      schema = a;
     }
   }
 

@@ -79,7 +79,7 @@ export interface TooltipContent {
 }
 
 export interface ColorDataEntry {
-  object: string;
+  object: number;
   label: string;
   color: string;
   lvl: number;

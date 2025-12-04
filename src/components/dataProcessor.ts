@@ -9,19 +9,16 @@ export function getMetricsData(metrics: Metric | Metric[], extractedValueMap: Me
   const metricsArray = Array.isArray(metrics) ? metrics : [metrics];
   const colorData: ColorDataEntry[] = [];
 
-  let refCounter = 1;
-  let legendCounter = 1;
+  let ruleCounter = 1;
 
   for (const metric of metricsArray) {
     const processedMetric = processLegacyMetric(metric);
 
     processedMetric.queries?.forEach((element) => {
       if (element.refid) {
-        processRefid(element, metric, extractedValueMap, colorData, refCounter);
-        refCounter++;
+        processRefid(element, metric, extractedValueMap, colorData, ruleCounter++);
       } else if (element.legend) {
-        processLegend(element, metric, extractedValueMap, colorData, legendCounter);
-        legendCounter++;
+        processLegend(element, metric, extractedValueMap, colorData, ruleCounter++);
       }
     });
   }
@@ -52,7 +49,7 @@ function processRefid(
   const finalQueries = filterData(queries, elementParams.filter);
 
   if (finalQueries) {
-    processFinalQueries(finalQueries, elementParams, metric, extractedValueMap, colorData, `r${counter}`);
+    processFinalQueries(finalQueries, elementParams, metric, extractedValueMap, colorData, counter);
   }
 }
 
@@ -80,7 +77,7 @@ function processLegend(
   const finalQueries = filterData(queries, elementParams.filter);
 
   if (finalQueries) {
-    processFinalQueries(finalQueries, elementParams, metric, extractedValueMap, colorData, `l${counter}`);
+    processFinalQueries(finalQueries, elementParams, metric, extractedValueMap, colorData, counter);
   }
 }
 
@@ -90,7 +87,7 @@ function processFinalQueries(
   metric: Metric,
   extractedValueMap: MetricsDataMap,
   colorData: ColorDataEntry[],
-  object: string
+  object: number
 ): void {
   const sumMode = 'sum' in elementParams && elementParams.sum;
   const thresholdsToUse = getThresholds(elementParams, metric);

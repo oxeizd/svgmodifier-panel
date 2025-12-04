@@ -2,7 +2,7 @@ import ReactDOM from 'react-dom';
 import { useTheme2 } from '@grafana/ui';
 import { TimeRange } from '@grafana/data';
 import { TooltipContent, PanelOptions } from '../types';
-import React, { useLayoutEffect, useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useLayoutEffect, useRef, useState, useCallback, useEffect } from 'react';
 
 interface TooltipProps {
   containerRef: React.RefObject<HTMLDivElement>;
@@ -16,14 +16,10 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
   const tooltipDataRef = useRef<TooltipContent[]>([]);
   const [adjustedCoords, setAdjustedCoords] = useState({ x: 0, y: 0 });
   const isMounted = useRef(true);
-  const rafIdRef = useRef<number | null>(null); // Для requestAnimationFrame
 
   const theme = useTheme2();
 
-  // ✅ Используем useEffect для обновления ref, а не на каждом рендере
-  useEffect(() => {
-    tooltipDataRef.current = tooltipData;
-  }, [tooltipData]);
+  tooltipDataRef.current = tooltipData;
 
   const [tooltip, setTooltip] = useState({
     visible: false,
@@ -32,22 +28,23 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
     content: [] as TooltipContent[],
   });
 
-  // ✅ Мемоизируем форматирование времени
-  const formattedTime = useMemo(() => {
-    const formatTimeRange = (timeRange: TimeRange): string => {
-      const to = new Date(timeRange.to.valueOf());
-      const year = to.getFullYear();
-      const month = String(to.getMonth() + 1).padStart(2, '0');
-      const day = String(to.getDate()).padStart(2, '0');
-      const hours = String(to.getHours()).padStart(2, '0');
-      const minutes = String(to.getMinutes()).padStart(2, '0');
-      const seconds = String(to.getSeconds()).padStart(2, '0');
+  const formatTimeRange = (timeRange: TimeRange): string => {
+    const to = new Date(timeRange.to.valueOf());
+
+    const formatTime = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+
       return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     };
-    return formatTimeRange(timeRange);
-  }, [timeRange]);
 
-  // ✅ Мемоизируем обработку контента
+    return `${formatTime(to)}`;
+  };
+
   const processTooltipContent = useCallback(
     (content: TooltipContent[]): TooltipContent[] => {
       let processed = [...content];
@@ -59,6 +56,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
         });
       }
 
+      // Сортировка
       if (options.sort !== 'none') {
         processed.sort((a, b) => {
           const aValue = parseFloat(a.metric);
@@ -68,7 +66,11 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
             return 0;
           }
 
-          return options.sort === 'ascending' ? aValue - bValue : bValue - aValue;
+          if (options.sort === 'ascending') {
+            return aValue - bValue;
+          } else {
+            return bValue - aValue;
+          }
         });
       }
 
@@ -77,7 +79,6 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
     [options.hideZeros, options.sort]
   );
 
-  // ✅ Используем useCallback с правильными зависимостями
   const handleMouseOver = useCallback(
     (e: MouseEvent) => {
       if (!isMounted.current) {
@@ -89,15 +90,10 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
         return;
       }
 
-      // ✅ Оптимизированный поиск элемента с id
       let currentElement: Element | null = targetElement;
-      const container = containerRef.current;
-
-      while (currentElement && currentElement !== container) {
+      while (currentElement && currentElement !== containerRef.current) {
         if (currentElement.id) {
           const currentId = currentElement.id;
-
-          // ✅ Быстрая проверка через Set для производительности
           const hasTooltipData = tooltipDataRef.current.some((td) => td.id === currentId);
 
           if (hasTooltipData) {
@@ -141,7 +137,6 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
     [containerRef]
   );
 
-  // ✅ Основной эффект для event listeners
   useEffect(() => {
     isMounted.current = true;
 
@@ -150,138 +145,92 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
       return;
     }
 
-    const handleMouseOverBound = handleMouseOver as EventListener;
-    const handleMouseOutBound = handleMouseOut as EventListener;
+    container.addEventListener('mouseover', handleMouseOver as EventListener);
+    container.addEventListener('mouseout', handleMouseOut as EventListener);
 
-    container.addEventListener('mouseover', handleMouseOverBound);
-    container.addEventListener('mouseout', handleMouseOutBound);
-
-    // ✅ Полная очистка
     return () => {
       isMounted.current = false;
-
-      // Очищаем ref'ы
-      tooltipDataRef.current = [];
-
-      // Удаляем event listeners
-      if (container) {
-        container.removeEventListener('mouseover', handleMouseOverBound);
-        container.removeEventListener('mouseout', handleMouseOutBound);
-      }
-
-      // Отменяем pending animation frame
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-
-      // Скрываем tooltip если виден
-      setTooltip((prev) => ({ ...prev, visible: false }));
+      container.removeEventListener('mouseover', handleMouseOver as EventListener);
+      container.removeEventListener('mouseout', handleMouseOut as EventListener);
     };
   }, [containerRef, handleMouseOver, handleMouseOut]);
 
-  // ✅ Оптимизированный useLayoutEffect с requestAnimationFrame
   useLayoutEffect(() => {
     if (!tooltip.visible || !tooltipRef.current) {
       return;
     }
 
-    const updatePosition = () => {
-      if (!tooltipRef.current || !isMounted.current) {
-        return;
-      }
+    const tooltipElement = tooltipRef.current;
+    const rect = tooltipElement.getBoundingClientRect();
 
-      const tooltipElement = tooltipRef.current;
-      const rect = tooltipElement.getBoundingClientRect();
+    let newX = tooltip.x;
+    let newY = tooltip.y;
 
-      let newX = tooltip.x;
-      let newY = tooltip.y;
-
-      if (newX + rect.width > window.innerWidth) {
-        newX = tooltip.x - rect.width - 10;
-      }
-
-      if (newX < 0) {
-        newX = 10;
-      }
-
-      if (newY + rect.height > window.innerHeight) {
-        newY = window.innerHeight - rect.height - 10;
-      }
-
-      if (newY < 0) {
-        newY = 10;
-      }
-
-      if (isMounted.current) {
-        setAdjustedCoords({ x: newX, y: newY });
-      }
-    };
-
-    // Используем requestAnimationFrame для плавности
-    rafIdRef.current = requestAnimationFrame(updatePosition);
-
-    // ✅ Очистка
-    return () => {
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-    };
-  }, [tooltip.visible, tooltip.x, tooltip.y]);
-
-  // ✅ Мемоизируем уникальные строки
-  const [uniqueTextAbove, uniqueTextBelow] = useMemo(() => {
-    if (!tooltip.visible || tooltip.content.length === 0) {
-      return [[], []];
+    if (newX + rect.width > window.innerWidth) {
+      newX = tooltip.x - rect.width - 10;
     }
 
-    const getUniqueLinesByKey = (key: 'textAbove' | 'textBelow') => {
-      const lines = new Set<string>();
+    if (newX < 0) {
+      newX = 10;
+    }
 
-      for (const item of tooltip.content) {
-        const value = item[key];
-        if (value) {
-          const splitLines = value.replace(/\\n/g, '\n').split('\n');
-          for (const line of splitLines) {
-            lines.add(line);
+    if (newY + rect.height > window.innerHeight) {
+      newY = window.innerHeight - rect.height - 10;
+    }
+    if (newY < 0) {
+      newY = 10;
+    }
+
+    if (isMounted.current) {
+      setAdjustedCoords({ x: newX, y: newY });
+    }
+  }, [tooltip.visible, tooltip.x, tooltip.y]);
+
+  function getUniqueLinesByKey(key: 'textAbove' | 'textBelow') {
+    return Array.from(
+      new Set(
+        tooltip.content.reduce<string[]>((acc, item) => {
+          const value = item[key];
+          if (value) {
+            acc.push(...value.replace(/\\n/g, '\n').split('\n'));
           }
-        }
-      }
+          return acc;
+        }, [])
+      )
+    );
+  }
 
-      return Array.from(lines);
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+      tooltipDataRef.current = [];
     };
-
-    return [getUniqueLinesByKey('textAbove'), getUniqueLinesByKey('textBelow')];
-  }, [tooltip.visible, tooltip.content]);
-
-  // ✅ Мемоизируем стили tooltip
-  const tooltipStyle = useMemo<React.CSSProperties>(
-    () => ({
-      position: 'fixed',
-      left: adjustedCoords.x,
-      top: adjustedCoords.y,
-      backgroundColor: theme.colors.background.secondary,
-      padding: '12px',
-      borderRadius: '2px',
-      pointerEvents: 'none',
-      boxShadow: '0 3px 12px rgba(0, 0, 0, 0.3)',
-      zIndex: 1000,
-      maxWidth: `${options.maxWidth}px` || '500px',
-      overflow: 'hidden',
-      wordWrap: 'break-word',
-      border: `1px solid ${theme.colors.border.weak}`,
-      whiteSpace: 'normal',
-      fontFamily: theme.typography.fontFamily,
-      opacity: tooltip.visible ? 1 : 0, // Плавное исчезновение
-      transition: 'opacity 0.1s ease',
-    }),
-    [adjustedCoords, theme, options.maxWidth, tooltip.visible]
-  );
+  }, []);
 
   if (!tooltip.visible || tooltip.content.length === 0) {
     return null;
   }
+
+  const tooltipStyle: React.CSSProperties = {
+    position: 'fixed',
+    left: adjustedCoords.x,
+    top: adjustedCoords.y,
+    backgroundColor: theme.colors.background.secondary,
+    padding: '12px',
+    borderRadius: '2px',
+    pointerEvents: 'none',
+    boxShadow: '0 3px 12px rgba(0, 0, 0, 0.3)',
+    zIndex: 1000,
+    maxWidth: `${options.maxWidth}px` || '500px',
+    overflow: 'hidden',
+    wordWrap: 'break-word',
+    border: `1px solid ${theme.colors.border.weak}`,
+    whiteSpace: 'normal',
+    fontFamily: theme.typography.fontFamily,
+  };
+
+  const uniqueTextAbove = getUniqueLinesByKey('textAbove');
+  const uniqueTextBelow = getUniqueLinesByKey('textBelow');
 
   return ReactDOM.createPortal(
     <div ref={tooltipRef} style={tooltipStyle}>
@@ -292,7 +241,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
           marginBottom: '8px',
         }}
       >
-        {formattedTime}
+        {formatTimeRange(timeRange)}
       </div>
 
       <div
@@ -303,7 +252,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
       />
 
       {uniqueTextAbove.length > 0 && (
-        <div style={{ marginBottom: '6px' }}>
+        <div style={{ marginBottom: '8px' }}>
           {uniqueTextAbove.map((line, index) => (
             <div
               key={`text-above-${index}`}
@@ -321,9 +270,9 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
 
       {tooltip.content.map((item, index) => (
         <div
-          key={`metric-${item.id}-${index}`} // ✅ Улучшенный key
+          key={`metric-${index}`}
           style={{
-            marginBottom: '1px',
+            marginBottom: '2px',
             lineHeight: '1.4',
           }}
         >
@@ -331,7 +280,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
             <div
               style={{
                 color: theme.colors.text.secondary,
-                marginBottom: '2px',
+                marginBottom: '3px',
                 fontSize: '12px',
               }}
             >
@@ -370,7 +319,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
       ))}
 
       {uniqueTextBelow.length > 0 && (
-        <div style={{ marginTop: '4px' }}>
+        <div style={{ marginTop: '8px' }}>
           {uniqueTextBelow.map((line, index) => (
             <div
               key={`text-below-${index}`}

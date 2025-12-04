@@ -113,18 +113,17 @@ function sortMappings(mappings: ValueMapping[]): ValueMapping[] {
  * Schemas for quick configuration setup
  */
 export function applySchema(attributes: any, schema: string) {
+  if (!schema) {
+    return attributes;
+  }
+
   const result = { ...attributes };
 
-  const processMetrics = (processor: (metric: Metric) => Metric) => {
-    if (!result.metrics) {
-      return;
+  const processMetrics = (metrics: Metric | Metric[], processor: (metric: Metric) => Metric) => {
+    if (Array.isArray(metrics)) {
+      return metrics.map(processor);
     }
-
-    if (Array.isArray(result.metrics)) {
-      result.metrics = result.metrics.map(processor);
-    } else if (typeof result.metrics === 'object' && result.metrics !== null) {
-      result.metrics = processor(result.metrics as Metric);
-    }
+    return processor(metrics);
   };
 
   const schemaActions: Record<string, () => void> = {
@@ -132,65 +131,64 @@ export function applySchema(attributes: any, schema: string) {
       delete result.label;
       delete result.labelColor;
       result.tooltip = result.tooltip || { show: true };
-
-      processMetrics((metric) => ({
-        ...metric,
-        filling: 'fill',
-        baseColor: metric.baseColor || '#00ff00',
-      }));
+      if (result.metrics) {
+        result.metrics = processMetrics(result.metrics, (metric: Metric) => ({
+          ...metric,
+          filling: 'fill',
+          baseColor: metric.baseColor || '#00ff00',
+        }));
+      }
     },
     stroke: () => {
       const propsToDelete = ['link', 'label', 'labelColor', 'tooltip'];
       propsToDelete.forEach((p) => delete result[p]);
-
-      processMetrics((metric) => ({
-        ...metric,
-        filling: 'stroke',
-        baseColor: '',
-      }));
+      if (result.metrics) {
+        result.metrics = processMetrics(result.metrics, (metric: Metric) => ({
+          ...metric,
+          filling: 'stroke',
+          baseColor: '',
+        }));
+      }
     },
     strokeBase: () => {
       const propsToDelete = ['link', 'label', 'labelColor', 'tooltip'];
       propsToDelete.forEach((p) => delete result[p]);
-
-      processMetrics((metric) => ({
-        ...metric,
-        filling: 'stroke',
-      }));
+      if (result.metrics) {
+        result.metrics = processMetrics(result.metrics, (metric: Metric) => ({
+          ...metric,
+          filling: 'stroke',
+        }));
+      }
     },
     text: () => {
       delete result.link;
       delete result.tooltip;
       result.label = result.label || 'replace';
       result.labelColor = result.labelColor || 'metric';
-
-      processMetrics((metric) => ({
-        ...metric,
-        filling: 'none',
-        baseColor: metric.baseColor || '',
-      }));
+      if (result.metrics) {
+        result.metrics = processMetrics(result.metrics, (metric: Metric) => ({
+          ...metric,
+          filling: 'none',
+          baseColor: metric.baseColor || '',
+        }));
+      }
     },
     table: () => {
       delete result.link;
       delete result.tooltip;
       result.label = result.label || 'replace';
       result.labelColor = result.labelColor || 'metric';
-
-      processMetrics((metric) => ({
-        ...metric,
-        filling: 'fill, 20',
-        baseColor: metric.baseColor || '#00ff00',
-      }));
+      if (result.metrics) {
+        result.metrics = processMetrics(result.metrics, (metric: Metric) => ({
+          ...metric,
+          filling: 'fill, 20',
+          baseColor: metric.baseColor || '#00ff00',
+        }));
+      }
     },
   };
 
-  const action = schemaActions[schema];
-  if (action) {
-    action();
-  } else {
-    console.warn(`Unknown schema: ${schema}`);
-  }
-
+  schemaActions[schema]?.();
   return result;
 }
 

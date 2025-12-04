@@ -5,21 +5,21 @@ import { getMappingMatch } from './utils/helpers';
  * Парсит SVG-строку в Document, устанавливает базовые атрибуты
  */
 export function initSVG(svg: string, svgAspectRatio?: string): Document | null {
-  if (svg) {
-    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
-    const svgDoc = doc.documentElement;
-
-    svgDoc.setAttribute('width', '100%');
-    svgDoc.setAttribute('height', '100%');
-
-    if (svgAspectRatio && svgAspectRatio !== 'disable') {
-      svgDoc.setAttribute('preserveAspectRatio', svgAspectRatio);
-    }
-
-    return doc;
+  if (!svg) {
+    return null;
   }
 
-  return null;
+  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  const svgDoc = doc.documentElement;
+
+  svgDoc.setAttribute('width', '100%');
+  svgDoc.setAttribute('height', '100%');
+
+  if (svgAspectRatio && svgAspectRatio !== 'disable') {
+    svgDoc.setAttribute('preserveAspectRatio', svgAspectRatio);
+  }
+
+  return doc;
 }
 
 export function svgToString(doc: Document): string {
