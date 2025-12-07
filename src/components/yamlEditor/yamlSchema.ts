@@ -422,7 +422,13 @@ export const configSchema = [
     key: 'defConfig',
     condition: (ctx: EditorContext) => {
       const analysis = analyzeBlockContext(ctx);
-      return isConditionMet(ctx, 3) && analysis.hasChanges;
+
+      // Проверяем, что changes: находится ВЫШЕ текущей позиции (мы после него)
+      const hasChangesAbove = analysis.lineContents.some(
+        (line, idx) => line.includes('changes:') && idx < ctx.position.lineNumber - 1
+      );
+
+      return isConditionMet(ctx, 3) && hasChangesAbove;
     },
     items: [...SUGGESTION_GROUPS.DEFS],
   },
@@ -434,7 +440,7 @@ export const configSchema = [
         (line, idx) => idx > ctx.position.lineNumber - 1 && line.includes('changes:')
       );
 
-      return isConditionMet(ctx, 1) && hasChangesBelow && !analysis.hasThresholds;
+      return isConditionMet(ctx, 1) && hasChangesBelow;
     },
     items: [...SUGGESTION_GROUPS.ROOT],
   },

@@ -217,7 +217,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ containerRef, tooltipData, opt
     top: adjustedCoords.y,
     backgroundColor: theme.colors.background.secondary,
     padding: '12px',
-    borderRadius: '2px',
+    borderRadius: '5px',
     pointerEvents: 'none',
     boxShadow: '0 3px 12px rgba(0, 0, 0, 0.3)',
     zIndex: 1000,
