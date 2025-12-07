@@ -11,14 +11,11 @@ export async function svgModify(svg: Document, changes: Change[], extractedValue
 
   try {
     const elements = svg.querySelectorAll<SVGElement>('[id^="cell"]');
+    for (const el of elements) {
+      el.id && elementsMap.set(el.id, el);
+    }
 
-    if (elements.length > 0) {
-      elements.forEach((element) => {
-        if (element.id) {
-          elementsMap.set(element.id, element);
-        }
-      });
-
+    if (elementsMap.size > 0) {
       for (const rule of changes) {
         if (!rule.id && !rule.attributes) {
           continue;
@@ -55,9 +52,12 @@ function processRule(
 
   elements.forEach((el, index) => {
     const [id, schema, selector, svgElement] = el;
-
     let colordata: ColorDataEntry[] = [];
     let configUsed = config;
+
+    if (Array.isArray(config.label) && config.label[index]) {
+      configUsed.label = config.label[index];
+    }
 
     if (schema && schema.length > 0) {
       const schemaConfig = applySchema(config, schema);

@@ -27,55 +27,46 @@ export function svgToString(doc: Document): string {
   return serializer.serializeToString(doc);
 }
 
-/*
- * Применяет изменения к элементам SVG батчем
- */
-export function applyChangesToElements(items: Map<string, DataMap>): void {
-  let index = 0;
+export function applyChangesToElements(elMap: Map<string, DataMap>): void {
   const operations: Array<() => void> = [];
 
-  items.forEach((el, key) => {
+  for (const [_, el] of elMap.entries()) {
     const svgElement = el.SVGElem;
+
+    if (!svgElement) {
+      continue;
+    }
+
     const link = el.attributes?.link;
     const label = el.attributes?.label;
     const labelColor = el.attributes?.labelColor;
     const valueMapping = el.attributes?.valueMapping;
-    const mEntry = el.maxEntry;
+    const maxEntry = el.maxEntry;
+    // const styleOverrides = el.attributes?.styleOverrides;
 
-    const linkForEl = Array.isArray(link) && index < link.length ? link[index] : link;
+    operations.push(() => {
+      if (link) {
+        addLinksToSvgElement(svgElement, link.toString());
+      }
 
-    if (svgElement) {
-      operations.push(() => {
-        if (linkForEl) {
-          addLinksToSvgElements(svgElement, linkForEl.toString());
+      if (maxEntry) {
+        applyColorToElement(svgElement, maxEntry);
+      }
+
+      if (label || labelColor) {
+        const labelElements = findLabelElements(svgElement);
+
+        if (label) {
+          const labelContent = getLabel(label, maxEntry?.label, maxEntry?.metricValue, valueMapping);
+          setLabelContent(labelElements, labelContent);
         }
 
-        if (label || labelColor) {
-          const labelElements = findLabelElements(svgElement);
-
-          if (label) {
-            setLabelContent(labelElements, label, mEntry?.label, mEntry?.metricValue, valueMapping);
-          }
-
-          if (labelColor) {
-            applyColorToLabels(labelElements, labelColor, mEntry?.color);
-          }
+        if (labelColor) {
+          const color = getLabelColor(labelColor, maxEntry?.color);
+          applyColorToLabels(labelElements, color);
         }
-
-        if (mEntry) {
-          applyColortoElement(svgElement, mEntry);
-        }
-      });
-    }
-    index++;
-  });
-
-  executeBatchOperations(operations);
-}
-
-function executeBatchOperations(operations: Array<() => void>): void {
-  if (operations.length === 0) {
-    return;
+      }
+    });
   }
 
   const style = document.createElement('style');
@@ -92,7 +83,7 @@ function executeBatchOperations(operations: Array<() => void>): void {
 /**
  * Добавляет ссылки к SVG элементам батчем
  */
-function addLinksToSvgElements(svgElement: SVGElement, link: string): void {
+function addLinksToSvgElement(svgElement: SVGElement, link: string): void {
   const parent = svgElement.parentNode;
   if (!parent || svgElement.hasAttribute('data-has-link')) {
     return;
@@ -108,15 +99,13 @@ function addLinksToSvgElements(svgElement: SVGElement, link: string): void {
   linkElement.appendChild(svgElement);
 }
 
-function applyColortoElement(element: SVGElement, entry: ColorDataEntry): void {
+function applyColorToElement(element: SVGElement, entry: ColorDataEntry): void {
   if (!entry.color) {
     return;
   }
 
   const styleableElements = element.querySelectorAll<SVGElement>('[fill], [stroke]');
-  const entryFilling = entry.filling ? entry.filling.split(',').map((s) => s.trim()) : [];
-  const fillingType = entryFilling[0];
-  const opacity = Number.parseInt(entryFilling[1] || '100', 10);
+  const result = getElColor(entry.color, entry.filling);
 
   for (const el of styleableElements) {
     const parentGroup = el.closest('g');
@@ -124,58 +113,46 @@ function applyColortoElement(element: SVGElement, entry: ColorDataEntry): void {
       continue;
     }
 
-    applyColorToElementRecursive(el, entry.color, fillingType, opacity);
+    applyColorToElementRecursive(el, result);
   }
 }
 
 /**
  * Рекурсивно применяет цвет к элементу и его дочерним элементам
  */
-function applyColorToElementRecursive(element: SVGElement, color: string, fillingType: string, opacity: number): void {
+function applyColorToElementRecursive(element: SVGElement, elCOlor: Array<string | null> & { length: 3 }): void {
   if (element.hasChildNodes()) {
     for (let child of element.children) {
       if (child instanceof SVGElement) {
-        applyColorToElementRecursive(child, color, fillingType, opacity);
+        applyColorToElementRecursive(child, elCOlor);
       }
     }
   }
+  const [fill, stroke, opacity] = elCOlor;
+  const shouldApplyFill = fill != null && fill !== '';
+  const shouldApplyStroke = stroke != null && stroke !== '';
+  const shouldApplyOpacity = opacity != null && opacity !== '';
 
   const defStyle = element.getAttribute('style');
-  const strokeValue = element.getAttribute('stroke');
-
   element.removeAttribute('style');
 
-  if (fillingType) {
-    if (!isNaN(opacity) && opacity >= 0 && opacity <= 100) {
-      element.setAttribute('opacity', (opacity / 100).toString());
-    }
+  if (shouldApplyFill) {
+    element.setAttribute('fill', fill);
+  }
 
-    switch (fillingType) {
-      case 'fill':
-        element.setAttribute('fill', color);
-        break;
-      case 'stroke':
-        element.setAttribute('stroke', color);
-        break;
-      case 'none':
-        if (defStyle) {
-          element.setAttribute('style', defStyle);
-        }
-        break;
-      case 'fs':
-        element.setAttribute('fill', color);
-        element.setAttribute('stroke', color);
-        break;
-      default:
-        if (defStyle) {
-          element.setAttribute('style', defStyle);
-        }
-    }
-  } else {
-    if (strokeValue !== 'none') {
-      element.setAttribute('stroke', color);
-    }
-    element.setAttribute('fill', color);
+  if (shouldApplyStroke) {
+    element.setAttribute('stroke', stroke);
+  }
+
+  if (shouldApplyOpacity) {
+    element.setAttribute('opacity', opacity);
+  }
+
+  const hasOriginalFill = element.hasAttribute('fill');
+  const hasOriginalStroke = element.hasAttribute('stroke');
+
+  if (!shouldApplyFill && !shouldApplyStroke && defStyle && !hasOriginalFill && !hasOriginalStroke) {
+    element.setAttribute('style', defStyle);
   }
 }
 
@@ -201,38 +178,9 @@ function findLabelElements(element: SVGElement): Array<SVGTextElement | HTMLElem
   return elements;
 }
 
-function setLabelContent(
-  elements: Array<SVGTextElement | HTMLElement>,
-  label: string,
-  metricLabel?: string,
-  metricValue?: number | undefined,
-  mappings?: ValueMapping[]
-): void {
+function setLabelContent(elements: Array<SVGTextElement | HTMLElement>, content: string): void {
   if (elements.length === 0) {
     return;
-  }
-
-  const displayValue =
-    metricValue === undefined ? '' : getMappingMatch(mappings, metricValue) ?? metricValue.toString();
-
-  let content = '';
-
-  switch (label) {
-    case 'replace':
-      content = displayValue;
-      break;
-    case 'legend':
-      content = metricLabel || '';
-      break;
-    case 'colon':
-      content = metricLabel ? `${metricLabel}: ${displayValue}` : displayValue;
-      break;
-    case 'space':
-      content = metricLabel ? `${metricLabel} ${displayValue}` : displayValue;
-      break;
-    default:
-      content = label;
-      break;
   }
 
   for (let i = 0; i < elements.length; i++) {
@@ -289,16 +237,7 @@ function updateElementContentRecursive(element: Element, content: string): void 
   }
 }
 
-function applyColorToLabels(
-  elements: Array<SVGTextElement | HTMLElement>,
-  colorSetting: string | undefined,
-  elementColor?: string
-): void {
-  if (!colorSetting) {
-    return;
-  }
-
-  const color = colorSetting === 'metric' ? elementColor : colorSetting;
+function applyColorToLabels(elements: Array<SVGTextElement | HTMLElement>, color: string): void {
   if (!color) {
     return;
   }
@@ -337,4 +276,87 @@ function applyColorToLabelRecursive(element: SVGTextElement | HTMLElement, color
       }
     }
   }
+}
+
+function getLabelColor(colorSetting: string | undefined, elementColor?: string): string {
+  if (!colorSetting) {
+    return '';
+  }
+
+  const color = colorSetting === 'metric' ? elementColor : colorSetting;
+
+  if (!color) {
+    return '';
+  }
+
+  return color;
+}
+
+function getLabel(
+  label: string,
+  metricLabel?: string,
+  metricValue?: number | undefined,
+  mappings?: ValueMapping[]
+): string {
+  const displayValue =
+    metricValue === undefined ? '' : getMappingMatch(mappings, metricValue) ?? metricValue.toString();
+
+  let content = '';
+
+  switch (label) {
+    case 'replace':
+      content = displayValue;
+      break;
+    case 'legend':
+      content = metricLabel || '';
+      break;
+    case 'colon':
+      content = metricLabel ? `${metricLabel}: ${displayValue}` : displayValue;
+      break;
+    case 'space':
+      content = metricLabel ? `${metricLabel} ${displayValue}` : displayValue;
+      break;
+    default:
+      content = label;
+      break;
+  }
+
+  return content;
+}
+
+function getElColor(color: string, filling?: string): [string | null, string | null, string | null] {
+  const entryFilling = filling ? filling.split(',').map((s) => s.trim()) : [];
+  const fillingType = entryFilling[0];
+  const opacity = Number.parseInt(entryFilling[1], 10);
+
+  let colorOpacity = null;
+  let fill = null;
+  let stroke = null;
+
+  if (fillingType) {
+    if (!isNaN(opacity) && opacity >= 0 && opacity <= 100) {
+      colorOpacity = (opacity / 100).toString();
+    }
+
+    switch (fillingType) {
+      case 'fill':
+        fill = color;
+        break;
+      case 'stroke':
+        stroke = color;
+        break;
+      case 'none':
+        break;
+      case 'fs':
+        fill = color;
+        stroke = color;
+        break;
+      default:
+        break;
+    }
+  } else {
+    fill = color;
+  }
+
+  return [fill, stroke, colorOpacity];
 }

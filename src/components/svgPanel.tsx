@@ -11,12 +11,6 @@ import { initSVG, svgToString } from './svgUpdater';
 interface Props extends PanelProps<PanelOptions> {}
 
 const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) => {
-  const [svgString, setsvgString] = useState<string>('');
-  const [tooltip, setTooltip] = useState<TooltipContent[]>([]);
-
-  const isActiveRef = useRef(true);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
   const {
     svgCode,
     metricsMapping,
@@ -24,6 +18,13 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
     customRelativeTime: RelativeTime,
     fieldsCustomRelativeTime: fieldsRelativeTime,
   } = options.jsonData;
+
+  const isActiveRef = useRef(true);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const prevMappingRef = useRef<string>(metricsMapping);
+
+  const [svgString, setSvgString] = useState<string>('');
+  const [tooltip, setTooltip] = useState<TooltipContent[]>([]);
 
   const mappingArray = useMemo(() => {
     return parseYamlConfig(metricsMapping);
@@ -37,24 +38,31 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
     isActiveRef.current = true;
 
     if (!svgDoc) {
-      setsvgString('');
+      setSvgString('');
+      return;
+    }
+
+    if (!mappingArray) {
+      setSvgString(svgToString(svgDoc));
+      setTooltip([]);
       return;
     }
 
     const processSvg = async () => {
-      if (!mappingArray) {
-        setsvgString(svgToString(svgDoc));
-        setTooltip([]);
-        return;
+      const shouldUpdate = metricsMapping !== prevMappingRef.current;
+
+      if (shouldUpdate) {
+        prevMappingRef.current = metricsMapping;
       }
 
+      const svg = shouldUpdate ? initSVG(svgCode, svgAspectRatio) : svgDoc;
       const queriesData = await extractValues(data.series, RelativeTime, fieldsRelativeTime, timeRange);
 
-      if (queriesData && isActiveRef.current) {
-        const result = await svgModify(svgDoc, mappingArray, queriesData);
+      if (queriesData && isActiveRef.current && svg instanceof Document) {
+        const result = await svgModify(svg, mappingArray, queriesData);
 
         if (result && isActiveRef.current) {
-          setsvgString(svgToString(result.svg));
+          setSvgString(svgToString(result.svg));
           setTooltip(result.tooltipData || []);
         }
 
@@ -69,7 +77,17 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
       isActiveRef.current = false;
       setTooltip([]);
     };
-  }, [svgDoc, mappingArray, data.series, RelativeTime, fieldsRelativeTime, timeRange]);
+  }, [
+    svgDoc,
+    mappingArray,
+    data.series,
+    RelativeTime,
+    fieldsRelativeTime,
+    timeRange,
+    svgCode,
+    svgAspectRatio,
+    metricsMapping,
+  ]);
 
   return (
     <div
