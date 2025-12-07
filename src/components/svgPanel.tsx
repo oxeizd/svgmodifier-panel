@@ -21,18 +21,15 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
 
   const isActiveRef = useRef(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const prevMappingRef = useRef<string>(metricsMapping);
 
   const [svgString, setSvgString] = useState<string>('');
   const [tooltip, setTooltip] = useState<TooltipContent[]>([]);
 
-  const mappingArray = useMemo(() => {
-    return parseYamlConfig(metricsMapping);
-  }, [metricsMapping]);
-
-  const svgDoc = useMemo(() => {
-    return initSVG(svgCode, svgAspectRatio);
-  }, [svgCode, svgAspectRatio]);
+  const { svgDoc, mappingArray } = useMemo(() => {
+    const mappingArray = parseYamlConfig(metricsMapping);
+    const svgDoc = initSVG(svgCode, svgAspectRatio);
+    return { svgDoc, mappingArray };
+  }, [svgCode, svgAspectRatio, metricsMapping]);
 
   useEffect(() => {
     isActiveRef.current = true;
@@ -49,17 +46,10 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
     }
 
     const processSvg = async () => {
-      const shouldUpdate = metricsMapping !== prevMappingRef.current;
-
-      if (shouldUpdate) {
-        prevMappingRef.current = metricsMapping;
-      }
-
-      const svg = shouldUpdate ? initSVG(svgCode, svgAspectRatio) : svgDoc;
       const queriesData = await extractValues(data.series, RelativeTime, fieldsRelativeTime, timeRange);
 
-      if (queriesData && isActiveRef.current && svg instanceof Document) {
-        const result = await svgModify(svg, mappingArray, queriesData);
+      if (queriesData && isActiveRef.current && svgDoc instanceof Document) {
+        const result = await svgModify(svgDoc, mappingArray, queriesData);
 
         if (result && isActiveRef.current) {
           setSvgString(svgToString(result.svg));
@@ -77,17 +67,7 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
       isActiveRef.current = false;
       setTooltip([]);
     };
-  }, [
-    svgDoc,
-    mappingArray,
-    data.series,
-    RelativeTime,
-    fieldsRelativeTime,
-    timeRange,
-    svgCode,
-    svgAspectRatio,
-    metricsMapping,
-  ]);
+  }, [svgDoc, mappingArray, data.series, RelativeTime, fieldsRelativeTime, timeRange]);
 
   return (
     <div
