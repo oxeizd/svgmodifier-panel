@@ -71,7 +71,13 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
             }
           }
         }
-        return { suggestions };
+
+        const uniqueSuggestions = suggestions.filter(
+          (suggestion, index, self) =>
+            index === self.findIndex((s) => s.label === suggestion.label && s.insertText === suggestion.insertText)
+        );
+
+        return { suggestions: uniqueSuggestions };
       };
 
       const provider = monaco.languages.registerCompletionItemProvider('yaml', {
