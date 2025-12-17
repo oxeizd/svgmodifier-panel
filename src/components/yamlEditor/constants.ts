@@ -27,14 +27,12 @@ export const MONACO_OPTIONS = {
   automaticLayout: true,
   // Автодополнение
   suggest: {
+    enabled: true, // включаем систему подсказок
     showWords: false,
-    showSnippets: true,
+    showSnippets: false,
   },
-  quickSuggestions: {
-    other: false,
-    comments: false,
-    strings: false,
-  },
+  quickSuggestions: false,
+  suggestOnTriggerCharacters: false,
   // Автозакрывание
   autoClosingBrackets: 'always' as const,
   autoClosingQuotes: 'always' as const,

@@ -1,6 +1,6 @@
 import { CodeEditor } from '@grafana/ui';
 import { MONACO_OPTIONS } from './constants';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { StandardEditorProps } from '@grafana/data';
 import { configSchema as importedConfigSchema } from './yamlSchema';
 
@@ -14,6 +14,7 @@ interface CompletionContext {
 
 const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) => {
   const configSchema = useMemo(() => importedConfigSchema, []);
+  const providerRef = useRef<{ dispose: () => void } | null>(null);
 
   const handleChange = useCallback(
     (newValue: string) => {
@@ -24,11 +25,25 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
 
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: any) => {
+      if (providerRef.current) {
+        providerRef.current.dispose();
+        providerRef.current = null;
+      }
+
       const provideCompletionItems = async (model: any, position: any) => {
         const lineContent = model.getLineContent(position.lineNumber);
+        
         if (lineContent.trim() === '' && position.column <= 2) {
           return { suggestions: [] };
         }
+
+        const context: CompletionContext = {
+          lineContent,
+          position,
+          model,
+          currentIndent: (lineContent.match(/^\s*/)?.[0] || '').length,
+          prevLine: position.lineNumber > 1 ? model.getLineContent(position.lineNumber - 1) : '',
+        };
 
         const word = model.getWordUntilPosition(position);
         const range = {
@@ -38,29 +53,26 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
           endColumn: word.endColumn,
         };
 
-        const context: CompletionContext = {
-          lineContent,
-          position,
-          model,
-          currentIndent: (lineContent.match(/^\s*/)![0] || '').length,
-          prevLine: model.getLineContent(position.lineNumber - 1) || '',
-        };
-
         const suggestions: any[] = [];
         const seenKeys = new Set<string>();
 
         for (const entry of configSchema) {
-          if (entry.condition && !(await entry.condition(context))) {
-            continue;
-          }
+          try {
+            if (entry.condition && !(await entry.condition(context))) {
+              continue;
+            }
 
-          const items = typeof entry.items === 'function' ? await entry.items(context) : entry.items;
+            const items = typeof entry.items === 'function' 
+              ? await entry.items(context) 
+              : entry.items;
 
-          for (const item of items) {
-            const key = `${item.label}-${item.insertText}`;
-            if (!seenKeys.has(key)) {
+            for (const item of items) {
+              const key = `${item.label}-${item.insertText || item.label}`;
+              if (seenKeys.has(key)) {
+                continue;
+              }
+              
               seenKeys.add(key);
-
               suggestions.push({
                 label: item.label,
                 kind: monaco.languages.CompletionItemKind.Property,
@@ -69,35 +81,42 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
                 range,
               });
             }
+          } catch (err) {
+            continue;
           }
         }
 
-        const uniqueSuggestions = suggestions.filter(
-          (suggestion, index, self) =>
-            index === self.findIndex((s) => s.label === suggestion.label && s.insertText === suggestion.insertText)
-        );
-
-        return { suggestions: uniqueSuggestions };
+        return { suggestions };
       };
 
-      const provider = monaco.languages.registerCompletionItemProvider('yaml', {
+      providerRef.current = monaco.languages.registerCompletionItemProvider('yaml', {
         triggerCharacters: ['\n', ' ', ':'],
         provideCompletionItems,
       });
 
       return () => {
-        provider.dispose();
+        if (providerRef.current) {
+          providerRef.current.dispose();
+          providerRef.current = null;
+        }
       };
     },
     [configSchema]
   );
 
-  const defaultValue = 'changes:\n  ';
+  React.useEffect(() => {
+    return () => {
+      if (providerRef.current) {
+        providerRef.current.dispose();
+        providerRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div style={{ minHeight: '500px' }}>
       <CodeEditor
-        value={value || defaultValue}
+        value={value || 'changes:\n  '}
         language="yaml"
         height="500px"
         width="100%"
