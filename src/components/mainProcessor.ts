@@ -1,6 +1,6 @@
 import { getMetricsData } from './dataProcessor';
 import { formatValues } from './utils/ValueTransformer';
-import { applyChangesToElements } from './svgUpdater';
+import { updateSvg } from './svgUpdater';
 import { RegexCheck, applySchema, cleanupResources, getMappingMatch } from './utils/helpers';
 import { Change, ColorDataEntry, DataMap, TooltipContent, ValueMapping } from '../types';
 
@@ -25,7 +25,7 @@ export async function svgModify(svg: Document, changes: Change[], extractedValue
       }
 
       getMaxMetric(configMap);
-      applyChangesToElements(configMap);
+      updateSvg(configMap);
       createTooltipData(configMap, tooltipData);
     }
     return { svg: svg, tooltipData: tooltipData };
@@ -52,7 +52,7 @@ function processRule(
 
   elements.forEach((el, index) => {
     const [id, schema, selector, svgElement] = el;
-    let colordata: ColorDataEntry[] = [];
+    let colorData: ColorDataEntry[] = [];
     let configUsed = config;
 
     if (Array.isArray(config.label) && config.label[index]) {
@@ -64,14 +64,14 @@ function processRule(
 
       if (schemaConfig?.metrics) {
         const schemaColorData = getMetricsData(schemaConfig.metrics, extractedValueMap);
-        colordata = addMetrics(schemaColorData, selector, elemsLength, index, schemaConfig.autoConfig);
+        colorData = addMetrics(schemaColorData, selector, elemsLength, index, schemaConfig.autoConfig);
         configUsed = schemaConfig;
       }
     } else {
-      colordata = addMetrics(metricsData, selector, elemsLength, index, config?.autoConfig);
+      colorData = addMetrics(metricsData, selector, elemsLength, index, config?.autoConfig);
     }
 
-    pushToMap(configMap, id, schema, svgElement, configUsed, colordata);
+    pushToMap(configMap, id, schema, svgElement, configUsed, colorData);
   });
 }
 
@@ -87,7 +87,7 @@ function addMetrics(
     return metricsData;
   }
 
-  const colordata: ColorDataEntry[] = [];
+  const colorData: ColorDataEntry[] = [];
 
   if (selector && typeof selector === 'string') {
     const expand = (s: string) => {
@@ -120,31 +120,31 @@ function addMetrics(
     const expanded = expand(selector);
     if (expanded.length > 0) {
       const matchingEntries = metricsData.filter((entry) => expanded.some((i) => entry.object === i));
-      colordata.push(...matchingEntries);
-      return colordata;
+      colorData.push(...matchingEntries);
+      return colorData;
     }
   }
 
   if (autoConfig === true) {
     if (metricsLength === elemsLength) {
-      colordata.push(metricsData[index]);
+      colorData.push(metricsData[index]);
     } else if (metricsLength < elemsLength) {
       if (index < metricsLength) {
-        colordata.push(metricsData[index]);
+        colorData.push(metricsData[index]);
       }
     } else {
       const lastIndex = elemsLength - 1;
       if (index < lastIndex) {
-        colordata.push(metricsData[index]);
+        colorData.push(metricsData[index]);
       } else {
-        colordata.push(...metricsData.slice(lastIndex));
+        colorData.push(...metricsData.slice(lastIndex));
       }
     }
-    return colordata;
+    return colorData;
   }
 
-  colordata.push(...metricsData);
-  return colordata;
+  colorData.push(...metricsData);
+  return colorData;
 }
 
 function pushToMap(
@@ -268,14 +268,14 @@ function getElementsByIdOrRegex(
     }
     const [id, schema, selector] = parsed;
 
-    const checkid = id && !id.startsWith('cell-') ? `cell-${id}` : id;
+    const checkId = id && !id.startsWith('cell-') ? `cell-${id}` : id;
 
-    if (!RegexCheck(checkid)) {
-      const element = map.get(checkid);
-      return element ? [[checkid, schema, selector, element]] : [];
+    if (!RegexCheck(checkId)) {
+      const element = map.get(checkId);
+      return element ? [[checkId, schema, selector, element]] : [];
     }
 
-    const regex = new RegExp(checkid);
+    const regex = new RegExp(checkId);
     return Array.from(map.entries())
       .filter(([key]) => regex.test(key))
       .map(([key, element]) => [key, schema, selector, element]);

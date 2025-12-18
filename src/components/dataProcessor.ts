@@ -265,7 +265,7 @@ function calculateValue(values: number[], method: CalculationMethod): number {
 }
 
 function getMetricColor(value: number, ValueMap: MetricsDataMap, thresholds?: Threshold[], baseColor?: string) {
-  let color = baseColor || '';
+  let color = baseColor || undefined;
   let lvl = 1;
 
   thresholds?.forEach((t, index) => {

@@ -27,14 +27,12 @@ export const MONACO_OPTIONS = {
   automaticLayout: true,
   // Автодополнение
   suggest: {
+    enabled: true, // включаем систему подсказок
     showWords: false,
-    showSnippets: true,
+    showSnippets: false,
   },
-  quickSuggestions: {
-    other: false,
-    comments: false,
-    strings: false,
-  },
+  quickSuggestions: false,
+  suggestOnTriggerCharacters: false,
   // Автозакрывание
   autoClosingBrackets: 'always' as const,
   autoClosingQuotes: 'always' as const,
@@ -83,7 +81,7 @@ export const SUGGESTION_TEMPLATES = {
   // defs
   DEF_CONFIG:
     `- id: ''\n  attributes:\n    tooltip:\n      show: true\n    metrics:\n      queries:\n` +
-    `        - { refid: '' }\n      baseColor: '#00ff00'\n      thresholds:\n        - { color: 'orange', value: 10 }`,
+    `        - { refid: '' }\n      baseColor: 'rgba(50, 172,45, 0.97)'\n      thresholds:\n        - { color: 'orange', value: 10 }`,
   THRESHOLDS_ROOT: `thresholds:\n  name: &name\n  - { color: 'orange', value: 10 }\n  - { color: 'red', value: 20 }`,
 } as const;
 

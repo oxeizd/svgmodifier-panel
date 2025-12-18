@@ -81,12 +81,12 @@ export interface TooltipContent {
 export interface ColorDataEntry {
   object: number;
   label: string;
-  color: string;
+  color: string | undefined;
   lvl: number;
   metricValue: number;
-  filling?: string;
-  unit?: string;
-  title?: string;
+  filling?: string | undefined;
+  unit?: string | undefined;
+  title?: string | undefined;
 }
 
 export type DataMap = {
