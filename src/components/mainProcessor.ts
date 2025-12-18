@@ -87,7 +87,7 @@ function addMetrics(
     return metricsData;
   }
 
-  const colordata: ColorDataEntry[] = [];
+  const colorData: ColorDataEntry[] = [];
 
   if (selector && typeof selector === 'string') {
     const expand = (s: string) => {
@@ -120,31 +120,31 @@ function addMetrics(
     const expanded = expand(selector);
     if (expanded.length > 0) {
       const matchingEntries = metricsData.filter((entry) => expanded.some((i) => entry.object === i));
-      colordata.push(...matchingEntries);
-      return colordata;
+      colorData.push(...matchingEntries);
+      return colorData;
     }
   }
 
   if (autoConfig === true) {
     if (metricsLength === elemsLength) {
-      colordata.push(metricsData[index]);
+      colorData.push(metricsData[index]);
     } else if (metricsLength < elemsLength) {
       if (index < metricsLength) {
-        colordata.push(metricsData[index]);
+        colorData.push(metricsData[index]);
       }
     } else {
       const lastIndex = elemsLength - 1;
       if (index < lastIndex) {
-        colordata.push(metricsData[index]);
+        colorData.push(metricsData[index]);
       } else {
-        colordata.push(...metricsData.slice(lastIndex));
+        colorData.push(...metricsData.slice(lastIndex));
       }
     }
-    return colordata;
+    return colorData;
   }
 
-  colordata.push(...metricsData);
-  return colordata;
+  colorData.push(...metricsData);
+  return colorData;
 }
 
 function pushToMap(

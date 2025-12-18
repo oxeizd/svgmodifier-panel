@@ -32,7 +32,7 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
 
       const provideCompletionItems = async (model: any, position: any) => {
         const lineContent = model.getLineContent(position.lineNumber);
-        
+
         if (lineContent.trim() === '' && position.column <= 2) {
           return { suggestions: [] };
         }
@@ -62,16 +62,14 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
               continue;
             }
 
-            const items = typeof entry.items === 'function' 
-              ? await entry.items(context) 
-              : entry.items;
+            const items = typeof entry.items === 'function' ? await entry.items(context) : entry.items;
 
             for (const item of items) {
               const key = `${item.label}-${item.insertText || item.label}`;
               if (seenKeys.has(key)) {
                 continue;
               }
-              
+
               seenKeys.add(key);
               suggestions.push({
                 label: item.label,

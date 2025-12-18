@@ -42,13 +42,13 @@ export function updateSvg(elMap: Map<string, DataMap>): void {
     // const styleOverrides = el.attributes?.styleOverrides;
 
     operations.push(() => {
-      if (link) {
-        addLinksToSvgElement(svgElement, link?.toString());
-      }
+      addLinkToSvgElement(svgElement, link?.toString());
+
       const text = getLabelText(label, maxEntry?.label, maxEntry?.metricValue, valueMapping);
       const textColor = getLabelColor(labelColor, maxEntry?.color);
       const elColor = getElementColor(maxEntry?.color, maxEntry?.filling);
-      updateElementRecursive(svgElement, text, textColor, elColor);
+
+      updateSvgElementRecursive(svgElement, text, textColor, elColor);
     });
   }
 
@@ -63,9 +63,9 @@ export function updateSvg(elMap: Map<string, DataMap>): void {
   }
 }
 
-function addLinksToSvgElement(svgElement: SVGElement, link: string): void {
+function addLinkToSvgElement(svgElement: SVGElement, link?: string): void {
   const parent = svgElement.parentNode;
-  if (!parent || svgElement.hasAttribute('data-has-link')) {
+  if (!parent || svgElement.hasAttribute('data-has-link') || !link) {
     return;
   }
 
@@ -89,14 +89,20 @@ function getLabelText(
     return undefined;
   }
 
-  const displayValue =
-    metricValue === undefined ? '' : getMappingMatch(mappings, metricValue) ?? metricValue.toString();
+  let displayValue: string | undefined;
+  let content;
 
-  let content = '';
+  if (mappings && metricValue !== undefined) {
+    displayValue = getMappingMatch(mappings, metricValue);
+  } else if (metricValue !== undefined) {
+    displayValue = metricValue.toString();
+  } else {
+    displayValue = '';
+  }
 
   switch (label) {
     case 'replace':
-      content = displayValue;
+      content = displayValue ?? '';
       break;
     case 'legend':
       content = metricLabel || '';
@@ -166,12 +172,17 @@ function getElementColor(color: string | undefined, filling?: string): [string |
   return [fill, stroke, colorOpacity];
 }
 
-function updateElementRecursive(element: Element, text?: string, textColor?: string, elColor?: [string | null, string | null, string | null]): void {
+function updateSvgElementRecursive(
+  element: Element,
+  text?: string,
+  textColor?: string,
+  elColor?: ReturnType<typeof getElementColor>
+): void {
   const hasChildren = element.children.length > 0;
 
   if (elColor && element instanceof SVGElement) {
-    if (element.tagName != 'foreignObject' && !element.querySelector('text')) { 
-      applyColorsToElement(element, elColor)
+    if (element.tagName !== 'foreignObject' && !element.querySelector('text')) {
+      applyColorToElement(element, elColor);
     }
   }
 
@@ -198,13 +209,12 @@ function updateElementRecursive(element: Element, text?: string, textColor?: str
 
   if (hasChildren) {
     for (const child of element.children) {
-      updateElementRecursive(child, text, textColor, elColor);
-
+      updateSvgElementRecursive(child, text, textColor, elColor);
     }
   }
 }
 
-function applyColorsToElement(element: SVGElement, [fill, stroke, opacity]: ReturnType<typeof getElementColor>): void {
+function applyColorToElement(element: SVGElement, [fill, stroke, opacity]: ReturnType<typeof getElementColor>): void {
   if (element instanceof SVGTextElement) {
     return;
   }
