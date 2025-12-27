@@ -1,23 +1,23 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { PanelProps } from '@grafana/data';
-import { Tooltip } from './tooltip';
+import { Tooltip } from './tooltip/tooltip';
 import { extractValues } from './dataExtractor';
 import { svgModify } from './mainProcessor';
 import { parseYamlConfig } from './utils/helpers';
-import { PanelOptions, TooltipContent } from '../types';
 import { initSVG, svgToString } from './svgUpdater';
+import { PanelOptions, TooltipContent } from '../types';
 // import { getTemplateSrv } from '@grafana/runtime';
 
 interface Props extends PanelProps<PanelOptions> {}
 
-const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) => {
+const SvgPanel: React.FC<Props> = (props) => {
   const {
     svgCode,
     metricsMapping,
     svgAspectRatio,
     customRelativeTime: RelativeTime,
     fieldsCustomRelativeTime: fieldsRelativeTime,
-  } = options.jsonData;
+  } = props.options.jsonData;
 
   const isActiveRef = useRef(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -46,7 +46,7 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
     }
 
     const processSvg = async () => {
-      const queriesData = await extractValues(data.series, RelativeTime, fieldsRelativeTime, timeRange);
+      const queriesData = await extractValues(props.data.series, RelativeTime, fieldsRelativeTime, props.timeRange);
 
       if (queriesData && isActiveRef.current && svgDoc instanceof Document) {
         const result = await svgModify(svgDoc, mappingArray, queriesData);
@@ -67,15 +67,15 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
       isActiveRef.current = false;
       setTooltip([]);
     };
-  }, [svgDoc, mappingArray, data.series, RelativeTime, fieldsRelativeTime, timeRange]);
+  }, [svgDoc, mappingArray, props.data.series, RelativeTime, fieldsRelativeTime, props.timeRange]);
 
   return (
     <div
       ref={containerRef}
       style={{
         position: 'relative',
-        height: `${height}px`,
-        width: `${width}px`,
+        height: `${props.height}px`,
+        width: `${props.width}px`,
         overflow: 'hidden',
       }}
     >
@@ -83,11 +83,16 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
         dangerouslySetInnerHTML={{ __html: svgString }}
         style={{
           display: 'block',
-          height: `${height}px`,
-          width: `${width}px`,
+          height: `${props.height}px`,
+          width: `${props.width}px`,
         }}
       />
-      <Tooltip containerRef={containerRef} tooltipData={tooltip} options={options.tooltip} timeRange={timeRange} />
+      <Tooltip
+        containerRef={containerRef}
+        tooltipData={tooltip}
+        options={props.options.tooltip}
+        timeRange={props.timeRange}
+      />
     </div>
   );
 };

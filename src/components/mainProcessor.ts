@@ -1,6 +1,6 @@
 import { getMetricsData } from './dataProcessor';
-import { formatValues } from './utils/ValueTransformer';
 import { updateSvg } from './svgUpdater';
+import { formatValues } from './utils/ValueTransformer';
 import { RegexCheck, applySchema, cleanupResources, getMappingMatch } from './utils/helpers';
 import { Change, ColorDataEntry, DataMap, TooltipContent, ValueMapping } from '../types';
 
@@ -53,10 +53,10 @@ function processRule(
   elements.forEach((el, index) => {
     const [id, schema, selector, svgElement] = el;
     let colorData: ColorDataEntry[] = [];
-    let configUsed = config;
+    let configToUse = config;
 
     if (Array.isArray(config.label) && config.label[index]) {
-      configUsed.label = config.label[index];
+      configToUse.label = config.label[index];
     }
 
     if (schema && schema.length > 0) {
@@ -65,13 +65,13 @@ function processRule(
       if (schemaConfig?.metrics) {
         const schemaColorData = getMetricsData(schemaConfig.metrics, extractedValueMap);
         colorData = addMetrics(schemaColorData, selector, elemsLength, index, schemaConfig.autoConfig);
-        configUsed = schemaConfig;
+        configToUse = schemaConfig;
       }
     } else {
       colorData = addMetrics(metricsData, selector, elemsLength, index, config?.autoConfig);
     }
 
-    pushToMap(configMap, id, schema, svgElement, configUsed, colorData);
+    pushToMap(configMap, id, schema, svgElement, configToUse, colorData);
   });
 }
 
