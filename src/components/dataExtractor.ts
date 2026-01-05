@@ -1,27 +1,25 @@
 import { DataFrame, Field, FieldType, TimeRange } from '@grafana/data';
+// import { transformDataFrame } from '@grafana/data';
 
-export async function extractValues(dataFrame: DataFrame[], customRT: string, fieldRT: string, timeRange: TimeRange) {
+export async function extractFields(dataFrame: DataFrame[], customRT: string, fieldRT: string, timeRange: TimeRange) {
   const valueMap = new Map<string, { values: Map<string, { values: string[]; timestamps: number[] }> }>();
 
   const fieldTimeSettings = fieldRT ? parseFieldTimeSettings(fieldRT) : new Map();
 
   for (let i = 0; i < dataFrame.length; i++) {
     const frame: DataFrame = dataFrame[i];
-    const timeField = frame.fields.find((field) => field.type === FieldType.time);
-    const metricValueField = frame.fields.find((field) => field.type === FieldType.number);
-
-    if (!metricValueField?.values?.length || !timeField?.values?.length) {
-      continue;
-    }
-
     const refId = frame.refId;
-    if (!refId) {
+
+    const timeFields = frame.fields.find((field) => field.type === FieldType.time);
+    const metricValueFields = frame.fields.find((field) => field.type === FieldType.number);
+
+    if (!metricValueFields?.values?.length || !timeFields?.values?.length || !refId) {
       continue;
     }
 
     let timeToUse: string | undefined;
-    let values = metricValueField.values.map(String);
-    let timestamps = timeField.values.map(Number);
+    let values = metricValueFields.values.map(String);
+    let timestamps = timeFields.values.map(Number);
 
     if (fieldTimeSettings.has(refId)) {
       timeToUse = fieldTimeSettings.get(refId);
@@ -40,7 +38,7 @@ export async function extractValues(dataFrame: DataFrame[], customRT: string, fi
     }
 
     // Получаем имя на основе меток или названия поля
-    const displayName = resolveDisplayName(metricValueField);
+    const displayName = resolveDisplayName(metricValueFields);
 
     // Инициализируем хранилище для refId
     if (!valueMap.has(refId)) {

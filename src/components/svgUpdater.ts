@@ -1,5 +1,5 @@
-import { ValueMapping, DataMap } from '../types';
-import { getMappingMatch } from './utils/helpers';
+import { getElementColor, getLabelColor, getLabelText } from './utils/updateSvgUtils';
+import { DataMap } from 'types';
 
 export function initSVG(svg: string, svgAspectRatio?: string): Document | null {
   if (!svg) {
@@ -19,12 +19,12 @@ export function initSVG(svg: string, svgAspectRatio?: string): Document | null {
   return doc;
 }
 
-export function svgToString(doc: Document): string {
+export function svgToString(svg: Document): string {
   const serializer = new XMLSerializer();
-  return serializer.serializeToString(doc);
+  return serializer.serializeToString(svg);
 }
 
-export function updateSvg(elMap: Map<string, DataMap>): void {
+export async function updateSvg(elMap: Map<string, DataMap>): Promise<void> {
   const operations: Array<() => void> = [];
 
   for (const [_, el] of elMap.entries()) {
@@ -39,12 +39,11 @@ export function updateSvg(elMap: Map<string, DataMap>): void {
     const labelColor = el.attributes?.labelColor;
     const valueMapping = el.attributes?.valueMapping;
     const maxEntry = el.maxEntry;
-    // const styleOverrides = el.attributes?.styleOverrides;
 
     operations.push(() => {
-      addLinkToSvgElement(svgElement, link?.toString());
+      addLinkToElement(svgElement, link?.toString());
 
-      const text = getLabelText(label, maxEntry?.label, maxEntry?.metricValue, valueMapping);
+      const text = getLabelText(label, maxEntry?.label, maxEntry?.metricValue, maxEntry?.displayValue, valueMapping);
       const textColor = getLabelColor(labelColor, maxEntry?.color);
       const elColor = getElementColor(maxEntry?.color, maxEntry?.filling);
 
@@ -61,115 +60,6 @@ export function updateSvg(elMap: Map<string, DataMap>): void {
   } finally {
     document.head.removeChild(style);
   }
-}
-
-function addLinkToSvgElement(svgElement: SVGElement, link?: string): void {
-  const parent = svgElement.parentNode;
-  if (!parent || svgElement.hasAttribute('data-has-link') || !link) {
-    return;
-  }
-
-  const linkElement = document.createElementNS('http://www.w3.org/2000/svg', 'a');
-
-  linkElement.setAttribute('target', '_blank');
-  linkElement.setAttribute('href', link);
-
-  svgElement.setAttribute('data-has-link', 'true');
-  parent.insertBefore(linkElement, svgElement);
-  linkElement.appendChild(svgElement);
-}
-
-function getLabelText(
-  label: string | undefined,
-  metricLabel?: string,
-  metricValue?: number | undefined,
-  mappings?: ValueMapping[]
-): string | undefined {
-  if (!label) {
-    return undefined;
-  }
-
-  let displayValue: string | undefined;
-  let content;
-
-  if (mappings && metricValue !== undefined) {
-    displayValue = getMappingMatch(mappings, metricValue);
-  } else if (metricValue !== undefined) {
-    displayValue = metricValue.toString();
-  } else {
-    displayValue = '';
-  }
-
-  switch (label) {
-    case 'replace':
-      content = displayValue ?? '';
-      break;
-    case 'legend':
-      content = metricLabel || '';
-      break;
-    case 'colon':
-      content = metricLabel ? `${metricLabel}: ${displayValue}` : displayValue;
-      break;
-    case 'space':
-      content = metricLabel ? `${metricLabel} ${displayValue}` : displayValue;
-      break;
-    default:
-      content = label;
-      break;
-  }
-
-  return content;
-}
-
-function getLabelColor(colorSetting: string | undefined, elementColor?: string): string | undefined {
-  if (!colorSetting) {
-    return undefined;
-  }
-
-  const color = colorSetting === 'metric' ? elementColor : colorSetting;
-
-  if (!color) {
-    return '';
-  }
-
-  return color;
-}
-
-function getElementColor(color: string | undefined, filling?: string): [string | null, string | null, string | null] {
-  if (!color) {
-    return [null, null, null];
-  }
-
-  const entryFilling = filling ? filling.split(',').map((s) => s.trim()) : [];
-  const fillingType = entryFilling[0];
-  const opacityValue = parseInt(entryFilling[1], 10);
-
-  let colorOpacity = null;
-  let fill = null;
-  let stroke = null;
-
-  if (!isNaN(opacityValue) && opacityValue >= 0 && opacityValue <= 100) {
-    colorOpacity = (opacityValue / 100).toString();
-  }
-
-  switch (fillingType) {
-    case 'fill':
-      fill = color;
-      break;
-    case 'stroke':
-      stroke = color;
-      break;
-    case 'none':
-      break;
-    case 'fs':
-      fill = color;
-      stroke = color;
-      break;
-    default:
-      fill = color;
-  }
-
-  return [fill, stroke, colorOpacity];
 }
 
 function updateSvgElementRecursive(
@@ -258,4 +148,20 @@ function applyColorToElement(element: SVGElement, [fill, stroke, opacity]: Retur
       element.setAttribute('fill-opacity', opacity);
     }
   }
+}
+
+function addLinkToElement(svgElement: SVGElement, link?: string): void {
+  const parent = svgElement.parentNode;
+  if (!parent || svgElement.hasAttribute('data-has-link') || !link) {
+    return;
+  }
+
+  const linkElement = document.createElementNS('http://www.w3.org/2000/svg', 'a');
+
+  linkElement.setAttribute('target', '_blank');
+  linkElement.setAttribute('href', link);
+
+  svgElement.setAttribute('data-has-link', 'true');
+  parent.insertBefore(linkElement, svgElement);
+  linkElement.appendChild(svgElement);
 }

@@ -1,85 +1,171 @@
-import { getMetricsData } from './dataProcessor';
-import { updateSvg } from './svgUpdater';
-import { formatValues } from './utils/ValueTransformer';
-import { RegexCheck, applySchema, cleanupResources, getMappingMatch } from './utils/helpers';
-import { Change, ColorDataEntry, DataMap, TooltipContent, ValueMapping } from '../types';
+import { Change, ColorDataEntry, DataMap, TooltipContent, ValueMapping } from 'types';
+import { applySchema, getMappingMatch, RegexCheck } from './utils/helpers';
+import { getMetricsData } from './queryProcessor';
 
-export async function svgModify(svg: Document, changes: Change[], extractedValueMap: any) {
-  const tooltipData: TooltipContent[] = [];
-  const configMap: Map<string, DataMap> = new Map();
+export function initializeConfig(svg: Document, changes: Change[]) {
   const elementsMap = new Map<string, SVGElement>();
+  const configMap: Map<string, DataMap> = new Map();
 
-  try {
-    const elements = svg.querySelectorAll<SVGElement>('[id^="cell"]');
-    for (const el of elements) {
-      el.id && elementsMap.set(el.id, el);
+  const elements = svg.querySelectorAll<SVGElement>('[id^="cell"]');
+  for (const el of elements) {
+    el.id && elementsMap.set(el.id, el);
+  }
+
+  if (elementsMap.size > 0) {
+    prepareConfig(changes, elementsMap, configMap);
+  }
+
+  return configMap;
+}
+
+function prepareConfig(changes: Change[], elementsMap: Map<string, SVGElement>, configMap: Map<string, DataMap>) {
+  const getRuleConfig = (rule: Change) => {
+    const config = rule.attributes;
+    const elements = getElementsByIdOrRegex(rule.id, elementsMap);
+
+    let elemsLength = elements.length;
+    let currentIndex = 0;
+
+    elements.forEach((el, index) => {
+      const [id, schema, selector, svgElement] = el;
+      let configToUse = config;
+      let metrics = configToUse.metrics || undefined;
+
+      if (Array.isArray(config.link) && config.link[index] !== undefined) {
+        configToUse.link = config.link[index];
+      }
+
+      if (metrics) {
+        configToUse.metrics = Array.isArray(metrics) ? metrics : [metrics];
+      }
+
+      if (schema && schema.length > 0) {
+        configToUse = applySchema(configToUse, schema);
+      }
+
+      pushToMap(id, svgElement, configToUse, selector, currentIndex, elemsLength);
+
+      if (!selector) {
+        currentIndex++;
+      } else {
+        elemsLength = elemsLength--;
+      }
+    });
+  };
+
+  const pushToMap = (
+    id: string,
+    element: SVGElement,
+    attributes: Change['attributes'],
+    selector: string,
+    index: number,
+    length: number
+  ) => {
+    if (configMap.has(id)) {
+      const existingItem = configMap.get(id);
+      if (existingItem) {
+        existingItem.additional.push({
+          attributes: attributes,
+          selector: selector,
+          elemIndex: index,
+          elemslength: length,
+        });
+      }
+    } else {
+      configMap.set(id, {
+        SVGElem: element,
+        additional: [
+          {
+            attributes: attributes,
+            selector: selector,
+            elemIndex: index,
+            elemslength: length,
+          },
+        ],
+      });
+    }
+  };
+
+  for (const rule of changes) {
+    if (!rule.id && !rule.attributes) {
+      continue;
     }
 
-    if (elementsMap.size > 0) {
-      for (const rule of changes) {
-        if (!rule.id && !rule.attributes) {
+    getRuleConfig(rule);
+  }
+}
+
+export async function calculateMetrics(configMap: Map<string, DataMap>, extractedValueMap: any) {
+  const tooltip: TooltipContent[] = [];
+
+  configMap.forEach((map, id) => {
+    let bestEntry: ColorDataEntry | undefined;
+    let bestLvl = Number.NEGATIVE_INFINITY;
+    let bestMetric = Number.NEGATIVE_INFINITY;
+    let bestAttributes: Change['attributes'] | undefined = undefined;
+
+    const getMaxMetricAndTooltips = (colorData: ColorDataEntry[], attributes: typeof bestAttributes) => {
+      if (!colorData) {
+        return;
+      }
+
+      for (const entry of colorData) {
+        const currentLvl = entry.lvl ?? Number.NEGATIVE_INFINITY;
+        const currentMetric = entry.metricValue ?? Number.NEGATIVE_INFINITY;
+
+        if (currentLvl > bestLvl || (currentLvl === bestLvl && currentMetric > bestMetric)) {
+          bestLvl = currentLvl;
+          bestMetric = currentMetric;
+          bestEntry = entry;
+          bestAttributes = attributes;
+        }
+
+        if (attributes?.tooltip && attributes.tooltip.show) {
+          const { textAbove, textBelow } = attributes.tooltip;
+
+          tooltip.push({
+            id: id,
+            label: entry.label,
+            metric: formatMetricValue(entry.metricValue, attributes.valueMapping, entry.displayValue),
+            color: entry.color ?? '',
+            title: entry.title,
+            textAbove,
+            textBelow,
+          });
+        }
+      }
+    };
+
+    const { additional } = map;
+
+    if (additional && Array.isArray(additional)) {
+      for (const item of additional) {
+        const { attributes, selector, elemIndex, elemslength } = item;
+
+        if (!attributes.metrics) {
+          bestAttributes = attributes;
           continue;
         }
 
-        processRule(rule, elementsMap, extractedValueMap, configMap);
+        const extractedQueries = getMetricsData(attributes.metrics, extractedValueMap);
+        item.colorData = metricsFilter(extractedQueries, selector, elemIndex, elemslength, attributes.autoConfig);
+
+        getMaxMetricAndTooltips(item.colorData, attributes);
       }
-
-      getMaxMetric(configMap);
-      updateSvg(configMap);
-      createTooltipData(configMap, tooltipData);
-    }
-    return { svg: svg, tooltipData: tooltipData };
-  } finally {
-    cleanupResources(elementsMap, configMap);
-  }
-}
-
-function processRule(
-  rule: Change,
-  elementsMap: Map<string, SVGElement>,
-  extractedValueMap: any,
-  configMap: Map<string, DataMap>
-): void {
-  const config = rule.attributes;
-  const elements = getElementsByIdOrRegex(rule.id, elementsMap);
-
-  let metricsData: ColorDataEntry[] = [];
-  let elemsLength = elements.length;
-
-  if (config?.metrics) {
-    metricsData = getMetricsData(config.metrics, extractedValueMap);
-  }
-
-  elements.forEach((el, index) => {
-    const [id, schema, selector, svgElement] = el;
-    let colorData: ColorDataEntry[] = [];
-    let configToUse = config;
-
-    if (Array.isArray(config.label) && config.label[index]) {
-      configToUse.label = config.label[index];
     }
 
-    if (schema && schema.length > 0) {
-      const schemaConfig = applySchema(config, schema);
-
-      if (schemaConfig?.metrics) {
-        const schemaColorData = getMetricsData(schemaConfig.metrics, extractedValueMap);
-        colorData = addMetrics(schemaColorData, selector, elemsLength, index, schemaConfig.autoConfig);
-        configToUse = schemaConfig;
-      }
-    } else {
-      colorData = addMetrics(metricsData, selector, elemsLength, index, config?.autoConfig);
-    }
-
-    pushToMap(configMap, id, schema, svgElement, configToUse, colorData);
+    map.maxEntry = bestEntry;
+    map.attributes = bestAttributes;
   });
+
+  return tooltip;
 }
 
-function addMetrics(
+function metricsFilter(
   metricsData: ColorDataEntry[],
-  selector: string,
-  elemsLength: number,
+  selector: string | undefined,
   index: number,
+  elemsLength: number,
   autoConfig?: boolean
 ): ColorDataEntry[] {
   const metricsLength = metricsData.length;
@@ -118,9 +204,11 @@ function addMetrics(
     };
 
     const expanded = expand(selector);
+
     if (expanded.length > 0) {
-      const matchingEntries = metricsData.filter((entry) => expanded.some((i) => entry.object === i));
+      const matchingEntries = metricsData.filter((entry) => expanded.some((i) => entry.counter === i));
       colorData.push(...matchingEntries);
+
       return colorData;
     }
   }
@@ -147,122 +235,12 @@ function addMetrics(
   return colorData;
 }
 
-function pushToMap(
-  configMap: Map<string, DataMap>,
-  id: string,
-  schema: string,
-  svgElement: SVGElement,
-  settings: Change['attributes'],
-  colordata: ColorDataEntry[]
-) {
-  if (configMap.has(id)) {
-    const existingItem = configMap.get(id);
-    if (existingItem) {
-      existingItem.additional.push({
-        schema: schema,
-        attributes: settings,
-        colorData: colordata,
-      });
-    }
-  } else {
-    configMap.set(id, {
-      SVGElem: svgElement,
-      additional: [
-        {
-          schema: schema,
-          attributes: settings,
-          colorData: colordata,
-        },
-      ],
-    });
-  }
-}
-
-function getMaxMetric(items: Map<string, DataMap>) {
-  for (const [, item] of items) {
-    if (!item.additional?.length) {
-      item.maxEntry = undefined;
-      continue;
-    }
-
-    let bestEntry: ColorDataEntry | undefined;
-    let bestLvl = Number.NEGATIVE_INFINITY;
-    let bestMetric = Number.NEGATIVE_INFINITY;
-    let bestAttributes: Change['attributes'] | undefined = undefined;
-
-    for (const additional of item.additional) {
-      if (additional.colorData.length === 0) {
-        if (additional.attributes) {
-          bestAttributes = additional.attributes;
-        }
-        continue;
-      }
-
-      for (const entry of additional.colorData) {
-        const currentLvl = entry.lvl ?? Number.NEGATIVE_INFINITY;
-        const currentMetric = entry.metricValue ?? Number.NEGATIVE_INFINITY;
-
-        if (currentLvl > bestLvl || (currentLvl === bestLvl && currentMetric > bestMetric)) {
-          bestLvl = currentLvl;
-          bestMetric = currentMetric;
-          bestEntry = entry;
-          bestAttributes = additional.attributes;
-        }
-      }
-    }
-
-    item.attributes = bestAttributes;
-    item.maxEntry = bestEntry;
-  }
-}
-
-function createTooltipData(ConfigMap: Map<string, DataMap>, tooltipData: TooltipContent[]) {
-  for (const [id, item] of ConfigMap) {
-    for (const additional of item.additional ?? []) {
-      if (!additional.colorData || !additional.attributes?.tooltip) {
-        continue;
-      }
-
-      const { textAbove, textBelow } = additional.attributes.tooltip;
-
-      for (const entry of additional.colorData) {
-        tooltipData.push({
-          id,
-          label: entry.label,
-          color: entry.color ?? '',
-          metric: formatMetricValue(entry, additional.attributes.valueMapping),
-          title: entry.title ?? '',
-          textAbove,
-          textBelow,
-        });
-      }
-    }
-  }
-}
-
-function formatMetricValue(entry: ColorDataEntry, valueMapping?: ValueMapping[]): string {
-  if (entry.metricValue == null) {
-    return '';
-  }
-
-  if (valueMapping) {
-    const mappedValue = getMappingMatch(valueMapping, entry.metricValue);
-    if (mappedValue !== undefined) {
-      return mappedValue;
-    }
-  } else if (entry.unit) {
-    return formatValues(entry.metricValue, entry.unit);
-  }
-
-  return String(entry.metricValue);
-}
-
 function getElementsByIdOrRegex(
   id: string | string[],
   map: Map<string, SVGElement>
 ): Array<[string, string, string, SVGElement]> {
   const getElement = (currentId: string): Array<[string, string, string, SVGElement]> => {
-    const parsed = parseId(currentId);
+    const parsed = idParser(currentId);
     if (!parsed) {
       return [];
     }
@@ -288,7 +266,7 @@ function getElementsByIdOrRegex(
   return getElement(id);
 }
 
-function parseId(raw: string): [id: string, schema: string, selector: string] | null {
+function idParser(raw: string): [id: string, schema: string, selector: string] | null {
   const input = String(raw ?? '').trim();
   if (!input) {
     return null;
@@ -320,4 +298,21 @@ function parseId(raw: string): [id: string, schema: string, selector: string] | 
   }
 
   return [id, schema, selector];
+}
+
+function formatMetricValue(entry: number, valueMapping?: ValueMapping[], displayValue?: string): string {
+  if (entry == null) {
+    return '';
+  }
+
+  if (valueMapping) {
+    const mappedValue = getMappingMatch(valueMapping, entry);
+    if (mappedValue !== undefined) {
+      return mappedValue;
+    }
+  } else if (displayValue) {
+    return displayValue;
+  }
+
+  return String(entry);
 }
