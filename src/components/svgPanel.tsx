@@ -1,33 +1,41 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { PanelProps } from '@grafana/data';
-import { Tooltip } from './tooltip';
-import { extractValues } from './dataExtractor';
-import { svgModify } from './mainProcessor';
+import { Tooltip } from './tooltip/tooltip';
+import { extractFields } from './dataExtractor';
 import { parseYamlConfig } from './utils/helpers';
-import { PanelOptions, TooltipContent } from '../types';
-import { initSVG, svgToString } from './svgUpdater';
+import { initSVG, svgToString, updateSvg } from './svgUpdater';
+import { DataMap, PanelOptions, TooltipContent } from '../types';
+import { initializeConfig, calculateMetrics } from './mainProcessor';
 // import { getTemplateSrv } from '@grafana/runtime';
 
 interface Props extends PanelProps<PanelOptions> {}
 
-const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) => {
+const SvgPanel: React.FC<Props> = (props) => {
   const {
     svgCode,
     metricsMapping,
     svgAspectRatio,
     customRelativeTime: RelativeTime,
     fieldsCustomRelativeTime: fieldsRelativeTime,
-  } = options.jsonData;
+  } = props.options.jsonData;
+
+  const { data, timeRange, height, width } = props;
 
   const isActiveRef = useRef(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [svgString, setSvgString] = useState<string>('');
   const [tooltip, setTooltip] = useState<TooltipContent[]>([]);
+  const [configMap, setConfigMap] = useState<Map<string, DataMap>>(new Map());
 
   const { svgDoc, mappingArray } = useMemo(() => {
     const mappingArray = parseYamlConfig(metricsMapping);
     const svgDoc = initSVG(svgCode, svgAspectRatio);
+
+    if (svgDoc && mappingArray) {
+      setConfigMap(initializeConfig(svgDoc, mappingArray));
+    }
+
     return { svgDoc, mappingArray };
   }, [svgCode, svgAspectRatio, metricsMapping]);
 
@@ -46,14 +54,16 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
     }
 
     const processSvg = async () => {
-      const queriesData = await extractValues(data.series, RelativeTime, fieldsRelativeTime, timeRange);
+      const queriesData = await extractFields(data.series, RelativeTime, fieldsRelativeTime, timeRange);
 
-      if (queriesData && isActiveRef.current && svgDoc instanceof Document) {
-        const result = await svgModify(svgDoc, mappingArray, queriesData);
+      if (queriesData && isActiveRef.current) {
+        const result = await calculateMetrics(configMap, queriesData);
 
         if (result && isActiveRef.current) {
-          setSvgString(svgToString(result.svg));
-          setTooltip(result.tooltipData || []);
+          await updateSvg(configMap);
+
+          setSvgString(svgToString(svgDoc));
+          setTooltip(result || []);
         }
 
         if (typeof queriesData.clear === 'function') {
@@ -67,7 +77,7 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
       isActiveRef.current = false;
       setTooltip([]);
     };
-  }, [svgDoc, mappingArray, data.series, RelativeTime, fieldsRelativeTime, timeRange]);
+  }, [svgDoc, mappingArray, configMap, data.series, RelativeTime, fieldsRelativeTime, timeRange]);
 
   return (
     <div
@@ -87,7 +97,12 @@ const SvgPanel: React.FC<Props> = ({ options, data, width, height, timeRange }) 
           width: `${width}px`,
         }}
       />
-      <Tooltip containerRef={containerRef} tooltipData={tooltip} options={options.tooltip} timeRange={timeRange} />
+      <Tooltip
+        containerRef={containerRef}
+        tooltipData={tooltip}
+        options={props.options.tooltip}
+        timeRange={timeRange}
+      />
     </div>
   );
 };

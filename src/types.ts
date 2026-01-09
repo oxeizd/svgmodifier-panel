@@ -22,14 +22,33 @@ export interface Change {
     tooltip?: Tooltip;
     label?: string;
     labelColor?: string;
+    styles?: Styles;
     valueMapping?: ValueMapping[];
     metrics?: Metric | Metric[];
   };
 }
 
+export interface Styles {
+  stroke?: {
+    color?: string;
+    width?: number | string;
+    thresholds?: Threshold[];
+  };
+  fill?: {
+    color?: string;
+    opacity?: number;
+    thresholds?: Threshold[];
+  };
+  text?: {
+    value?: string;
+    size?: number | string;
+    color?: string;
+    thresholds?: Threshold[];
+  };
+}
+
 export interface Metric {
   queries?: QueryType[];
-  displayText?: string;
   filling?: string;
   baseColor?: string;
   thresholds?: Threshold[];
@@ -50,6 +69,7 @@ export interface BaseRef {
 
 export interface Tooltip {
   show: boolean;
+  mode?: 'deafult' | 'table';
   textAbove?: string;
   textBelow?: string;
 }
@@ -73,29 +93,32 @@ export interface TooltipContent {
   label: string;
   metric: string;
   color: string;
+  mode?: 'deafult' | 'table';
   title?: string;
   textAbove?: string;
   textBelow?: string;
 }
 
 export interface ColorDataEntry {
-  object: number;
+  counter: number;
   label: string;
   color: string | undefined;
   lvl: number;
   metricValue: number;
+  displayValue?: string;
   filling?: string | undefined;
-  unit?: string | undefined;
   title?: string | undefined;
 }
 
 export type DataMap = {
   SVGElem: SVGElement | null;
   additional: Array<{
-    schema: string;
+    selector: string | undefined;
+    elemIndex: number;
+    elemslength: number;
     attributes: Change['attributes'];
-    colorData: ColorDataEntry[];
+    colorData?: ColorDataEntry[] | undefined;
   }>;
   attributes?: Change['attributes'] | undefined;
-  maxEntry?: ColorDataEntry;
+  maxEntry?: ColorDataEntry | undefined;
 };
