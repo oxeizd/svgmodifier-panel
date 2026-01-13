@@ -10,16 +10,20 @@ export async function extractFields(dataFrame: DataFrame[], customRT: string, fi
     const frame: DataFrame = dataFrame[i];
     const refId = frame.refId;
 
-    const timeFields = frame.fields.find((field) => field.type === FieldType.time);
-    const metricValueFields = frame.fields.find((field) => field.type === FieldType.number);
+    const timeField = frame.fields.find((field) => field.type === FieldType.time);
+    const valueField = frame.fields.find((field) => field.type === FieldType.number);
 
-    if (!metricValueFields?.values?.length || !timeFields?.values?.length || !refId) {
+    if (!valueField?.values?.length || !refId) {
       continue;
     }
 
     let timeToUse: string | undefined;
-    let values = metricValueFields.values.map(String);
-    let timestamps = timeFields.values.map(Number);
+    let values = valueField.values.map(String);
+    let timestamps: number[] = []
+
+    if (timeField && timeField?.values?.length) {
+      timestamps = timeField.values.map(Number);
+    }
 
     if (fieldTimeSettings.has(refId)) {
       timeToUse = fieldTimeSettings.get(refId);
@@ -33,12 +37,12 @@ export async function extractFields(dataFrame: DataFrame[], customRT: string, fi
       values = result.values;
     }
 
-    if (timestamps.length === 0 || values.length === 0) {
+    if (values.length === 0) {
       continue;
     }
 
     // Получаем имя на основе меток или названия поля
-    const displayName = resolveDisplayName(metricValueFields);
+    const displayName = resolveDisplayName(valueField);
 
     // Инициализируем хранилище для refId
     if (!valueMap.has(refId)) {
