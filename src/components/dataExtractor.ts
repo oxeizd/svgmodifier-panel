@@ -19,7 +19,7 @@ export async function extractFields(dataFrame: DataFrame[], customRT: string, fi
 
     let timeToUse: string | undefined;
     let values = valueField.values.map(String);
-    let timestamps: number[] = []
+    let timestamps: number[] = [];
 
     if (timeField && timeField?.values?.length) {
       timestamps = timeField.values.map(Number);
