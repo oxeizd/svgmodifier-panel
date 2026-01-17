@@ -1,4 +1,4 @@
-import { getElementColor, getLabelColor, getLabelText } from './utils/updateSvgUtils';
+import { getElementColor, getLabel, getLabelColor } from './utils/updateSvgUtils';
 import { DataMap } from 'types';
 
 export function initSVG(svg: string, svgAspectRatio?: string): Document | null {
@@ -6,7 +6,11 @@ export function initSVG(svg: string, svgAspectRatio?: string): Document | null {
     return null;
   }
 
-  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  const cleanSVG = svg
+    .replace(/\s+content="[^"]*"/g, '') // 1. Убираем content="..."
+    .replace(/(<\/svg>)[\s\S]*/i, '$1'); // 2. Убираем всё после </svg>
+
+  const doc = new DOMParser().parseFromString(cleanSVG, 'image/svg+xml');
   const svgDoc = doc.documentElement;
 
   svgDoc.setAttribute('width', '100%');
@@ -24,30 +28,32 @@ export function svgToString(svg: Document): string {
   return serializer.serializeToString(svg);
 }
 
-export async function updateSvg(elMap: Map<string, DataMap>): Promise<void> {
+export async function updateSvg(configMap: Map<string, DataMap>): Promise<void> {
   const operations: Array<() => void> = [];
 
-  for (const [_, el] of elMap.entries()) {
-    const svgElement = el.SVGElem;
+  for (const element of configMap.values()) {
+    const svgElement = element.SVGElem;
 
     if (!svgElement) {
       continue;
     }
 
-    const link = el.attributes?.link;
-    const label = el.attributes?.label;
-    const labelColor = el.attributes?.labelColor;
-    const valueMapping = el.attributes?.valueMapping;
-    const maxEntry = el.maxEntry;
+    const vizData = element.maxEntry;
+    const attributes = element.attributes;
+
+    const hasLink = attributes ? 'link' in attributes : false;
+    const hasLabel = attributes ? 'label' in attributes : false;
+    const hasLabelColor = attributes ? 'labelColor' in attributes : false;
+
+    const label = getLabel(vizData, attributes?.label);
+    const labelColor = getLabelColor(attributes?.labelColor, vizData?.color);
+    const elementColors = getElementColor(vizData?.color, vizData?.filling);
+
+    console.log(attributes, 'haslabel:', hasLabel, 'hasLabelColor', hasLabelColor);
 
     operations.push(() => {
-      addLinkToElement(svgElement, link?.toString());
-
-      const text = getLabelText(label, maxEntry?.label, maxEntry?.metricValue, maxEntry?.displayValue, valueMapping);
-      const textColor = getLabelColor(labelColor, maxEntry?.color);
-      const elColor = getElementColor(maxEntry?.color, maxEntry?.filling);
-
-      updateSvgElementRecursive(svgElement, text, textColor, elColor);
+      hasLink && addLinkToElement(svgElement, attributes?.link?.toString());
+      updateSvgElementRecursive(svgElement, [hasLabel, label], [hasLabelColor, labelColor], elementColors);
     });
   }
 
@@ -64,8 +70,8 @@ export async function updateSvg(elMap: Map<string, DataMap>): Promise<void> {
 
 function updateSvgElementRecursive(
   element: Element,
-  text?: string,
-  textColor?: string,
+  label: [boolean, string | undefined],
+  labelColor: [boolean, string | undefined],
   elColor?: ReturnType<typeof getElementColor>
 ): void {
   const hasChildren = element.children.length > 0;
@@ -76,43 +82,26 @@ function updateSvgElementRecursive(
     }
   }
 
-  if (textColor) {
-    if (element instanceof SVGTextElement) {
-      element.setAttribute('fill', textColor);
-      element.removeAttribute('stroke');
-    } else if (element instanceof HTMLElement) {
-      element.style.color = textColor;
-    }
-  }
+  if (element instanceof SVGTextElement || element instanceof HTMLElement) {
+    const [hasLabelColor, color] = labelColor;
+    hasLabelColor && applyColorToText(element, color);
 
-  if (text) {
-    if (element instanceof SVGTextElement || element instanceof HTMLElement) {
-      for (let i = 0; i < element.childNodes.length; i++) {
-        const child = element.childNodes[i];
-        if (child.nodeType === Node.TEXT_NODE) {
-          child.textContent = text;
-          break;
-        }
-      }
-    }
+    const [hasLabel, text] = label;
+    hasLabel && applyTextForTextElement(element, text);
   }
 
   if (hasChildren) {
     for (const child of element.children) {
-      updateSvgElementRecursive(child, text, textColor, elColor);
+      updateSvgElementRecursive(child, label, labelColor, elColor);
     }
   }
 }
 
 function applyColorToElement(element: SVGElement, [fill, stroke, opacity]: ReturnType<typeof getElementColor>): void {
-  if (element instanceof SVGTextElement) {
-    return;
-  }
-
   if (!element.hasAttribute('data-original-fill')) {
     element.setAttribute('data-original-fill', element.getAttribute('fill') || '');
     element.setAttribute('data-original-stroke', element.getAttribute('stroke') || '');
-    element.setAttribute('data-original-fill-opacity', element.getAttribute('fill-opacity') || '');
+    element.setAttribute('data-original-fill-opacity', element.getAttribute('fill-opacity') || 'false');
   }
 
   const hasFill = fill && fill !== '';
@@ -124,28 +113,71 @@ function applyColorToElement(element: SVGElement, [fill, stroke, opacity]: Retur
     const origStroke = element.getAttribute('data-original-stroke');
     const origOpacity = element.getAttribute('data-original-fill-opacity');
 
-    if (origFill !== null) {
-      element.setAttribute('fill', origFill);
-    }
-    if (origStroke !== null) {
-      element.setAttribute('stroke', origStroke);
-    }
-    if (origOpacity !== null) {
-      element.setAttribute('fill-opacity', origOpacity);
-    }
-  } else {
-    element.removeAttribute('style');
+    origFill && element.setAttribute('fill', origFill);
+    origStroke && element.setAttribute('stroke', origStroke);
+    origOpacity && element.setAttribute('fill-opacity', origOpacity);
+    return;
+  }
 
-    if (hasFill) {
-      element.setAttribute('fill', fill);
+  element.removeAttribute('style');
+
+  hasFill && element.setAttribute('fill', fill);
+  hasStroke && element.setAttribute('stroke', stroke);
+  hasOpacity && element.setAttribute('fill-opacity', opacity);
+}
+
+function applyColorToText(element: Element, color: string | undefined) {
+  const handleSvg = (element: SVGTextElement) => {
+    if (!element.hasAttribute('data-original-textColor')) {
+      element.setAttribute('data-original-textColor', element.getAttribute('fill') || '');
     }
 
-    if (hasStroke) {
-      element.setAttribute('stroke', stroke);
+    if (!color) {
+      const origFill = element.getAttribute('data-original-textColor');
+      origFill && element.setAttribute('fill', origFill);
+      return;
     }
 
-    if (hasOpacity) {
-      element.setAttribute('fill-opacity', opacity);
+    color && element.setAttribute('fill', color);
+  };
+
+  const handleHtml = (element: HTMLElement) => {
+    if (!element.hasAttribute('data-original-textColor')) {
+      element.setAttribute('data-original-textColor', element.style.color || '');
+    }
+
+    if (!color) {
+      const origFill = element.getAttribute('data-original-textColor');
+      origFill && (element.style.color = origFill);
+      return;
+    }
+
+    color && (element.style.color = color);
+  };
+
+  if (element instanceof SVGTextElement) {
+    handleSvg(element);
+  } else if (element instanceof HTMLElement) {
+    handleHtml(element);
+  }
+}
+
+function applyTextForTextElement(element: Element, text: string | undefined) {
+  for (let i = 0; i < element.childNodes.length; i++) {
+    const child = element.childNodes[i];
+    if (child.nodeType === Node.TEXT_NODE) {
+      if (!element.hasAttribute('data-original-text')) {
+        element.setAttribute('data-original-text', child.textContent || '');
+      }
+
+      if (!text) {
+        const origText = element.getAttribute('data-original-text');
+        child.textContent = origText;
+        break;
+      }
+
+      child.textContent = text;
+      break;
     }
   }
 }

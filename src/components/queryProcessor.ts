@@ -1,53 +1,81 @@
-import { compareValues, matchPattern, RegexCheck } from './utils/helpers';
-import { Metric, BaseRef, Threshold, ColorDataEntry, QueryType } from '../types';
+import { DataFrameMap } from './dataExtractor';
 import { formatValues } from './utils/ValueTransformer';
+import { compareValues, getMappingMatch, matchPattern } from './utils/helpers';
+import { Metric, BaseRef, Threshold, VizData, QueryType, ValueMapping, CalculationMethod } from '../types';
 
-type MetricsDataMap = Map<string, { values: Map<string, { values: string[]; timestamps: number[] }> }>;
-type QueriesArray = Array<{ displayName: string; value: number; globalKey?: string }>;
-type CalculationMethod = 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
+type QueriesArray = Array<{ legend: string; value: number; globalKey?: string }>;
 
-export function getMetricsData(metrics: Metric | Metric[], ValuesMap: MetricsDataMap): ColorDataEntry[] {
-  const metricsArray = Array.isArray(metrics) ? metrics : [metrics];
-  const colorData: ColorDataEntry[] = [];
+const defaultConfig = {
+  filter: undefined,
+  sum: undefined,
+  label: undefined,
+  unit: undefined,
+  title: undefined,
+  decimal: 2,
+  filling: 'fill' as const,
+  baseColor: undefined,
+  calculation: 'last' as const,
+  thresholds: undefined,
+};
+
+export function getMetricsData(metrics: Metric[], dataFrame: DataFrameMap, mapping?: ValueMapping[]): VizData[] {
+  if (!dataFrame?.size || !metrics?.length) {
+    return [];
+  }
+
+  const VizData: VizData[] = [];
 
   let counter = 1;
-
-  for (const metric of metricsArray) {
+  for (const metric of metrics) {
     const processedMetric = processLegacyMetric(metric);
 
     processedMetric.queries?.forEach((query) => {
-      const queries = queryProccessor(query, ValuesMap);
+      const config = getConfig(query, metric);
+      const queries = queryProccessor(query, dataFrame, config);
 
-      addDataArray(queries, query, metric, ValuesMap, colorData, counter++);
+      addDataEntries(queries, config, dataFrame, VizData, counter++, mapping);
     });
   }
 
-  return colorData;
+  return VizData;
 }
 
-function queryProccessor(query: QueryType, ValuesMap: MetricsDataMap): QueriesArray {
+function getConfig(queryConfig: BaseRef, metricConfig: Metric) {
+  return Object.fromEntries(
+    Object.entries(defaultConfig).map(([key, defaultValue]) => {
+      const typedKey = key as keyof typeof defaultConfig;
+
+      const fromquery = queryConfig[typedKey];
+      const fromMetric = typedKey in metricConfig ? (metricConfig as Record<string, any>)[typedKey] : undefined;
+
+      return [key, fromquery ?? fromMetric ?? defaultValue];
+    })
+  ) as { [K in keyof typeof defaultConfig]: (typeof defaultConfig)[K] };
+}
+
+function queryProccessor(query: QueryType, dataFrame: DataFrameMap, config: typeof defaultConfig): QueriesArray {
   const queries: QueriesArray = [];
 
-  const processRefid = (query: QueryType) => {
-    const extractedData = ValuesMap.get(query.refid!);
+  const processRefid = (ref: string) => {
+    const extractedData = dataFrame.get(ref);
 
     if (!extractedData) {
       return;
     }
 
     for (const [innerKey, values] of extractedData.values) {
-      const value = calculateValue(values.values.map(Number), query.calculation || 'last');
-      queries.push({ displayName: innerKey, value });
+      const value = calculateValue(values.values.map(Number), config.calculation);
+      queries.push({ legend: innerKey, value });
     }
   };
 
-  const processLegend = (query: QueryType) => {
-    for (const [globalKey, metricData] of ValuesMap) {
+  const processLegend = (legend: string) => {
+    for (const [globalKey, metricData] of dataFrame) {
       for (const [innerKey, values] of metricData.values) {
-        if (matchPattern(query.legend!, innerKey)) {
+        if (matchPattern(legend, innerKey)) {
           queries.push({
-            displayName: innerKey,
-            value: calculateValue(values.values.map(Number), query.calculation || 'last'),
+            legend: innerKey,
+            value: calculateValue(values.values.map(Number), config.calculation),
             globalKey,
           });
         }
@@ -56,58 +84,59 @@ function queryProccessor(query: QueryType, ValuesMap: MetricsDataMap): QueriesAr
   };
 
   if (query.refid) {
-    processRefid(query);
+    processRefid(query.refid);
   } else if (query.legend) {
-    processLegend(query);
+    processLegend(query.legend);
   }
 
-  return filterData(queries, query.filter);
+  return filterData(queries, config.filter);
 }
 
-function addDataArray(
-  queryResultArray: QueriesArray,
-  queryParams: BaseRef,
-  globalParams: Metric,
-  ValuesMap: MetricsDataMap,
-  colorData: ColorDataEntry[],
-  counter: number
+function addDataEntries(
+  queries: QueriesArray,
+  config: typeof defaultConfig,
+  dataFrame: DataFrameMap,
+  vizData: VizData[],
+  counter: number,
+  mapping?: ValueMapping[]
 ): void {
-  const thresholdsToUse = getThresholds(queryParams, globalParams);
-  const { filling, decimal, baseColor } = globalParams;
-  const { unit, sum, title } = queryParams;
+  const addData = (value: number, title: string, label: string) => {
+    let displayValue = formatValues(value, config.unit, config.decimal);
 
-  let sumValue: number | undefined;
-  let metricTitle = getTitle(title, 0);
+    if (mapping) {
+      displayValue = getMappingMatch(mapping, value, config.decimal) ?? displayValue;
+    }
 
-  const addToArray = (value: number, title: string, label: string) => {
-    const { color, lvl } = getMetricColor(value, ValuesMap, thresholdsToUse, baseColor);
-    const displayValue = formatValues(value, unit, decimal);
+    const { color, lvl } = getMetricColor(value, dataFrame, config.thresholds, config.baseColor);
 
-    colorData.push({
+    vizData.push({
       counter,
       label,
       color,
       lvl,
       metricValue: value,
       displayValue,
-      filling,
+      filling: config.filling,
       title,
     });
   };
 
-  if (sum) {
-    sumValue = getSum(queryResultArray);
-    const label = queryParams.label || queryParams.sum || '';
+  if (config.sum) {
+    const value = getSum(queries);
+    const title = getTitle(config.title, 0);
+    const label = getLabel(config.sum, config.label) || '';
 
-    addToArray(sumValue, metricTitle, label);
-  } else {
-    queryResultArray.forEach((fquery, index) => {
-      const label = getLabel(fquery.displayName, queryParams.label) || '';
-      metricTitle = getTitle(queryParams.title, index);
-
-      addToArray(fquery.value, metricTitle, label);
-    });
+    addData(value, title, label);
+    return;
   }
+
+  queries.forEach((query, index) => {
+    const value = query.value;
+    const title = getTitle(config.title, index);
+    const label = getLabel(query.legend, config.label) || '';
+
+    addData(value, title, label);
+  });
 }
 
 function getLabel(displayName: string, label?: string): string {
@@ -115,15 +144,7 @@ function getLabel(displayName: string, label?: string): string {
     label = displayName;
   }
 
-  label = label.replace(/_prfx\d+/g, '');
-
-  if (!RegexCheck(label)) {
-    return label;
-  }
-
-  label = label.replace(/\{legend\}(.*)/, (_, afterLegend) => {
-    return `${displayName} ${afterLegend.trim()}`;
-  });
+  label = label.replace(/_prfx\d+/g, '').replace(/\{{legend\}}/g, displayName);
 
   return label;
 }
@@ -134,10 +155,6 @@ function getTitle(query: BaseRef['title'], counter: number): string {
 
 function getSum(data: QueriesArray): number {
   return data.reduce((acc, item) => acc + item.value, 0);
-}
-
-function getThresholds(config: BaseRef, metric: Metric): Threshold[] | undefined {
-  return 'thresholds' in config && config.thresholds?.length ? config.thresholds : metric.thresholds;
 }
 
 function filterData(data: QueriesArray, filter?: string): QueriesArray {
@@ -198,7 +215,7 @@ function filterData(data: QueriesArray, filter?: string): QueriesArray {
 
   return data.filter((item) => {
     for (const excludeGroup of excludeGroups) {
-      const shouldExclude = excludeGroup.some((condition) => matchesCondition(condition, item.displayName));
+      const shouldExclude = excludeGroup.some((condition) => matchesCondition(condition, item.legend));
       if (shouldExclude) {
         return false;
       }
@@ -206,7 +223,7 @@ function filterData(data: QueriesArray, filter?: string): QueriesArray {
 
     if (includeGroups.length > 0) {
       const shouldInclude = includeGroups.some((group) =>
-        group.some((condition) => matchesCondition(condition, item.displayName))
+        group.some((condition) => matchesCondition(condition, item.legend))
       );
       return shouldInclude;
     }
@@ -247,17 +264,18 @@ function calculateValue(values: number[], method: CalculationMethod): number {
   return result;
 }
 
-function getMetricColor(value: number, ValueMap: MetricsDataMap, thresholds?: Threshold[], baseColor?: string) {
+function getMetricColor(value: number, dataFrame: DataFrameMap, thresholds?: Threshold[], baseColor?: string) {
   let color = baseColor || undefined;
   let lvl = 1;
 
   thresholds?.forEach((t, index) => {
-    if (t.condition && !evaluateThresholdCondition(t.condition, ValueMap)) {
+    if (t.condition && !evaluateThresholdCondition(t.condition, dataFrame)) {
       return;
     }
 
     const operator = t.operator || '>=';
     const compareResult = compareValues(value, t.value, operator);
+
     if (compareResult) {
       color = t.color;
       lvl = t.lvl || index + 1;
@@ -271,8 +289,9 @@ function getMetricColor(value: number, ValueMap: MetricsDataMap, thresholds?: Th
   return { color, lvl };
 }
 
-function evaluateThresholdCondition(condition: string, ValueMap: MetricsDataMap): boolean {
+function evaluateThresholdCondition(condition: string, dataFrame: DataFrameMap): boolean {
   let result = false;
+
   try {
     const now = new Date();
     const timezone = parseInt(condition.match(/timezone\s*=\s*(-?\d+)/)?.[1] || '3', 10);
@@ -287,7 +306,7 @@ function evaluateThresholdCondition(condition: string, ValueMap: MetricsDataMap)
       (_match: string, refId: string, subKey: string, calculationMethod: CalculationMethod = 'last') => {
         if (refId !== undefined) {
           refId = refId.trim();
-          const metricData = ValueMap.get(refId);
+          const metricData = dataFrame.get(refId);
           if (metricData) {
             let value = 0;
             if (subKey !== undefined) {

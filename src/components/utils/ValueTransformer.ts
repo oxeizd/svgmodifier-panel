@@ -24,7 +24,7 @@ export function formatValues(value: number, unit?: string, decimals?: DecimalCou
     }
   }
 
-  const decimalPlaces = 2;
+  const decimalPlaces = decimals ?? 2;
   const roundedValue = roundToFixed(formattedValue, decimalPlaces);
   return `${roundedValue}`;
 }

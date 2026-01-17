@@ -32,9 +32,7 @@ const SvgPanel: React.FC<Props> = (props) => {
     const mappingArray = parseYamlConfig(metricsMapping);
     const svgDoc = initSVG(svgCode, svgAspectRatio);
 
-    if (svgDoc && mappingArray) {
-      setConfigMap(initializeConfig(svgDoc, mappingArray));
-    }
+    setConfigMap(svgDoc && mappingArray ? initializeConfig(svgDoc, mappingArray) : new Map());
 
     return { svgDoc, mappingArray };
   }, [svgCode, svgAspectRatio, metricsMapping]);
@@ -56,7 +54,7 @@ const SvgPanel: React.FC<Props> = (props) => {
     const processSvg = async () => {
       const queriesData = await extractFields(data.series, RelativeTime, fieldsRelativeTime, timeRange);
 
-      if (queriesData && isActiveRef.current) {
+      if (isActiveRef.current) {
         const result = await calculateMetrics(configMap, queriesData);
 
         if (result && isActiveRef.current) {

@@ -1,6 +1,7 @@
-import { Change, ColorDataEntry, DataMap, TooltipContent, ValueMapping } from 'types';
-import { applySchema, getMappingMatch, RegexCheck } from './utils/helpers';
+import { Change, VizData, DataMap, TooltipContent } from 'types';
+import { applySchema, RegexCheck } from './utils/helpers';
 import { getMetricsData } from './queryProcessor';
+import { DataFrameMap } from './dataExtractor';
 
 export function initializeConfig(svg: Document, changes: Change[]) {
   const elementsMap = new Map<string, SVGElement>();
@@ -48,7 +49,7 @@ function prepareConfig(changes: Change[], elementsMap: Map<string, SVGElement>, 
       if (!selector) {
         currentIndex++;
       } else {
-        elemsLength = elemsLength--;
+        elemsLength = elemsLength - 1;
       }
     });
   };
@@ -58,36 +59,21 @@ function prepareConfig(changes: Change[], elementsMap: Map<string, SVGElement>, 
     element: SVGElement,
     attributes: Change['attributes'],
     selector: string,
-    index: number,
-    length: number
+    elemIndex: number,
+    elemsLength: number
   ) => {
-    if (configMap.has(id)) {
-      const existingItem = configMap.get(id);
-      if (existingItem) {
-        existingItem.additional.push({
-          attributes: attributes,
-          selector: selector,
-          elemIndex: index,
-          elemslength: length,
-        });
-      }
+    const additional = { attributes, selector, elemIndex, elemsLength };
+    const item = configMap.get(id);
+
+    if (item) {
+      item.additional.push(additional);
     } else {
-      configMap.set(id, {
-        SVGElem: element,
-        additional: [
-          {
-            attributes: attributes,
-            selector: selector,
-            elemIndex: index,
-            elemslength: length,
-          },
-        ],
-      });
+      configMap.set(id, { SVGElem: element, additional: [additional] });
     }
   };
 
   for (const rule of changes) {
-    if (!rule.id && !rule.attributes) {
+    if (!rule.id || !rule.attributes) {
       continue;
     }
 
@@ -95,21 +81,22 @@ function prepareConfig(changes: Change[], elementsMap: Map<string, SVGElement>, 
   }
 }
 
-export async function calculateMetrics(configMap: Map<string, DataMap>, extractedValueMap: any) {
+export async function calculateMetrics(configMap: Map<string, DataMap>, dataFrame: DataFrameMap) {
   const tooltip: TooltipContent[] = [];
 
   configMap.forEach((map, id) => {
-    let bestEntry: ColorDataEntry | undefined;
+    let bestEntry: VizData | undefined;
     let bestLvl = Number.NEGATIVE_INFINITY;
     let bestMetric = Number.NEGATIVE_INFINITY;
     let bestAttributes: Change['attributes'] | undefined = undefined;
 
-    const getMaxMetricAndTooltips = (colorData: ColorDataEntry[], attributes: typeof bestAttributes) => {
-      if (!colorData) {
+    const getMaxMetricAndTooltips = (vizData: VizData[], attributes: typeof bestAttributes) => {
+      if (!vizData || !vizData.length) {
+        bestAttributes = attributes;
         return;
       }
 
-      for (const entry of colorData) {
+      for (const entry of vizData) {
         const currentLvl = entry.lvl ?? Number.NEGATIVE_INFINITY;
         const currentMetric = entry.metricValue ?? Number.NEGATIVE_INFINITY;
 
@@ -126,7 +113,7 @@ export async function calculateMetrics(configMap: Map<string, DataMap>, extracte
           tooltip.push({
             id: id,
             label: entry.label,
-            metric: formatMetricValue(entry.metricValue, attributes.valueMapping, entry.displayValue),
+            metric: entry.displayValue || '',
             color: entry.color ?? '',
             title: entry.title,
             textAbove,
@@ -140,17 +127,17 @@ export async function calculateMetrics(configMap: Map<string, DataMap>, extracte
 
     if (additional && Array.isArray(additional)) {
       for (const item of additional) {
-        const { attributes, selector, elemIndex, elemslength } = item;
+        const { attributes, selector, elemIndex, elemsLength } = item;
 
         if (!attributes.metrics) {
           bestAttributes = attributes;
           continue;
         }
 
-        const extractedQueries = getMetricsData(attributes.metrics, extractedValueMap);
-        item.colorData = metricsFilter(extractedQueries, selector, elemIndex, elemslength, attributes.autoConfig);
+        const extractedQueries = getMetricsData(attributes.metrics, dataFrame, attributes.valueMapping);
+        item.vizData = metricsFilter(extractedQueries, selector, elemIndex, elemsLength, attributes.autoConfig);
 
-        getMaxMetricAndTooltips(item.colorData, attributes);
+        getMaxMetricAndTooltips(item.vizData, attributes);
       }
     }
 
@@ -162,18 +149,18 @@ export async function calculateMetrics(configMap: Map<string, DataMap>, extracte
 }
 
 function metricsFilter(
-  metricsData: ColorDataEntry[],
+  metricsData: VizData[],
   selector: string | undefined,
   index: number,
   elemsLength: number,
   autoConfig?: boolean
-): ColorDataEntry[] {
+): VizData[] {
   const metricsLength = metricsData.length;
   if (metricsLength === 0) {
     return metricsData;
   }
 
-  const colorData: ColorDataEntry[] = [];
+  const vizData: VizData[] = [];
 
   if (selector && typeof selector === 'string') {
     const expand = (s: string) => {
@@ -207,32 +194,32 @@ function metricsFilter(
 
     if (expanded.length > 0) {
       const matchingEntries = metricsData.filter((entry) => expanded.some((i) => entry.counter === i));
-      colorData.push(...matchingEntries);
+      vizData.push(...matchingEntries);
 
-      return colorData;
+      return vizData;
     }
   }
 
   if (autoConfig === true) {
     if (metricsLength === elemsLength) {
-      colorData.push(metricsData[index]);
+      vizData.push(metricsData[index]);
     } else if (metricsLength < elemsLength) {
       if (index < metricsLength) {
-        colorData.push(metricsData[index]);
+        vizData.push(metricsData[index]);
       }
     } else {
       const lastIndex = elemsLength - 1;
       if (index < lastIndex) {
-        colorData.push(metricsData[index]);
+        vizData.push(metricsData[index]);
       } else {
-        colorData.push(...metricsData.slice(lastIndex));
+        vizData.push(...metricsData.slice(lastIndex));
       }
     }
-    return colorData;
+    return vizData;
   }
 
-  colorData.push(...metricsData);
-  return colorData;
+  vizData.push(...metricsData);
+  return vizData;
 }
 
 function getElementsByIdOrRegex(
@@ -298,21 +285,4 @@ function idParser(raw: string): [id: string, schema: string, selector: string] |
   }
 
   return [id, schema, selector];
-}
-
-function formatMetricValue(entry: number, valueMapping?: ValueMapping[], displayValue?: string): string {
-  if (entry == null) {
-    return '';
-  }
-
-  if (valueMapping) {
-    const mappedValue = getMappingMatch(valueMapping, entry);
-    if (mappedValue !== undefined) {
-      return mappedValue;
-    }
-  } else if (displayValue) {
-    return displayValue;
-  }
-
-  return String(entry);
 }
