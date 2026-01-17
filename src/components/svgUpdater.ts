@@ -49,8 +49,6 @@ export async function updateSvg(configMap: Map<string, DataMap>): Promise<void> 
     const labelColor = getLabelColor(attributes?.labelColor, vizData?.color);
     const elementColors = getElementColor(vizData?.color, vizData?.filling);
 
-    console.log(attributes, 'haslabel:', hasLabel, 'hasLabelColor', hasLabelColor);
-
     operations.push(() => {
       hasLink && addLinkToElement(svgElement, attributes?.link?.toString());
       updateSvgElementRecursive(svgElement, [hasLabel, label], [hasLabelColor, labelColor], elementColors);
