@@ -24,7 +24,7 @@ export interface Change {
     labelColor?: string;
     styles?: Styles;
     valueMapping?: ValueMapping[];
-    metrics?: Metric | Metric[];
+    metrics?: Metric[];
   };
 }
 
@@ -47,29 +47,42 @@ export interface Styles {
   };
 }
 
-export interface Metric {
-  queries?: QueryType[];
+export interface BaseSettings {
+  calculation?: 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
+  label?: string;
+  unit?: string;
+  title?: string;
+  decimal?: number;
   filling?: string;
   baseColor?: string;
   thresholds?: Threshold[];
-  decimal?: number;
+}
+
+export interface Metric extends BaseSettings {
+  queries?: QueryType[];
 }
 
 export type QueryType = ({ legend: string; refid?: never } & BaseRef) | ({ refid: string; legend?: never } & BaseRef);
 
-export interface BaseRef {
+export interface BaseRef extends BaseSettings {
   filter?: string;
-  calculation?: 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
-  label?: string;
   sum?: string;
-  unit?: string;
-  title?: string;
-  thresholds?: Threshold[];
 }
 
 export interface Tooltip {
   show: boolean;
   mode?: 'deafult' | 'table';
+  textAbove?: string;
+  textBelow?: string;
+}
+
+export interface TooltipContent {
+  id: string;
+  label: string;
+  metric: string;
+  color: string;
+  mode?: 'deafult' | 'table';
+  title?: string;
   textAbove?: string;
   textBelow?: string;
 }
@@ -88,18 +101,7 @@ export interface Threshold {
   condition?: string;
 }
 
-export interface TooltipContent {
-  id: string;
-  label: string;
-  metric: string;
-  color: string;
-  mode?: 'deafult' | 'table';
-  title?: string;
-  textAbove?: string;
-  textBelow?: string;
-}
-
-export interface ColorDataEntry {
+export interface VizData {
   counter: number;
   label: string;
   color: string | undefined;
@@ -110,15 +112,17 @@ export interface ColorDataEntry {
   title?: string | undefined;
 }
 
-export type DataMap = {
+export interface DataMap {
   SVGElem: SVGElement | null;
   additional: Array<{
     selector: string | undefined;
     elemIndex: number;
-    elemslength: number;
+    elemsLength: number;
     attributes: Change['attributes'];
-    colorData?: ColorDataEntry[] | undefined;
+    vizData?: VizData[] | undefined;
   }>;
   attributes?: Change['attributes'] | undefined;
-  maxEntry?: ColorDataEntry | undefined;
-};
+  maxEntry?: VizData | undefined;
+}
+
+export type CalculationMethod = 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';

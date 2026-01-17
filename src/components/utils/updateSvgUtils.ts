@@ -1,47 +1,29 @@
-import { ValueMapping } from 'types';
-import { getMappingMatch } from './helpers';
+import { VizData } from 'types';
 
-export function getLabelText(
-  label: string | undefined,
-  metricLabel?: string,
-  metricValue?: number,
-  displayValue?: string,
-  mappings?: ValueMapping[]
-): string | undefined {
+export function getLabel(vizData: VizData | undefined, label: string | undefined): string | undefined {
   if (!label) {
     return undefined;
   }
 
-  let display: string | undefined;
-  let content;
-
-  if (mappings && metricValue !== undefined) {
-    display = getMappingMatch(mappings, metricValue);
-  } else if (metricValue !== undefined) {
-    display = displayValue;
-  } else {
-    display = '';
+  if (!vizData) {
+    return label;
   }
+
+  const legend = vizData.label.toString();
+  const displayValue = vizData.displayValue?.toString() ?? vizData.metricValue.toString();
 
   switch (label) {
-    case 'replace':
-      content = display ?? '';
-      break;
     case 'legend':
-      content = metricLabel || '';
-      break;
+      return legend;
+    case 'replace':
+      return displayValue;
     case 'colon':
-      content = metricLabel ? `${metricLabel}: ${display}` : display;
-      break;
+      return `${legend}: ${displayValue}`;
     case 'space':
-      content = metricLabel ? `${metricLabel} ${display}` : display;
-      break;
+      return `${legend} ${displayValue}`;
     default:
-      content = label;
-      break;
+      return label;
   }
-
-  return content;
 }
 
 export function getLabelColor(colorSetting: string | undefined, elementColor?: string): string | undefined {
@@ -50,10 +32,6 @@ export function getLabelColor(colorSetting: string | undefined, elementColor?: s
   }
 
   const color = colorSetting === 'metric' ? elementColor : colorSetting;
-
-  if (!color) {
-    return '';
-  }
 
   return color;
 }
@@ -66,34 +44,23 @@ export function getElementColor(
     return [null, null, null];
   }
 
-  const entryFilling = filling ? filling.split(',').map((s) => s.trim()) : [];
-  const fillingType = entryFilling[0];
-  const opacityValue = parseInt(entryFilling[1], 10);
+  const parsedFilling = filling ? filling.split(',').map((s) => s.trim()) : [];
+  const fillingType = parsedFilling[0];
+  const opacityValue = parseInt(parsedFilling[1], 10);
 
-  let colorOpacity = null;
-  let fill = null;
-  let stroke = null;
-
-  if (!isNaN(opacityValue) && opacityValue >= 0 && opacityValue <= 100) {
-    colorOpacity = (opacityValue / 100).toString();
-  }
+  const opacity =
+    !isNaN(opacityValue) && opacityValue >= 0 && opacityValue <= 100 ? (opacityValue / 100).toString() : null;
 
   switch (fillingType) {
     case 'fill':
-      fill = color;
-      break;
+      return [color, null, opacity];
     case 'stroke':
-      stroke = color;
-      break;
+      return [null, color, opacity];
     case 'none':
-      break;
+      return [null, null, opacity];
     case 'fs':
-      fill = color;
-      stroke = color;
-      break;
+      return [color, color, opacity];
     default:
-      fill = color;
+      return [color, null, opacity];
   }
-
-  return [fill, stroke, colorOpacity];
 }
