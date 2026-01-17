@@ -54,7 +54,7 @@ const SvgPanel: React.FC<Props> = (props) => {
     const processSvg = async () => {
       const queriesData = await extractFields(data.series, RelativeTime, fieldsRelativeTime, timeRange);
 
-      if (queriesData && isActiveRef.current) {
+      if (isActiveRef.current) {
         const result = await calculateMetrics(configMap, queriesData);
 
         if (result && isActiveRef.current) {
