@@ -18,26 +18,6 @@ export function parseYamlConfig(yamlText: string, replaceVariables?: (content: s
   }
 }
 
-// export function parseRules(inputRaw: string) {
-//   const input = inputRaw.replace(/\r\n/g, '\n');
-//   const marker = 'changes:\n';
-//   const p = input.indexOf(marker);
-//   if (p === -1) return;
-
-//   const header = input.slice(0, p + marker.length);
-//   const tail = input.slice(p + marker.length);
-//   const items = tail.split(/\n(?=  - id:)/).map(s => s.replace(/^\n/, '')).filter(Boolean);
-//   items.forEach((item, index) => {
-//     const fullYaml = header + item;
-//     const parsed = YAML.parse(fullYaml, { strict: false });
-//     if (parsed) {
-//       console.log(`Элемент ${index}:`, parsed);
-//     } else {
-//       console.log('error')
-//     }
-//   });
-// }
-
 /**
  * Форматирует число с заданным количеством десятичных знаков.
  */
@@ -102,8 +82,8 @@ export function matchPattern(pattern: string, target: string): boolean {
 /**
  *
  */
-export function getMappingMatch(mappings: ValueMapping[] | undefined, value: number): string | undefined {
-  if (!mappings) {
+export function getMappingMatch(mapping: ValueMapping[], value: number, decimal?: number): string | undefined {
+  if (!mapping.length) {
     return undefined;
   }
 
@@ -118,12 +98,17 @@ export function getMappingMatch(mappings: ValueMapping[] | undefined, value: num
     });
   };
 
-  const valueMapping = sortMappings(mappings);
+  const replaceLabel = (label: string, value: number): string => {
+    const formattedValue = roundToFixed(value, decimal);
+    return label.replace(/\{{value\}}/g, formattedValue.toString());
+  };
+
+  const valueMapping = sortMappings(mapping);
 
   for (let i = valueMapping.length - 1; i >= 0; i--) {
     const mapping = valueMapping[i];
     if (mapping.value !== undefined && mapping.condition && compareValues(value, mapping.value, mapping.condition)) {
-      return mapping.label;
+      return replaceLabel(mapping.label, value);
     }
   }
 
