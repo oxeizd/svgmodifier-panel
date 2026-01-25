@@ -1,5 +1,6 @@
+import { Expr } from 'types';
+import { getMath } from './queryProcessor';
 import { DataFrame, Field, FieldType, TimeRange } from '@grafana/data';
-// import { transformDataFrame } from '@grafana/data';
 
 export type DataFrameMap = Map<string, { values: Map<string, { values: string[]; timestamps: number[] }> }>;
 
@@ -166,4 +167,26 @@ function getRelativeTimeRange(
     timestamps: relativeTimeStamps,
     values: Values,
   };
+}
+
+export async function calculateExpressions(expressions: Expr[], dataFrame: DataFrameMap, timeRange: TimeRange) {
+  if (!expressions.length || !dataFrame) {
+    return;
+  }
+
+  const meticTime = timeRange.to.valueOf();
+
+  for (const expr of expressions) {
+    if (!dataFrame.has(expr.refId) && expr.expression && expr.expression.trim() !== '') {
+      const math = getMath(expr.expression, dataFrame);
+      if (math && math.length > 0) {
+        try {
+          const result = Function('"use strict";return (' + math + ')')();
+          dataFrame.set(expr.refId, {
+            values: new Map([[expr.refId, { values: [String(result)], timestamps: [meticTime] }]]),
+          });
+        } catch (er) {}
+      }
+    }
+  }
 }
