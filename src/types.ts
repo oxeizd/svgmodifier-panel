@@ -6,12 +6,20 @@ export interface PanelOptions {
     customRelativeTime: string;
     fieldsCustomRelativeTime: string;
   };
+  transformations: {
+    expressions: Expr[];
+  };
   tooltip: {
     sort: 'none' | 'ascending' | 'descending';
     maxWidth: number;
     valuePosition: 'standard' | 'right';
     hideZeros: boolean;
   };
+}
+
+export interface Expr {
+  refId: string;
+  expression: string;
 }
 
 export interface Change {
@@ -48,7 +56,7 @@ export interface Styles {
 }
 
 export interface BaseSettings {
-  calculation?: 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
+  calculation?: CalculationMethod;
   label?: string;
   unit?: string;
   title?: string;

@@ -1,25 +1,25 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { PanelProps } from '@grafana/data';
 import { Tooltip } from './tooltip/tooltip';
-import { extractFields } from './dataExtractor';
 import { parseYamlConfig } from './utils/helpers';
 import { initSVG, svgToString, updateSvg } from './svgUpdater';
 import { DataMap, PanelOptions, TooltipContent } from '../types';
 import { initializeConfig, calculateMetrics } from './mainProcessor';
+import { calculateExpressions, extractFields } from './dataExtractor';
 // import { getTemplateSrv } from '@grafana/runtime';
 
 interface Props extends PanelProps<PanelOptions> {}
 
 const SvgPanel: React.FC<Props> = (props) => {
+  const { data, timeRange, height, width, options } = props;
   const {
     svgCode,
     metricsMapping,
     svgAspectRatio,
     customRelativeTime: RelativeTime,
     fieldsCustomRelativeTime: fieldsRelativeTime,
-  } = props.options.jsonData;
-
-  const { data, timeRange, height, width } = props;
+  } = options.jsonData;
+  const expressions = options.transformations.expressions;
 
   const isActiveRef = useRef(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -32,10 +32,16 @@ const SvgPanel: React.FC<Props> = (props) => {
     const mappingArray = parseYamlConfig(metricsMapping);
     const svgDoc = initSVG(svgCode, svgAspectRatio);
 
-    setConfigMap(svgDoc && mappingArray ? initializeConfig(svgDoc, mappingArray) : new Map());
-
     return { svgDoc, mappingArray };
   }, [svgCode, svgAspectRatio, metricsMapping]);
+
+  useEffect(() => {
+    if (svgDoc && mappingArray) {
+      return setConfigMap(initializeConfig(svgDoc, mappingArray));
+    }
+
+    setConfigMap(new Map());
+  }, [svgDoc, mappingArray]);
 
   useEffect(() => {
     isActiveRef.current = true;
@@ -55,6 +61,8 @@ const SvgPanel: React.FC<Props> = (props) => {
       const queriesData = await extractFields(data.series, RelativeTime, fieldsRelativeTime, timeRange);
 
       if (isActiveRef.current) {
+        await calculateExpressions(expressions, queriesData, timeRange);
+
         const result = await calculateMetrics(configMap, queriesData);
 
         if (result && isActiveRef.current) {
@@ -75,7 +83,7 @@ const SvgPanel: React.FC<Props> = (props) => {
       isActiveRef.current = false;
       setTooltip([]);
     };
-  }, [svgDoc, mappingArray, configMap, data.series, RelativeTime, fieldsRelativeTime, timeRange]);
+  }, [svgDoc, mappingArray, configMap, expressions, data.series, RelativeTime, fieldsRelativeTime, timeRange]);
 
   return (
     <div

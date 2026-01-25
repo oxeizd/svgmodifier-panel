@@ -121,12 +121,12 @@ function addDataEntries(
     });
   };
 
-  if (config.sum) {
+  if (config.sum && queries.length > 0) {
     const value = getSum(queries);
     const title = getTitle(config.title, 0);
     const label = getLabel(config.sum, config.label) || '';
-
     addData(value, title, label);
+
     return;
   }
 
@@ -134,7 +134,6 @@ function addDataEntries(
     const value = query.value;
     const title = getTitle(config.title, index);
     const label = getLabel(query.legend, config.label) || '';
-
     addData(value, title, label);
   });
 }
@@ -265,43 +264,31 @@ function calculateValue(values: number[], method: CalculationMethod): number {
 }
 
 function getMetricColor(value: number, dataFrame: DataFrameMap, thresholds?: Threshold[], baseColor?: string) {
-  let color = baseColor || undefined;
-  let lvl = 1;
+  let lvl = 0;
+  let color = baseColor;
 
-  thresholds?.forEach((t, index) => {
-    if (t.condition && !evaluateThresholdCondition(t.condition, dataFrame)) {
+  thresholds?.forEach((threshold, index) => {
+    if (threshold.condition && !evaluateThresholdCondition(threshold.condition, dataFrame)) {
       return;
     }
 
-    const operator = t.operator || '>=';
-    const compareResult = compareValues(value, t.value, operator);
+    const comparisonResult = compareValues(value, threshold.value, threshold.operator || '>=');
 
-    if (compareResult) {
-      color = t.color;
-      lvl = t.lvl || index + 1;
+    if (comparisonResult) {
+      color = threshold.color;
+      lvl = threshold.lvl || index + 1;
     }
   });
-
-  if (color === baseColor) {
-    lvl = 0;
-  }
 
   return { color, lvl };
 }
 
-function evaluateThresholdCondition(condition: string, dataFrame: DataFrameMap): boolean {
-  let result = false;
+export function getMath(expression: string, dataFrame: DataFrameMap) {
+  const variableRegex =
+    /\$([А-Яа-яЁёA-Za-z0-9_]+)(?:\.([А-Яа-яЁёA-Za-z0-9_ -]+))?(?::(last|total|max|min|count|delta))?/g;
 
-  try {
-    const now = new Date();
-    const timezone = parseInt(condition.match(/timezone\s*=\s*(-?\d+)/)?.[1] || '3', 10);
-    const hour = (now.getUTCHours() + timezone + 24) % 24;
-    const sanitizedCondition = condition.replace(/timezone\s*=\s*(-?\d+),?/, '').trim();
-
-    const variableRegex =
-      /\$([А-Яа-яЁёA-Za-z0-9_]+)(?:\.([А-Яа-яЁёA-Za-z0-9_ -]+))?(?::(last|total|max|min|count|delta))?/g;
-
-    const metricsCondition = sanitizedCondition.replace(
+  return String(
+    expression.replace(
       variableRegex,
       (_match: string, refId: string, subKey: string, calculationMethod: CalculationMethod = 'last') => {
         if (refId !== undefined) {
@@ -329,7 +316,22 @@ function evaluateThresholdCondition(condition: string, dataFrame: DataFrameMap):
         }
         return '0';
       }
-    );
+    )
+  );
+}
+
+function evaluateThresholdCondition(condition: string, dataFrame: DataFrameMap): boolean {
+  let result = false;
+
+  try {
+    const now = new Date();
+    const timezone = parseInt(condition.match(/timezone\s*=\s*(-?\d+)/)?.[1] || '3', 10);
+    const hour = (now.getUTCHours() + timezone + 24) % 24;
+    const sanitizedCondition = condition.replace(/timezone\s*=\s*(-?\d+),?/, '').trim();
+
+    const metricsCondition = getMath(sanitizedCondition, dataFrame);
+    console.log(metricsCondition);
+
     result = new Function('hour', 'minute', 'day', `return ${metricsCondition}`)(
       hour,
       now.getUTCMinutes(),
