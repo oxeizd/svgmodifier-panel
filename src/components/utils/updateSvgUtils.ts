@@ -6,6 +6,12 @@ export function getLabel(vizData: VizData | undefined, label: string | undefined
   }
 
   if (!vizData) {
+    const specialKeys = ['legend', 'replace', 'colon', 'space'];
+
+    if (specialKeys.includes(label)) {
+      return undefined; 
+    }
+    
     return label;
   }
 
