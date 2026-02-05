@@ -289,7 +289,7 @@ export const configSchema = [
             return !exists && ctx.position.column === 9;
           }
 
-          if (['decimal', 'baseColor', 'filling', 'displayText', 'thresholds'].includes(item.label)) {
+          if (['decimal', 'baseColor', 'filling', 'thresholds'].includes(item.label)) {
             return !exists && ctx.position.column === 9;
           }
 

@@ -62,7 +62,6 @@ export const SUGGESTION_TEMPLATES = {
   DECIMAL: 'decimal: 0',
   BASE_COLOR: "baseColor: 'rgba(50, 172,45, 0.97)'",
   FILLING: "filling: '${1|fill,stroke,fs,fill\\, 20,none|}'",
-  DISPLAY_TEXT: "displayText: '${1}'",
   THRESHOLDS: "thresholds:\n  - { color: 'orange', value: 10 }\n  - { color: 'red', value: 20 }",
   ADD_THRESHOLD: "- { color: '', value:  }",
 
@@ -109,7 +108,6 @@ export const SUGGESTION_GROUPS = {
     { label: 'decimal', insertText: SUGGESTION_TEMPLATES.DECIMAL },
     { label: 'baseColor', insertText: SUGGESTION_TEMPLATES.BASE_COLOR },
     { label: 'filling', insertText: SUGGESTION_TEMPLATES.FILLING },
-    { label: 'displayText', insertText: SUGGESTION_TEMPLATES.DISPLAY_TEXT },
     { label: 'thresholds', insertText: SUGGESTION_TEMPLATES.THRESHOLDS },
     { label: 'add threshold', insertText: SUGGESTION_TEMPLATES.ADD_THRESHOLD },
   ],

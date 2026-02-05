@@ -9,9 +9,9 @@ export function getLabel(vizData: VizData | undefined, label: string | undefined
     const specialKeys = ['legend', 'replace', 'colon', 'space'];
 
     if (specialKeys.includes(label)) {
-      return undefined; 
+      return undefined;
     }
-    
+
     return label;
   }
 

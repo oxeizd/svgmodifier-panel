@@ -9,7 +9,7 @@ export const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 9,
-    maxHeight: 260,
+    maxHeight: 195,
     overflowY: 'auto' as const,
     padding: 4,
   },

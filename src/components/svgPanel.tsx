@@ -19,7 +19,7 @@ const SvgPanel: React.FC<Props> = (props) => {
     customRelativeTime: RelativeTime,
     fieldsCustomRelativeTime: fieldsRelativeTime,
   } = options.jsonData;
-  const expressions = options.transformations.expressions;
+  const { expressions } = options.transformations;
 
   const isActiveRef = useRef(true);
   const containerRef = useRef<HTMLDivElement | null>(null);

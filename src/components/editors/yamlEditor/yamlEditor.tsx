@@ -15,6 +15,8 @@ interface CompletionContext {
 const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) => {
   const configSchema = useMemo(() => importedConfigSchema, []);
   const providerRef = useRef<{ dispose: () => void } | null>(null);
+  const editorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
 
   const handleChange = useCallback(
     (newValue: string) => {
@@ -25,6 +27,10 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
 
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: any) => {
+      editorRef.current = editor;
+      monacoRef.current = monaco;
+
+      // Очищаем предыдущий провайдер если был
       if (providerRef.current) {
         providerRef.current.dispose();
         providerRef.current = null;
@@ -87,27 +93,34 @@ const YamlEditor: React.FC<StandardEditorProps<string>> = ({ value, onChange }) 
         return { suggestions };
       };
 
+      // Регистрируем только один провайдер
       providerRef.current = monaco.languages.registerCompletionItemProvider('yaml', {
         triggerCharacters: ['\n', ' ', ':'],
         provideCompletionItems,
       });
 
+      // Возвращаем cleanup функцию которая будет вызвана CodeEditor
       return () => {
         if (providerRef.current) {
           providerRef.current.dispose();
           providerRef.current = null;
         }
+        editorRef.current = null;
+        monacoRef.current = null;
       };
     },
     [configSchema]
   );
 
+  // Очистка при размонтировании компонента
   React.useEffect(() => {
     return () => {
       if (providerRef.current) {
         providerRef.current.dispose();
         providerRef.current = null;
       }
+      editorRef.current = null;
+      monacoRef.current = null;
     };
   }, []);
 
