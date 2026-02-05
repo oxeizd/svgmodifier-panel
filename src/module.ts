@@ -2,7 +2,7 @@ import { PanelPlugin, FieldConfigProperty } from '@grafana/data';
 import { PanelOptions } from 'types';
 import SvgPanel from 'components/svgPanel';
 import YamlEditor from 'components/editors/yamlEditor/yamlEditor';
-import { ExpressionsEditor } from 'components/editors/expEditor/expEditor';
+import { ExpressionsEditor } from 'components/editors/exprEditor/exprEditor';
 
 export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
   .setPanelOptions((builder) => {
