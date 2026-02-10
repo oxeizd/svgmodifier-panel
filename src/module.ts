@@ -64,6 +64,12 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
           placeholder: 'A,B,C,D: 30m; B: 15m;',
         },
       })
+      .addBooleanSwitch({
+        category: ['Transformations'],
+        path: 'transformations.legacyButton',
+        name: 'use Legacy logic',
+        defaultValue: true,
+      })
       .addCustomEditor({
         category: ['Transformations'],
         id: 'expressionsEditor',

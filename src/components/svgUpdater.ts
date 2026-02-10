@@ -52,6 +52,11 @@ export async function updateSvg(configMap: Map<string, DataMap>): Promise<void> 
     operations.push(() => {
       hasLink && addLinkToElement(svgElement, attributes?.link?.toString());
       updateSvgElementRecursive(svgElement, [hasLabel, label], [hasLabelColor, labelColor], elementColors);
+
+      if (element.maxTableEntry) {
+        const tableColor = getElementColor(element.maxTableEntry, vizData?.filling);
+        updateSvgElementRecursive(svgElement, [hasLabel, label], [hasLabelColor, labelColor], tableColor);
+      }
     });
   }
 

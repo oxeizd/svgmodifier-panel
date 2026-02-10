@@ -1,6 +1,6 @@
-import { Change, VizData, DataMap, TooltipContent } from 'types';
-import { applySchema, RegexCheck } from './utils/helpers';
-import { getMetricsData } from './queryProcessor';
+import { Change, VizData, DataMap, TooltipContent, TableVizData } from 'types';
+import { applySchema, RegexCheck } from 'components/utils/helpers';
+import { getMetricsDataV2 } from './queryProcessor';
 import { DataFrameMap } from './dataExtractor';
 
 export function initializeConfig(svg: Document, changes: Change[]) {
@@ -81,14 +81,16 @@ function prepareConfig(changes: Change[], elementsMap: Map<string, SVGElement>, 
   }
 }
 
-export async function calculateMetrics(configMap: Map<string, DataMap>, dataFrame: DataFrameMap) {
+export async function calculateMetricsV2(configMap: Map<string, DataMap>, dataFrame: DataFrameMap) {
   const tooltip: TooltipContent[] = [];
+  const tooltipTable: TableVizData[] = [];
 
   configMap.forEach((map, id) => {
     let bestEntry: VizData | undefined;
     let bestLvl = Number.NEGATIVE_INFINITY;
     let bestMetric = Number.NEGATIVE_INFINITY;
     let bestAttributes: Change['attributes'] | undefined = undefined;
+    let colorTableEntry: string | undefined = undefined;
 
     const getMaxMetricAndTooltips = (vizData: VizData[], attributes: typeof bestAttributes) => {
       if (!vizData || !vizData.length) {
@@ -126,30 +128,50 @@ export async function calculateMetrics(configMap: Map<string, DataMap>, dataFram
     const { additional } = map;
 
     if (additional && Array.isArray(additional)) {
-      for (let index = 0; index < additional.length; index++) {
-        const item = additional[index];
+      for (const item of additional) {
         const { attributes, selector, elemIndex, elemsLength } = item;
 
         if (!attributes.metrics) {
-          const isLastItem = index === additional.length - 1;
-          if (isLastItem && !bestAttributes) {
-            bestAttributes = attributes;
-          }
+          bestAttributes = attributes;
           continue;
         }
 
-        const extractedQueries = getMetricsData(attributes.metrics, dataFrame, attributes.valueMapping);
-        item.vizData = metricsFilter(extractedQueries, selector, elemIndex, elemsLength, attributes.autoConfig);
+        const metricsResult = getMetricsDataV2(id, attributes.metrics, dataFrame, attributes.valueMapping);
+        item.vizData = metricsFilter(metricsResult.vizData, selector, elemIndex, elemsLength, attributes.autoConfig);
 
         getMaxMetricAndTooltips(item.vizData, attributes);
+
+        if (metricsResult.tableData && metricsResult.tableData.length > 0) {
+          // Проходим по всем TableVizData из результата
+          for (const tableDataItem of metricsResult.tableData) {
+            // Находим или создаем запись для каждого id
+            let existingTableVizData = tooltipTable.find((table) => table.id === tableDataItem.id);
+
+            if (!existingTableVizData) {
+              existingTableVizData = {
+                id: tableDataItem.id,
+                tables: [],
+                textAbove: tableDataItem.textAbove || attributes.tooltip?.textAbove,
+                textBelow: tableDataItem.textBelow || attributes.tooltip?.textBelow,
+              };
+              tooltipTable.push(existingTableVizData);
+            }
+
+            // Добавляем все таблицы из текущего элемента результата
+            if (tableDataItem.tables && tableDataItem.tables.length > 0) {
+              existingTableVizData.tables.push(...tableDataItem.tables);
+            }
+            colorTableEntry = tableDataItem.color;
+          }
+        }
       }
     }
-
+    map.maxTableEntry = colorTableEntry;
     map.maxEntry = bestEntry;
     map.attributes = bestAttributes;
   });
 
-  return tooltip;
+  return { tooltip, tooltipTable };
 }
 
 function metricsFilter(

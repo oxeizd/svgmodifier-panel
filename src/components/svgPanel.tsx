@@ -3,9 +3,12 @@ import { PanelProps } from '@grafana/data';
 import { Tooltip } from './tooltip/tooltip';
 import { parseYamlConfig } from './utils/helpers';
 import { initSVG, svgToString, updateSvg } from './svgUpdater';
-import { DataMap, PanelOptions, TooltipContent } from '../types';
+import { DataMap, PanelOptions, TableVizData, TooltipContent } from '../types';
 import { initializeConfig, calculateMetrics } from './mainProcessor';
 import { calculateExpressions, extractFields } from './dataExtractor';
+import { extractFieldsV2, calculateExpressionsV2 } from './release/processors/dataExtractor';
+import { calculateMetricsV2 } from './release/processors/mainProcessor';
+import { TooltipV2 } from './release/tooltip/tooltip';
 // import { getTemplateSrv } from '@grafana/runtime';
 
 interface Props extends PanelProps<PanelOptions> {}
@@ -19,13 +22,14 @@ const SvgPanel: React.FC<Props> = (props) => {
     customRelativeTime: RelativeTime,
     fieldsCustomRelativeTime: fieldsRelativeTime,
   } = options.jsonData;
-  const { expressions } = options.transformations;
+  const { expressions, legacyButton } = options.transformations;
 
   const isActiveRef = useRef(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [svgString, setSvgString] = useState<string>('');
-  const [tooltip, setTooltip] = useState<TooltipContent[]>([]);
+  const [tooltipContent, setTooltipContent] = useState<TooltipContent[]>([]);
+  const [tooltipTableContent, setTooltipTableContent] = useState<TableVizData[]>([]);
   const [configMap, setConfigMap] = useState<Map<string, DataMap>>(new Map());
 
   const { svgDoc, mappingArray } = useMemo(() => {
@@ -53,27 +57,49 @@ const SvgPanel: React.FC<Props> = (props) => {
 
     if (!mappingArray) {
       setSvgString(svgToString(svgDoc));
-      setTooltip([]);
+      setTooltipContent([]);
       return;
     }
 
     const processSvg = async () => {
-      const queriesData = await extractFields(data.series, RelativeTime, fieldsRelativeTime, timeRange);
+      if (legacyButton) {
+        const queriesData = await extractFields(data.series, RelativeTime, fieldsRelativeTime, timeRange);
 
-      if (isActiveRef.current) {
-        await calculateExpressions(expressions, queriesData, timeRange);
+        if (isActiveRef.current) {
+          await calculateExpressions(expressions, queriesData, timeRange);
 
-        const result = await calculateMetrics(configMap, queriesData);
+          const result = await calculateMetrics(configMap, queriesData);
 
-        if (result && isActiveRef.current) {
-          await updateSvg(configMap);
+          if (result && isActiveRef.current) {
+            await updateSvg(configMap);
 
-          setSvgString(svgToString(svgDoc));
-          setTooltip(result || []);
+            setSvgString(svgToString(svgDoc));
+            setTooltipContent(result || []);
+          }
+
+          if (typeof queriesData.clear === 'function') {
+            queriesData.clear();
+          }
         }
+      } else {
+        const queriesData = await extractFieldsV2(data.series, RelativeTime, fieldsRelativeTime, timeRange);
 
-        if (typeof queriesData.clear === 'function') {
-          queriesData.clear();
+        if (isActiveRef.current) {
+          await calculateExpressionsV2(expressions, queriesData, timeRange);
+
+          const result = await calculateMetricsV2(configMap, queriesData);
+
+          if (result && isActiveRef.current) {
+            await updateSvg(configMap);
+
+            setSvgString(svgToString(svgDoc));
+            setTooltipContent(result.tooltip || []);
+            setTooltipTableContent(result.tooltipTable || []);
+          }
+
+          if (typeof queriesData.clear === 'function') {
+            queriesData.clear();
+          }
         }
       }
     };
@@ -81,9 +107,19 @@ const SvgPanel: React.FC<Props> = (props) => {
     processSvg();
     return () => {
       isActiveRef.current = false;
-      setTooltip([]);
+      setTooltipContent([]);
     };
-  }, [svgDoc, mappingArray, configMap, expressions, data.series, RelativeTime, fieldsRelativeTime, timeRange]);
+  }, [
+    svgDoc,
+    mappingArray,
+    configMap,
+    expressions,
+    data.series,
+    RelativeTime,
+    fieldsRelativeTime,
+    timeRange,
+    legacyButton,
+  ]);
 
   return (
     <div
@@ -103,12 +139,22 @@ const SvgPanel: React.FC<Props> = (props) => {
           width: `${width}px`,
         }}
       />
-      <Tooltip
-        containerRef={containerRef}
-        tooltipData={tooltip}
-        options={props.options.tooltip}
-        timeRange={timeRange}
-      />
+      {legacyButton ? (
+        <Tooltip
+          containerRef={containerRef}
+          tooltipData={tooltipContent}
+          options={props.options.tooltip}
+          timeRange={timeRange}
+        />
+      ) : (
+        <TooltipV2
+          containerRef={containerRef}
+          tooltipData={tooltipContent}
+          tableData={tooltipTableContent}
+          options={props.options.tooltip}
+          timeRange={timeRange}
+        />
+      )}
     </div>
   );
 };

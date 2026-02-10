@@ -8,6 +8,7 @@ export interface PanelOptions {
   };
   transformations: {
     expressions: Expr[];
+    legacyButton: boolean;
   };
   tooltip: {
     sort: 'none' | 'ascending' | 'descending';
@@ -63,6 +64,7 @@ export interface BaseSettings {
   decimal?: number;
   filling?: string;
   baseColor?: string;
+  thresholdKey?: string;
   thresholds?: Threshold[];
 }
 
@@ -89,7 +91,6 @@ export interface TooltipContent {
   label: string;
   metric: string;
   color: string;
-  mode?: 'deafult' | 'table';
   title?: string;
   textAbove?: string;
   textBelow?: string;
@@ -120,6 +121,26 @@ export interface VizData {
   title?: string | undefined;
 }
 
+export interface TableVizData {
+  id: string;
+  tables: SingleTableData[];
+  textAbove?: string;
+  textBelow?: string;
+  color?: string;
+}
+
+export interface SingleTableData {
+  counter: number;
+  headers: any[][];
+  columnsData: Array<{
+    color: string | undefined;
+    lvl: number | undefined;
+    row: any[];
+  }>;
+  filling?: string | undefined;
+  title?: string | undefined;
+}
+
 export interface DataMap {
   SVGElem: SVGElement | null;
   additional: Array<{
@@ -131,6 +152,7 @@ export interface DataMap {
   }>;
   attributes?: Change['attributes'] | undefined;
   maxEntry?: VizData | undefined;
+  maxTableEntry?: string | undefined;
 }
 
 export type CalculationMethod = 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
