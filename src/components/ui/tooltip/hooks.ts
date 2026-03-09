@@ -1,33 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { TooltipContent, TableVizData } from 'types';
+import { TooltipState, defaultTooltipState } from './constants';
+import { TooltipContent } from 'components/types';
 import { processTooltipContent } from './utils';
+import { PanelOptions } from 'types';
 
 export const useTooltipLogic = (
-  containerRef: React.RefObject<HTMLDivElement>,
   tooltipData: TooltipContent[],
-  tableData: TableVizData[],
-  options: { hideZeros: boolean; sort: string }
+  containerRef: React.RefObject<HTMLDivElement>,
+  options: PanelOptions['tooltip']
 ) => {
-  const tooltipDataRef = useRef<TooltipContent[]>([]);
-  const tableDataRef = useRef<TableVizData[]>([]);
   const isMounted = useRef(true);
-  const [tooltipState, setTooltipState] = useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-    content: TooltipContent[];
-    id?: string; // Добавляем id в состояние
-  }>({
-    visible: false,
-    x: 0,
-    y: 0,
-    content: [],
-    id: '',
-  });
+  const tooltipDataRef = useRef<TooltipContent[]>([]);
+  const [tooltipState, setTooltipState] = useState<TooltipState>(defaultTooltipState);
   const [adjustedCoords, setAdjustedCoords] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   tooltipDataRef.current = tooltipData;
-  tableDataRef.current = tableData;
 
   const handleMouseOver = useCallback(
     (e: MouseEvent) => {
@@ -45,20 +32,18 @@ export const useTooltipLogic = (
         if (currentElement.id) {
           const currentId = currentElement.id;
           const hasTooltipData = tooltipDataRef.current.some((td) => td.id === currentId);
-          const hasTableData = tableDataRef.current.some((table) => table.id === currentId);
 
-          // Показываем тултип если есть ЛЮБЫЕ данные
-          if (hasTooltipData || hasTableData) {
-            const relatedMetrics = tooltipDataRef.current.filter((td) => td.id === currentId);
-            const processedMetrics = processTooltipContent(relatedMetrics, options);
+          if (hasTooltipData) {
+            const currentMetric = tooltipDataRef.current.find((td) => td.id === currentId);
+            const tooltipData = processTooltipContent(currentMetric, options);
 
-            if (isMounted.current) {
+            if (isMounted.current && tooltipData) {
               setTooltipState({
+                id: currentId,
+                content: tooltipData,
                 visible: true,
                 x: e.clientX + 10,
                 y: e.clientY,
-                content: processedMetrics,
-                id: currentId, // Сохраняем id
               });
             }
             return;
@@ -153,7 +138,6 @@ export const useTooltipLogic = (
     return () => {
       isMounted.current = false;
       tooltipDataRef.current = [];
-      tableDataRef.current = [];
     };
   }, []);
 

@@ -1,14 +1,16 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { PanelProps } from '@grafana/data';
-import { Tooltip } from './tooltip/tooltip';
-import { parseYamlConfig } from './utils/helpers';
-import { initSVG, svgToString, updateSvg } from './svgUpdater';
-import { DataMap, PanelOptions, TableVizData, TooltipContent } from '../types';
-import { initializeConfig, calculateMetrics } from './mainProcessor';
-import { calculateExpressions, extractFields } from './dataExtractor';
-import { extractFieldsV2, calculateExpressionsV2 } from './release/processors/dataExtractor';
-import { calculateMetricsV2 } from './release/processors/mainProcessor';
-import { TooltipV2 } from './release/tooltip/tooltip';
+import { parseYamlConfig } from './core/config/utils';
+import { initSVG, svgToString, updateSvg } from './core/svg/updater';
+import { initializeConfig } from './core/config/configSetup';
+import { extractFields, getDataSourceNames } from './core/extractor/dataExtractor';
+import { FieldsTimeSettings, getCustomTimeSettings } from './core/extractor/timeSettings';
+import { calculateExpressions } from './core/handler/metricsUtils';
+import { calculateMetrics } from './core/config/dataAggregator';
+import { PanelOptions } from 'types';
+import { DataMap, TooltipContent } from './types';
+import { Tooltip } from './ui/tooltip/tooltip';
+// import { NotificationTooltip } from './ui/NotifyTooltip/NotifyTooltip';
 // import { getTemplateSrv } from '@grafana/runtime';
 
 interface Props extends PanelProps<PanelOptions> {}
@@ -22,15 +24,16 @@ const SvgPanel: React.FC<Props> = (props) => {
     customRelativeTime: RelativeTime,
     fieldsCustomRelativeTime: fieldsRelativeTime,
   } = options.jsonData;
-  const { expressions, legacyButton } = options.transformations;
+  const { expressions } = options.transformations;
 
   const isActiveRef = useRef(true);
+  const countQueries = useRef<number>(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [svgString, setSvgString] = useState<string>('');
-  const [tooltipContent, setTooltipContent] = useState<TooltipContent[]>([]);
-  const [tooltipTableContent, setTooltipTableContent] = useState<TableVizData[]>([]);
   const [configMap, setConfigMap] = useState<Map<string, DataMap>>(new Map());
+  const [customTimeSettings, setCustomTimeSettings] = useState<FieldsTimeSettings>();
+  const [tooltipContent, setTooltipContent] = useState<TooltipContent[]>([]);
 
   const { svgDoc, mappingArray } = useMemo(() => {
     const mappingArray = parseYamlConfig(metricsMapping);
@@ -39,12 +42,16 @@ const SvgPanel: React.FC<Props> = (props) => {
     return { svgDoc, mappingArray };
   }, [svgCode, svgAspectRatio, metricsMapping]);
 
+  useMemo(() => {
+    return setCustomTimeSettings(getCustomTimeSettings(RelativeTime, fieldsRelativeTime));
+  }, [RelativeTime, fieldsRelativeTime]);
+
   useEffect(() => {
     if (svgDoc && mappingArray) {
-      return setConfigMap(initializeConfig(svgDoc, mappingArray));
+      setConfigMap(initializeConfig(svgDoc, mappingArray));
+    } else {
+      setConfigMap(new Map());
     }
-
-    setConfigMap(new Map());
   }, [svgDoc, mappingArray]);
 
   useEffect(() => {
@@ -62,44 +69,27 @@ const SvgPanel: React.FC<Props> = (props) => {
     }
 
     const processSvg = async () => {
-      if (legacyButton) {
-        const queriesData = await extractFields(data.series, RelativeTime, fieldsRelativeTime, timeRange);
+      const queriesData = await extractFields(data, customTimeSettings, timeRange);
 
-        if (isActiveRef.current) {
-          await calculateExpressions(expressions, queriesData, timeRange);
+      if (queriesData.size !== countQueries.current) {
+        countQueries.current = queriesData.size;
+        getDataSourceNames(data, queriesData);
+      }
 
-          const result = await calculateMetrics(configMap, queriesData);
+      if (isActiveRef.current) {
+        await calculateExpressions(expressions, queriesData, timeRange);
 
-          if (result && isActiveRef.current) {
-            await updateSvg(configMap);
+        const result = await calculateMetrics(configMap, queriesData);
 
-            setSvgString(svgToString(svgDoc));
-            setTooltipContent(result || []);
-          }
+        if (result && isActiveRef.current) {
+          await updateSvg(configMap);
 
-          if (typeof queriesData.clear === 'function') {
-            queriesData.clear();
-          }
+          setSvgString(svgToString(svgDoc));
+          setTooltipContent(result.tooltip || []);
         }
-      } else {
-        const queriesData = await extractFieldsV2(data.series, RelativeTime, fieldsRelativeTime, timeRange);
 
-        if (isActiveRef.current) {
-          await calculateExpressionsV2(expressions, queriesData, timeRange);
-
-          const result = await calculateMetricsV2(configMap, queriesData);
-
-          if (result && isActiveRef.current) {
-            await updateSvg(configMap);
-
-            setSvgString(svgToString(svgDoc));
-            setTooltipContent(result.tooltip || []);
-            setTooltipTableContent(result.tooltipTable || []);
-          }
-
-          if (typeof queriesData.clear === 'function') {
-            queriesData.clear();
-          }
+        if (typeof queriesData.clear === 'function') {
+          queriesData.clear();
         }
       }
     };
@@ -109,17 +99,7 @@ const SvgPanel: React.FC<Props> = (props) => {
       isActiveRef.current = false;
       setTooltipContent([]);
     };
-  }, [
-    svgDoc,
-    mappingArray,
-    configMap,
-    expressions,
-    data.series,
-    RelativeTime,
-    fieldsRelativeTime,
-    timeRange,
-    legacyButton,
-  ]);
+  }, [svgDoc, mappingArray, configMap, data, timeRange, customTimeSettings, expressions]);
 
   return (
     <div
@@ -139,22 +119,20 @@ const SvgPanel: React.FC<Props> = (props) => {
           width: `${width}px`,
         }}
       />
-      {legacyButton ? (
-        <Tooltip
-          containerRef={containerRef}
-          tooltipData={tooltipContent}
-          options={props.options.tooltip}
-          timeRange={timeRange}
-        />
-      ) : (
-        <TooltipV2
-          containerRef={containerRef}
-          tooltipData={tooltipContent}
-          tableData={tooltipTableContent}
-          options={props.options.tooltip}
-          timeRange={timeRange}
-        />
-      )}
+      <Tooltip
+        containerRef={containerRef}
+        tooltipContent={tooltipContent}
+        options={options.tooltip}
+        timeRange={timeRange}
+      />
+
+      {/* <NotificationTooltip
+        header="Влияние оказано на"
+        count={5}
+        dataSourceNames={undefined}
+        show={true}
+        targetRef={containerRef}
+      /> */}
     </div>
   );
 };

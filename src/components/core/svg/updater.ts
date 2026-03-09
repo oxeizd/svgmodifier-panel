@@ -1,5 +1,5 @@
-import { getElementColor, getLabel, getLabelColor } from './utils/updateSvgUtils';
-import { DataMap } from 'types';
+import { DataMap } from 'components/types';
+import { getElementColor, getLabel, getLabelColor } from './helpers';
 
 export function initSVG(svg: string, svgAspectRatio?: string): Document | null {
   if (!svg) {

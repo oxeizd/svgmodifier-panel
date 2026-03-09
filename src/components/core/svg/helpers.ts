@@ -1,11 +1,11 @@
-import { VizData } from 'types';
+import { MetricData } from 'components/types';
 
-export function getLabel(vizData: VizData | undefined, label: string | undefined): string | undefined {
+export function getLabel(metricData: MetricData | undefined, label: string | undefined): string | undefined {
   if (!label) {
     return undefined;
   }
 
-  if (!vizData) {
+  if (!metricData) {
     const specialKeys = ['legend', 'replace', 'colon', 'space'];
 
     if (specialKeys.includes(label)) {
@@ -15,8 +15,8 @@ export function getLabel(vizData: VizData | undefined, label: string | undefined
     return label;
   }
 
-  const legend = vizData.label.toString();
-  const displayValue = vizData.displayValue?.toString() ?? vizData.metricValue.toString();
+  const legend = metricData.label.toString();
+  const displayValue = metricData.displayValue?.toString() ?? metricData.metricValue.toString();
 
   switch (label) {
     case 'legend':

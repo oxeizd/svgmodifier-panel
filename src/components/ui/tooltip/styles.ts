@@ -1,6 +1,6 @@
+import { PanelOptions } from 'types';
 import { CSSProperties } from 'react';
 import { GrafanaTheme2 } from '@grafana/data';
-import { PanelOptions } from 'types';
 
 export const getTooltipContainerStyles = (
   theme: GrafanaTheme2,
