@@ -140,8 +140,6 @@ export async function getDataSourceNames(panelData: PanelData, valueMap: DataFra
       addDSNameToMap(target.refId, dataSourceName);
     }
   }
-
-  return valueMap;
 }
 
 async function getOriginalDataSources(dashboardUid: string | undefined, panelId: number) {

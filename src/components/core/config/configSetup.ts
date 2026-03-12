@@ -49,12 +49,12 @@ function prepareConfig(changes: ConfigRules[], elementsMap: Map<string, SVGEleme
         for (const metric of configToUse.metrics) {
           if (metric.queries && Array.isArray(metric.queries)) {
             metric.queries = metric.queries.map((q: QueryType) => {
-              // клонируем query, чтобы не мутировать исходный
               const newQ: any = { ...q };
-              // если filter задан как строка — парсим; если уже объект — оставляем
+
               if (typeof newQ.filter === 'string' && newQ.filter.trim()) {
                 newQ.filter = parseFilter(newQ.filter) as FieldFilterMap | undefined;
               }
+
               return newQ;
             });
           }
