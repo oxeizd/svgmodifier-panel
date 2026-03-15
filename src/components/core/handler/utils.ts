@@ -1,7 +1,8 @@
 import { Expr } from 'types';
 import { TimeRange } from '@grafana/data';
 import { DataFrameMap } from '../extractor/dataExtractor';
-import { CalculationMethod, Metrics, Threshold, ValueMapping } from 'components/types';
+import { matchPattern } from '../utils';
+import { CalculationMethod, Metrics, Threshold, ValueMapping, filter } from 'components/types';
 
 /**
  * Форматирует число с заданным количеством десятичных знаков.
@@ -216,6 +217,33 @@ export async function calculateExpressions(expressions: Expr[], dataFrame: DataF
       }
     }
   }
+}
+
+export function checkFilter(text: string, filter: filter | undefined, header?: string): boolean {
+  if (!filter) {
+    return true;
+  }
+
+  const key = header || '';
+  const inc = filter.include?.[key];
+  const exc = filter.exclude?.[key];
+
+  const matchesPattern = (value: string, patterns: string[] | undefined): boolean => {
+    if (!patterns || patterns.length === 0) {
+      return true;
+    }
+    return patterns.some((pattern) => matchPattern(pattern, value));
+  };
+
+  if (inc && !matchesPattern(text, filter.include[key])) {
+    return false;
+  }
+
+  if (exc && matchesPattern(text, filter.exclude[key])) {
+    return false;
+  }
+
+  return true;
 }
 
 /**

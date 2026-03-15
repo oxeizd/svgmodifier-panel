@@ -2,7 +2,7 @@ import { FieldsTimeSettings, getFieldTimeRange } from './timeSettings';
 import { getDataSourceSrv } from '@grafana/runtime';
 import { DataFrame, FieldType, getFieldDisplayName, PanelData, TimeRange } from '@grafana/data';
 
-type DataFrameEntry = {
+export type DataFrameEntry = {
   type?: string;
   length?: number;
   dataSourceName?: string;

@@ -1,4 +1,4 @@
-import { roundToFixed } from './metricsUtils';
+import { roundToFixed } from './utils';
 
 type DecimalCount = number;
 

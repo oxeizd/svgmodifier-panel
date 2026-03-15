@@ -1,5 +1,3 @@
-import { FieldFilterMap } from './core/handler/metricsfilter';
-
 export interface ConfigRules {
   id: string | string[];
   attributes: {
@@ -64,12 +62,18 @@ export interface GeneralMetricSettings {
   baseColor?: string;
   thresholdKey?: string;
   thresholds?: Threshold[];
+  dataSourceName?: string;
 }
 
 export interface QuerySpecificSettings extends GeneralMetricSettings {
-  filter?: string | FieldFilterMap;
+  filter?: filter;
   sum?: string;
 }
+
+export type filter = {
+  include: Record<string, string[]>;
+  exclude: Record<string, string[]>;
+};
 
 export type CalculationMethod = 'last' | 'total' | 'max' | 'min' | 'count' | 'delta';
 
@@ -108,11 +112,7 @@ export interface DataMap {
     elemIndex: number;
     elemsLength: number;
     attributes: ConfigRules['attributes'];
-    metricsData?: MetricData[] | undefined;
   }>;
-  attributes?: ConfigRules['attributes'] | undefined;
-  maxEntry?: MetricData | undefined;
-  maxTableEntry?: string | undefined;
 }
 
 export interface MetricData {
@@ -124,20 +124,23 @@ export interface MetricData {
   displayValue?: string;
   filling?: string | undefined;
   title?: string | undefined;
-  firing?: boolean | undefined;
 }
 
 export interface TableMetricData {
   counter: number;
   headers: any[];
   columnsData: Array<{
+    row: any[];
     color: string | undefined;
     lvl: number | undefined;
-    row: any[];
   }>;
+  label: string;
+  metricValue: number;
+  displayValue?: string;
   filling?: string | undefined;
   title?: string | undefined;
-  maxColor?: string | undefined;
+  color?: string | undefined;
+  lvl?: number | undefined;
 }
 
 export interface NotificationTooltip {

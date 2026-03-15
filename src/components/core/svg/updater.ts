@@ -1,5 +1,4 @@
-import { DataMap } from 'components/types';
-import { getElementColor, getLabel, getLabelColor } from './helpers';
+import { getElementColor } from './helpers';
 
 export function initSVG(svg: string, svgAspectRatio?: string): Document | null {
   if (!svg) {
@@ -28,38 +27,7 @@ export function svgToString(svg: Document): string {
   return serializer.serializeToString(svg);
 }
 
-export async function updateSvg(configMap: Map<string, DataMap>): Promise<void> {
-  const operations: Array<() => void> = [];
-
-  for (const element of configMap.values()) {
-    const svgElement = element.SVGElem;
-
-    if (!svgElement) {
-      continue;
-    }
-
-    const vizData = element.maxEntry;
-    const attributes = element.attributes;
-
-    const hasLink = attributes ? 'link' in attributes : false;
-    const hasLabel = attributes ? 'label' in attributes : false;
-    const hasLabelColor = attributes ? 'labelColor' in attributes : false;
-
-    const label = getLabel(vizData, attributes?.label);
-    const labelColor = getLabelColor(attributes?.labelColor, vizData?.color);
-    const elementColors = getElementColor(vizData?.color, vizData?.filling);
-
-    operations.push(() => {
-      hasLink && addLinkToElement(svgElement, attributes?.link?.toString());
-      updateSvgElementRecursive(svgElement, [hasLabel, label], [hasLabelColor, labelColor], elementColors);
-
-      if (element.maxTableEntry) {
-        const tableColor = getElementColor(element.maxTableEntry, vizData?.filling);
-        updateSvgElementRecursive(svgElement, [hasLabel, label], [hasLabelColor, labelColor], tableColor);
-      }
-    });
-  }
-
+export async function updateSvg(operations: Array<() => void>): Promise<void> {
   const style = document.createElement('style');
   style.textContent = '* { transition: none !important; animation: none !important; }';
   document.head.appendChild(style);
@@ -71,7 +39,7 @@ export async function updateSvg(configMap: Map<string, DataMap>): Promise<void> 
   }
 }
 
-function updateSvgElementRecursive(
+export function updateSvgElementRecursive(
   element: Element,
   label: [boolean, string | undefined],
   labelColor: [boolean, string | undefined],
@@ -185,7 +153,7 @@ function applyTextForTextElement(element: Element, text: string | undefined) {
   }
 }
 
-function addLinkToElement(svgElement: SVGElement, link?: string): void {
+export function addLinkToElement(svgElement: SVGElement, link?: string): void {
   const parent = svgElement.parentNode;
   if (!parent || svgElement.hasAttribute('data-has-link') || !link) {
     return;

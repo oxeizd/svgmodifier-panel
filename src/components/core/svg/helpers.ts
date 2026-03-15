@@ -1,24 +1,27 @@
-import { MetricData } from 'components/types';
+import { MetricData, TableMetricData } from 'components/types';
 
-export function getLabel(metricData: MetricData | undefined, label: string | undefined): string | undefined {
-  if (!label) {
+export function getLabel(
+  metricData: MetricData | TableMetricData | undefined,
+  labelSetting: string | undefined
+): string | undefined {
+  if (!labelSetting) {
     return undefined;
   }
 
   if (!metricData) {
     const specialKeys = ['legend', 'replace', 'colon', 'space'];
 
-    if (specialKeys.includes(label)) {
+    if (specialKeys.includes(labelSetting)) {
       return undefined;
     }
 
-    return label;
+    return labelSetting;
   }
 
   const legend = metricData.label.toString();
   const displayValue = metricData.displayValue?.toString() ?? metricData.metricValue.toString();
 
-  switch (label) {
+  switch (labelSetting) {
     case 'legend':
       return legend;
     case 'replace':
@@ -28,7 +31,7 @@ export function getLabel(metricData: MetricData | undefined, label: string | und
     case 'space':
       return `${legend} ${displayValue}`;
     default:
-      return label;
+      return labelSetting;
   }
 }
 

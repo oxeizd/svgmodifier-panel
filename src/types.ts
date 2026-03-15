@@ -8,7 +8,8 @@ export interface PanelOptions {
   };
   transformations: {
     expressions: Expr[];
-    legacyButton: boolean;
+    RelativeTime: string;
+    fieldsRelativeTime: string;
   };
   tooltip: {
     sort: 'none' | 'ascending' | 'descending';

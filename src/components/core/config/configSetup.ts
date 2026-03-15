@@ -1,10 +1,11 @@
 import { RegexCheck } from '../utils';
-import { applySchema } from './utils';
-import { ConfigRules, DataMap, QueryType } from '../../types';
-import { FieldFilterMap, parseFilter } from '../handler/metricsfilter';
+import { applySchema, parseFilter } from './utils';
+import { ConfigRules, DataMap, QueryType, filter } from '../../types';
+
+type ConfigMap = Map<string, DataMap>;
 
 export function initializeConfig(svg: Document, config: ConfigRules[]) {
-  const configMap: Map<string, DataMap> = new Map();
+  const configMap: ConfigMap = new Map();
 
   const elementsMap = new Map<string, SVGElement>();
   const elements = svg.querySelectorAll<SVGElement>('[id^="cell"]');
@@ -20,7 +21,7 @@ export function initializeConfig(svg: Document, config: ConfigRules[]) {
   return configMap;
 }
 
-function prepareConfig(changes: ConfigRules[], elementsMap: Map<string, SVGElement>, configMap: Map<string, DataMap>) {
+function prepareConfig(changes: ConfigRules[], elementsMap: Map<string, SVGElement>, configMap: ConfigMap) {
   const getRuleConfig = (rule: ConfigRules) => {
     const config = rule.attributes;
     const elements = getElementsByIdOrRegex(rule.id, elementsMap);
@@ -52,7 +53,7 @@ function prepareConfig(changes: ConfigRules[], elementsMap: Map<string, SVGEleme
               const newQ: any = { ...q };
 
               if (typeof newQ.filter === 'string' && newQ.filter.trim()) {
-                newQ.filter = parseFilter(newQ.filter) as FieldFilterMap | undefined;
+                newQ.filter = parseFilter(newQ.filter) as filter | undefined;
               }
 
               return newQ;

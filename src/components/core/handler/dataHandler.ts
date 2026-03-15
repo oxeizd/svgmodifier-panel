@@ -1,248 +1,231 @@
 import { matchPattern } from '../utils';
-import { filterData } from './metricsfilter';
-import { formatValues } from './ValueTransformer';
-import { defaultConfig } from './constants';
-import { DataFrameMap } from '../extractor/dataExtractor';
-import { processLegacyMetric, getMappingMatch, calculateValue, getMetricColor } from './metricsUtils';
+import { formatValues } from './valueTransformer';
+import { defaultConfig, getConfig } from './constants';
+import { DataFrameEntry, DataFrameMap } from '../extractor/dataExtractor';
+import { processLegacyMetric, getMappingMatch, calculateValue, getMetricColor, checkFilter } from './utils';
 import { QuerySpecificSettings, Metrics, ValueMapping, QueryType, MetricData, TableMetricData } from '../../types';
 
-export type singleData = { legend: string; value: number; globalKey?: string };
-export type tableData = { headers: string[]; rows: any[][] };
-
 export type QueriesArray = {
-  singleData?: singleData[] | undefined;
-  tableData?: tableData[] | undefined;
+  fields?: MetricData[];
+  tables?: TableMetricData[];
 };
 
-export function getMetricsData(metrics: Metrics[], dataFrame: DataFrameMap, mapping?: ValueMapping[]) {
+type Fields = Array<{ legend: string; value: number; globalKey?: string }>;
+
+export function getMetricsData(
+  metrics: Metrics[],
+  dataFrame: DataFrameMap,
+  mapping?: ValueMapping[]
+): QueriesArray | undefined {
   if (!dataFrame?.size || !metrics?.length) {
     return undefined;
   }
 
-  let counter = 1;
-  const metricsData: MetricData[] = [];
-  const tableMetricData: TableMetricData[] = [];
+  const queriesArray: QueriesArray = { fields: [], tables: [] };
 
   for (const metric of metrics) {
     const processedMetric = processLegacyMetric(metric);
 
-    processedMetric.queries?.forEach((query) => {
-      let queries;
-
+    processedMetric.queries?.forEach((query, index) => {
       const config = getConfig(query, metric);
-      queries = getQueriesFromDataFrame(query, dataFrame, config);
-
-      if (config.filter) {
-        queries = filterData(queries, config.filter);
-      }
-
-      const resultData = applyConfigForQueries(queries, config, dataFrame, counter++, mapping);
-
-      if (resultData.metricsData?.length) {
-        metricsData.push(...resultData.metricsData);
-      }
-
-      if (resultData.tableMetricData?.length) {
-        tableMetricData.push(...resultData.tableMetricData);
-      }
+      getQueriesFromDataFrame(query, queriesArray, dataFrame, config, index, mapping);
     });
   }
 
-  return { metricsData, tableMetricData };
+  console.log(queriesArray);
+  return queriesArray;
 }
 
-function getConfig(queryConfig: QuerySpecificSettings, metricConfig: Metrics) {
-  return Object.fromEntries(
-    Object.entries(defaultConfig).map(([key, defaultValue]) => {
-      const typedKey = key as keyof typeof defaultConfig;
-
-      const fromquery = queryConfig[typedKey];
-      const fromMetric = typedKey in metricConfig ? (metricConfig as Record<string, any>)[typedKey] : undefined;
-
-      return [key, fromquery ?? fromMetric ?? defaultValue];
-    })
-  ) as { [K in keyof typeof defaultConfig]: (typeof defaultConfig)[K] };
-}
-
-function getQueriesFromDataFrame(query: QueryType, dataFrame: DataFrameMap, config: typeof defaultConfig) {
-  const processRefid = (ref: string) => {
-    const extractedData = dataFrame.get(ref);
+function getQueriesFromDataFrame(
+  query: QueryType,
+  queriesArray: QueriesArray,
+  dataFrame: DataFrameMap,
+  config: typeof defaultConfig,
+  index: number,
+  mapping?: ValueMapping[]
+) {
+  if (query.refid) {
+    const extractedData = dataFrame.get(query.refid);
 
     if (!extractedData) {
       return;
     }
 
+    if (extractedData.dataSourceName) {
+      query.dataSourceName = extractedData.dataSourceName;
+    }
+
     if (extractedData.type === 'table') {
-      const rowCount = extractedData.length;
-      const colCount = extractedData.values.size;
-      const headers = Array.from(extractedData.values.keys());
-
-      if (rowCount && colCount) {
-        const rows: any[][] = new Array(rowCount);
-
-        for (let i = 0; i < rowCount; i++) {
-          rows[i] = new Array(colCount);
-        }
-
-        let colIndex = 0;
-        for (const [_, values] of extractedData.values) {
-          for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-            rows[rowIndex][colIndex] = values.values[rowIndex];
-          }
-          colIndex++;
-        }
-
-        queriesArray.tableData?.push({ headers, rows });
+      const table = processTable(extractedData, dataFrame, index, config, mapping);
+      if (table) {
+        queriesArray.tables?.push(table);
       }
     } else {
+      const fields: Fields = [];
       for (const [innerKey, values] of extractedData.values) {
-        const value = calculateValue(values.values.map(Number), config.calculation);
-        queriesArray.singleData?.push({ legend: innerKey, value });
+        if (checkFilter(innerKey, config.filter)) {
+          const value = calculateValue(values.values.map(Number), config.calculation);
+          fields.push({ legend: innerKey, value });
+        }
       }
+      processFields(fields, queriesArray, config, dataFrame, index, mapping);
     }
-  };
+  }
 
-  const processLegend = (legend: string) => {
+  if (query.legend) {
+    const fields: Fields = [];
     for (const [globalKey, metricData] of dataFrame) {
       for (const [innerKey, values] of metricData.values) {
-        if (matchPattern(legend, innerKey)) {
-          queriesArray.singleData?.push({
-            legend: innerKey,
-            value: calculateValue(values.values.map(Number), config.calculation),
-            globalKey,
-          });
+        if (matchPattern(query.legend, innerKey) && checkFilter(innerKey, config.filter)) {
+          if (metricData.dataSourceName) {
+            query.dataSourceName = metricData.dataSourceName;
+          }
+          const value = calculateValue(values.values.map(Number), config.calculation);
+          fields.push({ legend: innerKey, value, globalKey });
         }
       }
     }
-  };
-
-  let queriesArray: QueriesArray = { singleData: [], tableData: [] };
-
-  if (query.refid) {
-    processRefid(query.refid);
-  } else if (query.legend) {
-    processLegend(query.legend);
+    processFields(fields, queriesArray, config, dataFrame, index, mapping);
   }
-
-  return queriesArray;
 }
 
-function applyConfigForQueries(
+function processFields(
+  fields: Fields,
   queriesArray: QueriesArray,
   config: typeof defaultConfig,
   dataFrame: DataFrameMap,
   counter: number,
   mapping?: ValueMapping[]
 ) {
-  const addSingleData = (metricsData: MetricData[]) => {
-    if (queriesArray.singleData && queriesArray.singleData?.length > 0) {
-      const addToArray = (value: number, title: string, label: string, firing?: string) => {
-        let displayValue = formatValues(value, config.unit, config.decimal);
+  if (fields.length === 0) {
+    return;
+  }
 
-        if (mapping) {
-          displayValue = getMappingMatch(mapping, value, config.decimal) ?? displayValue;
+  const addToArray = (value: number, title: string, label: string) => {
+    let displayValue = formatValues(value, config.unit, config.decimal);
+
+    if (mapping) {
+      displayValue = getMappingMatch(mapping, value, config.decimal) ?? displayValue;
+    }
+
+    const { color, lvl } = getMetricColor(value, dataFrame, config.thresholds, config.baseColor);
+
+    queriesArray.fields?.push({
+      counter,
+      label,
+      color,
+      lvl,
+      metricValue: value,
+      displayValue,
+      filling: config.filling,
+      title,
+    });
+  };
+
+  if (config.sum) {
+    const value = getSum(fields);
+    const title = getTitle(config.title, 0);
+    const label = getLabel(config.sum, config.label) || '';
+
+    addToArray(value, title, label);
+    return;
+  }
+
+  fields.forEach((query, index) => {
+    const value = query.value;
+    const title = getTitle(config.title, index);
+    const label = getLabel(query.legend, config.label) || '';
+
+    addToArray(value, title, label);
+  });
+}
+
+function processTable(
+  extractedData: DataFrameEntry,
+  dataFrame: DataFrameMap,
+  index: number,
+  config: typeof defaultConfig,
+  mapping?: ValueMapping[]
+) {
+  const headers = Array.from(extractedData.values.keys());
+  const colCount = headers.length;
+  const rowCount = extractedData.length;
+
+  if (!rowCount || !colCount) {
+    return;
+  }
+
+  const columns = Array.from(extractedData.values.values()).map((col) => col.values);
+
+  const table: TableMetricData = {
+    counter: index,
+    headers: headers,
+    columnsData: [],
+    filling: config.filling,
+    title: config.title,
+    label: '',
+    metricValue: 0,
+  };
+
+  let maxLvl = -1;
+  let thKeyIndex: number | undefined;
+
+  if (config.thresholdKey) {
+    thKeyIndex = headers.findIndex((item: string) => item === config.thresholdKey);
+  }
+
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+    const row = columns.map((col) => col[rowIndex]);
+
+    if (config.filter) {
+      const passes = headers.every((header, i) => checkFilter(String(row[i]), config.filter, header));
+      if (!passes) {
+        continue;
+      }
+    }
+
+    let color: string | undefined;
+    let lvl: number | undefined = -1;
+
+    if (thKeyIndex !== undefined && thKeyIndex !== -1) {
+      const rawValue = row[thKeyIndex];
+      const numericValue = Number(rawValue);
+      let displayValue = formatValues(numericValue, config.unit, config.decimal);
+
+      if (!isNaN(numericValue)) {
+        const result = getMetricColor(numericValue, dataFrame, config.thresholds, config.baseColor);
+        lvl = result.lvl;
+        color = result.color;
+
+        if (lvl > maxLvl) {
+          maxLvl = lvl;
         }
-
-        const { color, lvl } = getMetricColor(value, dataFrame, config.thresholds, config.baseColor);
-
-        metricsData.push({
-          counter,
-          label,
-          color,
-          lvl,
-          metricValue: value,
-          displayValue,
-          filling: config.filling,
-          title,
-        });
-      };
-
-      if (config.sum) {
-        const value = getSum(queriesArray.singleData);
-        const title = getTitle(config.title, 0);
-        const label = getLabel(config.sum, config.label) || '';
-
-        addToArray(value, title, label);
-        return;
       }
 
-      queriesArray.singleData.forEach((query, index) => {
-        const value = query.value;
-        const title = getTitle(config.title, index);
-        const label = getLabel(query.legend, config.label) || '';
+      if (mapping) {
+        displayValue = getMappingMatch(mapping, numericValue, config.decimal) ?? displayValue;
+      }
 
-        addToArray(value, title, label);
-      });
+      if (displayValue) {
+        row[thKeyIndex] = displayValue;
+      }
     }
-  };
 
-  const addTableData = (tableMetricData: TableMetricData[]) => {
-    const tableData = queriesArray.tableData;
-
-    if (tableData && tableData.length > 0) {
-      tableData.forEach((table) => {
-        let thKeyIndex: number | undefined;
-
-        const newTable: TableMetricData = {
-          counter: counter,
-          headers: table.headers,
-          columnsData: [],
-          filling: config.filling,
-          title: config.title,
-        };
-
-        if (config.thresholdKey) {
-          thKeyIndex = table.headers.findIndex((item: string) => item === config.thresholdKey);
-        }
-
-        for (let i = 0; i < table.rows.length; i++) {
-          const currentRow = table.rows[i];
-          let color: string | undefined;
-          let lvl: number | undefined;
-
-          if (thKeyIndex !== undefined) {
-            const valueAtIndex = currentRow[thKeyIndex];
-
-            const result = getMetricColor(valueAtIndex, dataFrame, config.thresholds, config.baseColor);
-            color = result.color;
-            lvl = result.lvl;
-
-            if (mapping) {
-              const displayValue = getMappingMatch(mapping, valueAtIndex);
-              if (displayValue) {
-                currentRow[thKeyIndex] = displayValue;
-              }
-            }
-          }
-
-          newTable.columnsData.push({
-            color: color,
-            lvl: lvl,
-            row: currentRow,
-          });
-        }
-
-        if (newTable.columnsData.length > 0) {
-          newTable.maxColor = newTable.columnsData[newTable.columnsData.length - 1].color;
-        }
-
-        tableMetricData.push(newTable);
-      });
-    }
-  };
-
-  const metricsData: MetricData[] = [];
-  const tableMetricData: TableMetricData[] = [];
-
-  if (queriesArray.singleData) {
-    addSingleData(metricsData);
+    table.columnsData.push({ row, color, lvl });
   }
 
-  if (queriesArray.tableData) {
-    addTableData(tableMetricData);
+  if (table.columnsData.length === 0) {
+    return;
+  }
+  table.lvl = maxLvl !== -1 ? maxLvl : 0;
+  table.color = table.columnsData[table.columnsData.length - 1].color;
+
+  if (thKeyIndex !== undefined && thKeyIndex !== -1) {
+    table.label = headers[thKeyIndex];
+    table.metricValue = table.columnsData[table.columnsData.length - 1].row[thKeyIndex];
   }
 
-  return { metricsData, tableMetricData };
+  return table;
 }
 
 function getLabel(displayName: string, label?: string): string {
@@ -250,7 +233,7 @@ function getLabel(displayName: string, label?: string): string {
     label = displayName;
   }
 
-  label = label.replace(/_prfx\d+/g, '').replace(/\{{legend\}}/g, displayName);
+  label = label.replace(/_prfx\d+/g, '').replace(/\{\{legend\}\}/g, displayName);
   return label;
 }
 
@@ -258,6 +241,6 @@ function getTitle(query: QuerySpecificSettings['title'], counter: number): strin
   return query && counter === 0 ? query : '';
 }
 
-function getSum(data: QueriesArray['singleData']): number {
-  return data!.reduce((acc, item) => acc + item.value, 0);
+function getSum(data: Fields): number {
+  return data.reduce((acc, item) => acc + item.value, 0);
 }
