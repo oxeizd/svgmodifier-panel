@@ -108,7 +108,7 @@ export interface TooltipContent {
 export interface DataMap {
   SVGElem: SVGElement | null;
   additional: Array<{
-    selector: string | undefined;
+    selector: number[] | undefined;
     elemIndex: number;
     elemsLength: number;
     attributes: ConfigRules['attributes'];

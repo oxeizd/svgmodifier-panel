@@ -64,7 +64,7 @@ function prepareConfig(changes: ConfigRules[], elementsMap: Map<string, SVGEleme
 
       const additional = {
         attributes: configToUse,
-        selector,
+        selector: selector,
         elemIndex: currentIndex,
         elemsLength,
       };
@@ -75,7 +75,7 @@ function prepareConfig(changes: ConfigRules[], elementsMap: Map<string, SVGEleme
         configMap.set(id, { SVGElem: svgElement, additional: [additional] });
       }
 
-      if (!selector) {
+      if (selector.length === 0) {
         currentIndex++;
       } else {
         elemsLength = elemsLength - 1;
@@ -95,8 +95,8 @@ function prepareConfig(changes: ConfigRules[], elementsMap: Map<string, SVGEleme
 function getElementsByIdOrRegex(
   id: string | string[],
   map: Map<string, SVGElement>
-): Array<[string, string, string, SVGElement]> {
-  const getElement = (currentId: string): Array<[string, string, string, SVGElement]> => {
+): Array<[string, string, number[], SVGElement]> {
+  const getElement = (currentId: string): Array<[string, string, number[], SVGElement]> => {
     const parsed = idParser(currentId);
     if (!parsed) {
       return [];
@@ -123,14 +123,14 @@ function getElementsByIdOrRegex(
   return getElement(id);
 }
 
-function idParser(raw: string): [id: string, schema: string, selector: string] | null {
+function idParser(raw: string): [id: string, schema: string, selector: number[]] | null {
   const input = String(raw ?? '').trim();
   if (!input) {
     return null;
   }
 
   if (!input.includes(':')) {
-    return [input, '', ''];
+    return [input, '', []];
   }
 
   const items = input.split(':');
@@ -154,5 +154,33 @@ function idParser(raw: string): [id: string, schema: string, selector: string] |
     }
   }
 
-  return [id, schema, selector];
+  const parsedSelector = selector ? selectorParser(selector) : [];
+  return [id, schema, parsedSelector];
+}
+
+function selectorParser(s: string) {
+  const cleanStr = s.startsWith('@') ? s.substring(1) : s;
+  const result = [];
+
+  for (const p of cleanStr.split(',')) {
+    const trimmed = p.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const [a, b] = trimmed.split('-').map(Number);
+
+    if (b === undefined) {
+      if (!isNaN(a)) {
+        result.push(a);
+      }
+    } else if (!isNaN(a) && !isNaN(b)) {
+      const step = a <= b ? 1 : -1;
+      for (let i = a; step > 0 ? i <= b : i >= b; i += step) {
+        result.push(i);
+      }
+    }
+  }
+
+  return result;
 }

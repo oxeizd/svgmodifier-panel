@@ -12,29 +12,24 @@ export type QueriesArray = {
 
 type Fields = Array<{ legend: string; value: number; globalKey?: string }>;
 
-export function getMetricsData(
-  metrics: Metrics[],
-  dataFrame: DataFrameMap,
-  mapping?: ValueMapping[]
-): QueriesArray | undefined {
-  if (!dataFrame?.size || !metrics?.length) {
-    return undefined;
+export function getMetricsData(metrics: Metrics[], data: DataFrameMap, mapping?: ValueMapping[]): QueriesArray {
+  const queriesArray: QueriesArray = { fields: [], tables: [] };
+
+  if (!data?.size || !metrics?.length) {
+    return queriesArray;
   }
 
-  const queriesArray: QueriesArray = { fields: [], tables: [] };
-  let nextCounter = 1;
-  const getNextCounter = () => nextCounter++;
-
+  let counter = 1;
   for (const metric of metrics) {
     const processedMetric = processLegacyMetric(metric);
 
     processedMetric.queries?.forEach((query) => {
-      const config = getConfig(query, metric);
-      getQueriesFromDataFrame(query, queriesArray, dataFrame, config, getNextCounter, mapping);
+      const config = getConfig(query, metric, mapping);
+      console.log(query, config);
+      getQueriesFromDataFrame(query, queriesArray, data, config, counter++);
     });
   }
 
-  console.log(queriesArray);
   return queriesArray;
 }
 
@@ -43,8 +38,7 @@ function getQueriesFromDataFrame(
   queriesArray: QueriesArray,
   dataFrame: DataFrameMap,
   config: typeof defaultConfig,
-  getNextCounter: () => number,
-  mapping?: ValueMapping[]
+  counter: number
 ) {
   if (query.refid) {
     const extractedData = dataFrame.get(query.refid);
@@ -58,7 +52,7 @@ function getQueriesFromDataFrame(
     }
 
     if (extractedData.type === 'table') {
-      const table = processTable(extractedData, dataFrame, getNextCounter, config, mapping);
+      const table = processTable(extractedData, dataFrame, counter, config);
       if (table) {
         queriesArray.tables?.push(table);
       }
@@ -70,7 +64,7 @@ function getQueriesFromDataFrame(
           fields.push({ legend: innerKey, value });
         }
       }
-      processFields(fields, queriesArray, config, dataFrame, getNextCounter, mapping);
+      processFields(fields, queriesArray, config, dataFrame, counter);
     }
   }
 
@@ -87,7 +81,7 @@ function getQueriesFromDataFrame(
         }
       }
     }
-    processFields(fields, queriesArray, config, dataFrame, getNextCounter, mapping);
+    processFields(fields, queriesArray, config, dataFrame, counter);
   }
 }
 
@@ -96,8 +90,7 @@ function processFields(
   queriesArray: QueriesArray,
   config: typeof defaultConfig,
   dataFrame: DataFrameMap,
-  getNextCounter: () => number,
-  mapping?: ValueMapping[]
+  counter: number
 ) {
   if (fields.length === 0) {
     return;
@@ -106,14 +99,14 @@ function processFields(
   const addToArray = (value: number, title: string, label: string) => {
     let displayValue = formatValues(value, config.unit, config.decimal);
 
-    if (mapping) {
-      displayValue = getMappingMatch(mapping, value, config.decimal) ?? displayValue;
+    if (config.mapping) {
+      displayValue = getMappingMatch(config.mapping, value, config.decimal) ?? displayValue;
     }
 
     const { color, lvl } = getMetricColor(value, dataFrame, config.thresholds, config.baseColor);
 
     queriesArray.fields?.push({
-      counter: getNextCounter(),
+      counter: counter,
       label,
       color,
       lvl,
@@ -145,9 +138,8 @@ function processFields(
 function processTable(
   extractedData: DataFrameEntry,
   dataFrame: DataFrameMap,
-  getNextCounter: () => number,
-  config: typeof defaultConfig,
-  mapping?: ValueMapping[]
+  counter: number,
+  config: typeof defaultConfig
 ) {
   const headers = Array.from(extractedData.values.keys());
   const colCount = headers.length;
@@ -160,7 +152,7 @@ function processTable(
   const columns = Array.from(extractedData.values.values()).map((col) => col.values);
 
   const table: TableMetricData = {
-    counter: getNextCounter(),
+    counter: counter,
     headers: headers,
     columnsData: [],
     filling: config.filling,
@@ -173,7 +165,8 @@ function processTable(
   let thKeyIndex: number | undefined;
 
   if (config.thresholdKey) {
-    thKeyIndex = headers.findIndex((item: string) => item === config.thresholdKey);
+    const key = config.thresholdKey;
+    thKeyIndex = headers.findIndex((item: string) => item.startsWith(key));
   }
 
   for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
@@ -204,8 +197,8 @@ function processTable(
         }
       }
 
-      if (mapping) {
-        displayValue = getMappingMatch(mapping, numericValue, config.decimal) ?? displayValue;
+      if (config.mapping) {
+        displayValue = getMappingMatch(config.mapping, numericValue, config.decimal) ?? displayValue;
       }
 
       if (displayValue) {

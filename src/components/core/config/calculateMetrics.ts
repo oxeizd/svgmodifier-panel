@@ -1,4 +1,4 @@
-import { getMetricsData } from '../handler/dataHandler';
+import { getMetricsData, QueriesArray } from '../handler/dataHandler';
 import { DataFrameMap } from '../extractor/dataExtractor';
 import { getElementColor, getLabel, getLabelColor } from '../svg/helpers';
 import { addLinkToElement, updateSvgElementRecursive } from '../svg/updater';
@@ -35,15 +35,9 @@ export async function calculateMetrics(configMap: Map<string, DataMap>, dataFram
         continue;
       }
 
-      const singleData = filterSingleQueries(
-        queriesArray.fields,
-        selector,
-        elemIndex,
-        elemsLength,
-        attributes.autoConfig
-      );
+      queriesFilter(queriesArray, selector, elemIndex, elemsLength, attributes.autoConfig);
 
-      const singleEntry = singleMetricsProccess(id, singleData, attributes, tooltip);
+      const singleEntry = singleMetricsProccess(id, queriesArray.fields!, attributes, tooltip);
       const tableEntry = tableMetricsProccess(id, queriesArray.tables, attributes, tooltip);
 
       const singleLvl = singleEntry.bestSingleEntry?.lvl ?? -Infinity;
@@ -70,7 +64,6 @@ export async function calculateMetrics(configMap: Map<string, DataMap>, dataFram
     if (!svgElement) {
       continue;
     }
-
     // console.log('apply', svgElement, bestAttributes, bestEntry)
     const hasLink = bestAttributes ? 'link' in bestAttributes : false;
     const hasLabel = bestAttributes ? 'label' in bestAttributes : false;
@@ -185,76 +178,62 @@ function tableMetricsProccess(
   return { bestAttributes, bestTableEntry };
 }
 
-function filterSingleQueries(
-  metricsData: MetricData[],
-  selector: string | undefined,
+function queriesFilter(
+  queriesArray: QueriesArray,
+  selector: number[] | undefined,
   index: number,
   elemsLength: number,
   autoConfig?: boolean
-): MetricData[] {
-  if (!metricsData || !metricsData.length) {
-    return metricsData;
+) {
+  const fieldsLength = queriesArray.fields?.length || 0;
+  const tablesLenght = queriesArray.tables?.length || 0;
+  const metricsLength = fieldsLength + tablesLenght;
+
+  if (metricsLength === 0) {
+    return;
   }
 
-  const metricsLength = metricsData.length;
-  const vizData: MetricData[] = [];
+  if (selector && selector.length > 0) {
+    const selectorSet = new Set(selector);
 
-  if (selector && typeof selector === 'string') {
-    const expand = (s: string) => {
-      const cleanStr = s.startsWith('@') ? s.substring(1) : s;
-      const result = [];
-
-      for (const p of cleanStr.split(',')) {
-        const trimmed = p.trim();
-        if (!trimmed) {
-          continue;
-        }
-
-        const [a, b] = trimmed.split('-').map(Number);
-
-        if (b === undefined) {
-          if (!isNaN(a)) {
-            result.push(a);
-          }
-        } else if (!isNaN(a) && !isNaN(b)) {
-          const step = a <= b ? 1 : -1;
-          for (let i = a; step > 0 ? i <= b : i >= b; i += step) {
-            result.push(i);
-          }
-        }
-      }
-
-      return result;
-    };
-
-    const expanded = expand(selector);
-
-    if (expanded.length > 0) {
-      const matchingEntries = metricsData.filter((entry) => expanded.some((i) => entry.counter === i));
-      vizData.push(...matchingEntries);
-
-      return vizData;
+    if (queriesArray.fields) {
+      queriesArray.fields = queriesArray.fields.filter((item) => selectorSet.has(item.counter));
     }
+
+    if (queriesArray.tables) {
+      queriesArray.tables = queriesArray.tables.filter((item) => selectorSet.has(item.counter));
+    }
+
+    return;
   }
 
   if (autoConfig === true) {
+    const keepCounters = new Set<number>();
+
     if (metricsLength === elemsLength) {
-      vizData.push(metricsData[index]);
+      keepCounters.add(index);
     } else if (metricsLength < elemsLength) {
       if (index < metricsLength) {
-        vizData.push(metricsData[index]);
+        keepCounters.add(index);
       }
     } else {
       const lastIndex = elemsLength - 1;
       if (index < lastIndex) {
-        vizData.push(metricsData[index]);
+        keepCounters.add(index + 1);
       } else {
-        vizData.push(...metricsData.slice(lastIndex));
+        for (let c = elemsLength; c <= metricsLength; c++) {
+          keepCounters.add(c);
+        }
       }
     }
-    return vizData;
-  }
 
-  vizData.push(...metricsData);
-  return vizData;
+    if (queriesArray.fields) {
+      queriesArray.fields = queriesArray.fields.filter((item) => keepCounters.has(item.counter));
+    }
+    if (queriesArray.tables) {
+      queriesArray.tables = queriesArray.tables.filter((item) => keepCounters.has(item.counter));
+    }
+
+    return;
+  }
 }
