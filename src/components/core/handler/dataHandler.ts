@@ -22,13 +22,15 @@ export function getMetricsData(
   }
 
   const queriesArray: QueriesArray = { fields: [], tables: [] };
+  let nextCounter = 1;
+  const getNextCounter = () => nextCounter++;
 
   for (const metric of metrics) {
     const processedMetric = processLegacyMetric(metric);
 
-    processedMetric.queries?.forEach((query, index) => {
+    processedMetric.queries?.forEach((query) => {
       const config = getConfig(query, metric);
-      getQueriesFromDataFrame(query, queriesArray, dataFrame, config, index, mapping);
+      getQueriesFromDataFrame(query, queriesArray, dataFrame, config, getNextCounter, mapping);
     });
   }
 
@@ -41,7 +43,7 @@ function getQueriesFromDataFrame(
   queriesArray: QueriesArray,
   dataFrame: DataFrameMap,
   config: typeof defaultConfig,
-  index: number,
+  getNextCounter: () => number,
   mapping?: ValueMapping[]
 ) {
   if (query.refid) {
@@ -56,7 +58,7 @@ function getQueriesFromDataFrame(
     }
 
     if (extractedData.type === 'table') {
-      const table = processTable(extractedData, dataFrame, index, config, mapping);
+      const table = processTable(extractedData, dataFrame, getNextCounter, config, mapping);
       if (table) {
         queriesArray.tables?.push(table);
       }
@@ -68,7 +70,7 @@ function getQueriesFromDataFrame(
           fields.push({ legend: innerKey, value });
         }
       }
-      processFields(fields, queriesArray, config, dataFrame, index, mapping);
+      processFields(fields, queriesArray, config, dataFrame, getNextCounter, mapping);
     }
   }
 
@@ -85,7 +87,7 @@ function getQueriesFromDataFrame(
         }
       }
     }
-    processFields(fields, queriesArray, config, dataFrame, index, mapping);
+    processFields(fields, queriesArray, config, dataFrame, getNextCounter, mapping);
   }
 }
 
@@ -94,7 +96,7 @@ function processFields(
   queriesArray: QueriesArray,
   config: typeof defaultConfig,
   dataFrame: DataFrameMap,
-  counter: number,
+  getNextCounter: () => number,
   mapping?: ValueMapping[]
 ) {
   if (fields.length === 0) {
@@ -111,7 +113,7 @@ function processFields(
     const { color, lvl } = getMetricColor(value, dataFrame, config.thresholds, config.baseColor);
 
     queriesArray.fields?.push({
-      counter,
+      counter: getNextCounter(),
       label,
       color,
       lvl,
@@ -143,7 +145,7 @@ function processFields(
 function processTable(
   extractedData: DataFrameEntry,
   dataFrame: DataFrameMap,
-  index: number,
+  getNextCounter: () => number,
   config: typeof defaultConfig,
   mapping?: ValueMapping[]
 ) {
@@ -158,7 +160,7 @@ function processTable(
   const columns = Array.from(extractedData.values.values()).map((col) => col.values);
 
   const table: TableMetricData = {
-    counter: index,
+    counter: getNextCounter(),
     headers: headers,
     columnsData: [],
     filling: config.filling,
