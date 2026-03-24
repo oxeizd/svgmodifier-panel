@@ -1,4 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
+import { PanelOptions } from 'types';
+import { TooltipContent } from './types';
 import { PanelProps } from '@grafana/data';
 import { parseYamlConfig } from './core/config/utils';
 import { initSVG, svgToString, updateSvg } from './core/svg/updater';
@@ -7,19 +9,17 @@ import { extractFields, getDataSourceNames } from './core/extractor/dataExtracto
 import { getCustomTimeSettings } from './core/extractor/timeSettings';
 import { calculateExpressions } from './core/handler/utils';
 import { calculateMetrics } from './core/config/calculateMetrics';
-import { PanelOptions } from 'types';
-import { TooltipContent } from './types';
 import { Tooltip } from './ui/tooltip/tooltip';
-// import { NotificationTooltip } from './ui/NotifyTooltip/NotifyTooltip';
+import { NotificationTooltip } from './ui/NotifyTooltip/NotifyTooltip';
 
 interface Props extends PanelProps<PanelOptions> {}
 
 const SvgPanel: React.FC<Props> = (props) => {
   const { data, timeRange, height, width, options } = props;
-  const { customRelativeTime: RelativeTime, fieldsCustomRelativeTime: fieldsRelativeTime } = options.jsonData;
   const { expressions } = options.transformations;
-  // const { firingSetting } = options.notifyTooltip;
+
   const { svgCode, metricsMapping, svgAspectRatio } = options.jsonData;
+  const { customRelativeTime, fieldsCustomRelativeTime } = options.jsonData;
 
   const isActiveRef = useRef(true);
   const countQueries = useRef<number>(0);
@@ -27,6 +27,16 @@ const SvgPanel: React.FC<Props> = (props) => {
 
   const [svgString, setSvgString] = useState<string>('');
   const [tooltipContent, setTooltipContent] = useState<TooltipContent[]>([]);
+  const [dataSourceNames, setDataSourceNames] = useState<string[]>([]);
+
+  const customTimeSettings = useMemo(() => {
+    return getCustomTimeSettings(customRelativeTime, fieldsCustomRelativeTime);
+  }, [customRelativeTime, fieldsCustomRelativeTime]);
+
+  const { enable, firingThreshold } = useMemo(() => {
+    const { enable, firingThreshold } = options.notifyTooltip;
+    return { enable, firingThreshold };
+  }, [options.notifyTooltip]);
 
   const { svgDoc, mappingArray } = useMemo(() => {
     const mappingArray = parseYamlConfig(metricsMapping);
@@ -34,10 +44,6 @@ const SvgPanel: React.FC<Props> = (props) => {
 
     return { svgDoc, mappingArray };
   }, [svgCode, svgAspectRatio, metricsMapping]);
-
-  const customTimeSettings = useMemo(() => {
-    return getCustomTimeSettings(RelativeTime, fieldsRelativeTime);
-  }, [RelativeTime, fieldsRelativeTime]);
 
   const configMap = useMemo(() => {
     if (svgDoc && mappingArray) {
@@ -70,12 +76,13 @@ const SvgPanel: React.FC<Props> = (props) => {
 
       if (isActiveRef.current) {
         await calculateExpressions(expressions, queriesData, timeRange);
-        const result = await calculateMetrics(configMap, queriesData);
+        const result = await calculateMetrics(configMap, queriesData, firingThreshold);
 
         if (result && isActiveRef.current) {
           await updateSvg(result.operations);
           setSvgString(svgToString(svgDoc));
           setTooltipContent(result.tooltip || []);
+          setDataSourceNames(result.dataSourceNames || []);
         }
 
         if (typeof queriesData.clear === 'function') {
@@ -89,7 +96,9 @@ const SvgPanel: React.FC<Props> = (props) => {
       isActiveRef.current = false;
       setTooltipContent([]);
     };
-  }, [svgDoc, mappingArray, configMap, data, timeRange, customTimeSettings, expressions]);
+  }, [svgDoc, mappingArray, configMap, data, timeRange, customTimeSettings, expressions, firingThreshold]);
+
+  const showNotifyTooltip = enable && dataSourceNames.length > 0;
 
   return (
     <div
@@ -116,13 +125,7 @@ const SvgPanel: React.FC<Props> = (props) => {
         timeRange={timeRange}
       />
 
-      {/* <NotificationTooltip
-        header="Влияние оказано на"
-        count={5}
-        dataSourceNames={undefined}
-        show={true}
-        targetRef={containerRef}
-      /> */}
+      <NotificationTooltip count={dataSourceNames.length} dataSourceNames={dataSourceNames} show={showNotifyTooltip} />
     </div>
   );
 };

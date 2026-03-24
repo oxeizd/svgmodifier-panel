@@ -19,7 +19,9 @@ export interface PanelOptions {
   };
   notifyTooltip: {
     enable: boolean;
-    firingSetting: number;
+    firingThreshold: number;
+    offsetX: number;
+    offsetY: number;
   };
 }
 

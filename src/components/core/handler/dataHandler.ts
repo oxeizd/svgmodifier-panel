@@ -25,7 +25,6 @@ export function getMetricsData(metrics: Metrics[], data: DataFrameMap, mapping?:
 
     processedMetric.queries?.forEach((query) => {
       const config = getConfig(query, metric, mapping);
-      console.log(query, config);
       getQueriesFromDataFrame(query, queriesArray, data, config, counter++);
     });
   }
@@ -114,6 +113,7 @@ function processFields(
       displayValue,
       filling: config.filling,
       title,
+      dsName: config.dataSourceName,
     });
   };
 
@@ -159,6 +159,7 @@ function processTable(
     title: config.title,
     label: '',
     metricValue: 0,
+    dsName: config.dataSourceName,
   };
 
   let maxLvl = -1;

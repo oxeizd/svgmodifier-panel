@@ -124,6 +124,7 @@ export interface MetricData {
   displayValue?: string;
   filling?: string | undefined;
   title?: string | undefined;
+  dsName?: string;
 }
 
 export interface TableMetricData {
@@ -141,6 +142,7 @@ export interface TableMetricData {
   title?: string | undefined;
   color?: string | undefined;
   lvl?: number | undefined;
+  dsName?: string;
 }
 
 export interface NotificationTooltip {

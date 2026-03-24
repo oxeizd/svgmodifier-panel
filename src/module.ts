@@ -112,6 +112,39 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         path: 'tooltip.hideZeros',
         name: 'Hide zeros',
         defaultValue: false,
+      })
+      .addBooleanSwitch({
+        category: ['Notify tooltip'],
+        path: 'notifyTooltip.enable',
+        name: 'enable',
+        defaultValue: false,
+      })
+      .addNumberInput({
+        category: ['Notify tooltip'],
+        path: 'notifyTooltip.firingThreshold',
+        name: 'Firing Threshold',
+        defaultValue: 500,
+        settings: {
+          integer: true,
+        },
+      })
+      .addNumberInput({
+        category: ['Notify tooltip'],
+        path: 'notifyTooltip.offsetX',
+        name: 'offset X',
+        defaultValue: 19,
+        settings: {
+          integer: true,
+        },
+      })
+      .addNumberInput({
+        category: ['Notify tooltip'],
+        path: 'notifyTooltip.offsetY',
+        name: 'offset Y',
+        defaultValue: 152,
+        settings: {
+          integer: true,
+        },
       });
   })
   .useFieldConfig({

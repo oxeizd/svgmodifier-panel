@@ -1,30 +1,34 @@
-import { getMetricsData, QueriesArray } from '../handler/dataHandler';
 import { DataFrameMap } from '../extractor/dataExtractor';
+import { getMetricsData, QueriesArray } from '../handler/dataHandler';
 import { getElementColor, getLabel, getLabelColor } from '../svg/helpers';
 import { addLinkToElement, updateSvgElementRecursive } from '../svg/updater';
 import { ConfigRules, DataMap, TableMetricData, TooltipContent, MetricData } from '../../types';
 
-export async function calculateMetrics(configMap: Map<string, DataMap>, dataFrame: DataFrameMap) {
+export async function calculateMetrics(
+  configMap: Map<string, DataMap>,
+  dataFrame: DataFrameMap,
+  firingThreshold?: number
+) {
   const tooltip: TooltipContent[] = [];
   const operations: Array<() => void> = [];
+  const dataSourceNames: string[] = [];
 
   for (const [id, map] of configMap) {
-    if (!map?.additional || !Array.isArray(map.additional)) {
+    if (!map.SVGElem || !map.additional || !Array.isArray(map.additional)) {
       continue;
     }
 
-    let bestMetric = Number.NEGATIVE_INFINITY;
-    let bestSingleLvl = -100;
-    let bestTableLvl = -100;
-    let bestAttributes: ConfigRules['attributes'] | undefined;
-    let bestEntry: MetricData | TableMetricData | undefined;
+    let bestGloablLvl = Number.NEGATIVE_INFINITY;
+    let bestGlobalMetric = Number.NEGATIVE_INFINITY;
+    let bestGlobalAttributes: ConfigRules['attributes'] | undefined;
+    let bestGlobalEntry: MetricData | TableMetricData | undefined;
 
     for (const item of map.additional) {
       const { attributes, selector, elemIndex, elemsLength } = item;
 
       if (!attributes?.metrics || attributes.metrics.length === 0) {
-        if (bestAttributes === undefined) {
-          bestAttributes = attributes;
+        if (bestGlobalAttributes === undefined) {
+          bestGlobalAttributes = attributes;
         }
         continue;
       }
@@ -37,156 +41,140 @@ export async function calculateMetrics(configMap: Map<string, DataMap>, dataFram
 
       queriesFilter(queriesArray, selector, elemIndex, elemsLength, attributes.autoConfig);
 
-      const singleEntry = singleMetricsProccess(id, queriesArray.fields!, attributes, tooltip);
-      const tableEntry = tableMetricsProccess(id, queriesArray.tables, attributes, tooltip);
+      const { dsNames, bestLvl, bestMetric, bestAttributes, bestEntry } = metricProcessor(
+        id,
+        queriesArray,
+        attributes,
+        tooltip,
+        firingThreshold
+      );
 
-      const singleLvl = singleEntry.bestSingleEntry?.lvl ?? -Infinity;
-      const tableLvl = tableEntry.bestTableEntry?.lvl ?? -Infinity;
-      const currentMetric = singleEntry.bestSingleEntry?.metricValue ?? Number.NEGATIVE_INFINITY;
-
-      if (singleLvl > bestSingleLvl || (singleLvl === bestSingleLvl && currentMetric > bestMetric)) {
-        bestSingleLvl = singleLvl;
-        bestMetric = currentMetric;
-        bestEntry = singleEntry.bestSingleEntry;
-        bestAttributes = singleEntry.bestAttributes;
-      }
-
-      if (tableLvl > bestTableLvl) {
-        bestTableLvl = tableLvl;
-        if (bestTableLvl > bestSingleLvl) {
-          bestEntry = tableEntry.bestTableEntry;
-          bestAttributes = tableEntry.bestAttributes;
+      for (const name of dsNames) {
+        if (!dataSourceNames.includes(name)) {
+          dataSourceNames.push(name);
         }
       }
+
+      if (bestLvl > bestGloablLvl || (bestLvl === bestGloablLvl && bestMetric > bestGlobalMetric)) {
+        bestGloablLvl = bestLvl;
+        bestGlobalMetric = bestMetric;
+        bestGlobalEntry = bestEntry;
+        bestGlobalAttributes = bestAttributes;
+      }
     }
 
-    const svgElement = map.SVGElem;
-    if (!svgElement) {
-      continue;
-    }
-    // console.log('apply', svgElement, bestAttributes, bestEntry)
-    const hasLink = bestAttributes ? 'link' in bestAttributes : false;
-    const hasLabel = bestAttributes ? 'label' in bestAttributes : false;
-    const hasLabelColor = bestAttributes ? 'labelColor' in bestAttributes : false;
-
-    const label = getLabel(bestEntry, bestAttributes?.label);
-    const labelColor = getLabelColor(bestAttributes?.labelColor, bestEntry?.color);
-    const elementColors = getElementColor(bestEntry?.color, bestEntry?.filling);
-
-    operations.push(() => {
-      hasLink && addLinkToElement(svgElement, bestAttributes?.link?.toString());
-      updateSvgElementRecursive(svgElement, [hasLabel, label], [hasLabelColor, labelColor], elementColors);
-    });
+    operations.push(svgOperation(map.SVGElem!, bestGlobalAttributes!, bestGlobalEntry!));
   }
 
-  return { tooltip, operations };
+  return { dataSourceNames, tooltip, operations };
 }
 
-function singleMetricsProccess(
+function metricProcessor(
   id: string,
-  singleData: MetricData[],
+  queries: QueriesArray,
   attributes: ConfigRules['attributes'],
-  tooltip: TooltipContent[]
+  tooltip: TooltipContent[],
+  firingValue?: number
 ) {
   let bestLvl = Number.NEGATIVE_INFINITY;
   let bestMetric = Number.NEGATIVE_INFINITY;
-  let bestSingleEntry: MetricData | undefined;
+  let bestEntry: MetricData | TableMetricData | undefined;
   let bestAttributes: ConfigRules['attributes'] | undefined = undefined;
+  let dsNames: string[] = [];
 
-  for (const entry of singleData) {
-    const currentLvl = entry.lvl ?? Number.NEGATIVE_INFINITY;
-    const currentMetric = entry.metricValue ?? Number.NEGATIVE_INFINITY;
+  if (queries.fields && queries.fields.length > 0) {
+    for (const field of queries.fields) {
+      const currentLvl = field.lvl ?? Number.NEGATIVE_INFINITY;
+      const currentMetric = field.metricValue ?? Number.NEGATIVE_INFINITY;
 
-    if (currentLvl > bestLvl || (currentLvl === bestLvl && currentMetric > bestMetric)) {
-      bestLvl = currentLvl;
-      bestMetric = currentMetric;
-      bestSingleEntry = entry;
-      bestAttributes = attributes;
-    }
-
-    if (attributes?.tooltip && attributes.tooltip.show) {
-      const { textAbove, textBelow } = attributes.tooltip;
-
-      const foundTooltip = tooltip.find((item) => item.id === id);
-      const queryData = {
-        label: entry.label,
-        metric: entry.displayValue || entry.metricValue.toString(),
-        color: entry.color,
-        title: entry.title,
-      };
-
-      if (!foundTooltip) {
-        tooltip.push({
-          id: id,
-          queryData: [queryData],
-          textAbove: textAbove,
-          textBelow: textBelow,
-        });
-      } else {
-        foundTooltip.queryData?.push(queryData);
+      if (firingValue && field.dsName) {
+        if (currentMetric >= firingValue) {
+          dsNames.push(field.dsName);
+        }
       }
-    }
-  }
 
-  return { bestAttributes, bestSingleEntry };
-}
-
-function tableMetricsProccess(
-  id: string,
-  tableData: TableMetricData[],
-  attributes: ConfigRules['attributes'],
-  tooltip: TooltipContent[]
-) {
-  let bestLvl = Number.NEGATIVE_INFINITY;
-  let bestAttributes: ConfigRules['attributes'] | undefined = undefined;
-  let bestTableEntry: TableMetricData | undefined;
-
-  for (const entry of tableData) {
-    const currentLvl = entry.lvl ?? Number.NEGATIVE_INFINITY;
-
-    if (currentLvl > bestLvl || currentLvl === bestLvl) {
-      bestLvl = currentLvl;
-      bestTableEntry = entry;
-      if (bestAttributes === undefined) {
+      if (currentLvl > bestLvl || (currentLvl === bestLvl && currentMetric > bestMetric)) {
+        bestLvl = currentLvl;
+        bestMetric = currentMetric;
+        bestEntry = field;
         bestAttributes = attributes;
       }
-    }
 
-    if (attributes?.tooltip && attributes.tooltip.show) {
-      const { textAbove, textBelow } = attributes.tooltip;
+      if (attributes?.tooltip && attributes.tooltip.show) {
+        const foundTooltip = tooltip.find((item) => item.id === id);
 
-      const foundTooltip = tooltip.find((item) => item.id === id);
-      const tableData = {
-        headers: entry.headers,
-        columnsData: entry.columnsData,
-        title: entry.title,
-      };
+        const queryData = {
+          label: field.label,
+          metric: field.displayValue || field.metricValue.toString(),
+          color: field.color,
+          title: field.title,
+        };
 
-      if (!foundTooltip) {
-        tooltip.push({
-          id: id,
-          queryTableData: [tableData],
-          textAbove: textAbove,
-          textBelow: textBelow,
-        });
-      } else {
-        foundTooltip.queryTableData?.push(tableData);
+        if (!foundTooltip) {
+          tooltip.push({
+            id: id,
+            queryData: [queryData],
+            textAbove: attributes.tooltip.textAbove,
+            textBelow: attributes.tooltip.textBelow,
+          });
+        } else {
+          foundTooltip.queryData?.push(queryData);
+        }
       }
     }
   }
 
-  return { bestAttributes, bestTableEntry };
+  if (queries.tables && queries.tables.length > 0) {
+    for (const table of queries.tables) {
+      const currentLvl = table.lvl ?? Number.NEGATIVE_INFINITY;
+
+      if (currentLvl > bestLvl || (currentLvl === bestLvl && !bestMetric)) {
+        bestLvl = currentLvl;
+        bestEntry = table;
+        if (bestAttributes === undefined) {
+          bestAttributes = attributes;
+        }
+      }
+
+      if (attributes?.tooltip && attributes.tooltip.show) {
+        const { textAbove, textBelow } = attributes.tooltip;
+
+        const foundTooltip = tooltip.find((item) => item.id === id);
+        const tableData = {
+          headers: table.headers,
+          columnsData: table.columnsData,
+          title: table.title,
+        };
+
+        if (!foundTooltip) {
+          tooltip.push({
+            id: id,
+            queryTableData: [tableData],
+            textAbove: textAbove,
+            textBelow: textBelow,
+          });
+        } else {
+          if (!foundTooltip.queryTableData) {
+            foundTooltip.queryTableData = [];
+          }
+          foundTooltip.queryTableData.push(tableData);
+        }
+      }
+    }
+  }
+
+  return { dsNames, bestLvl, bestMetric, bestAttributes, bestEntry };
 }
 
 function queriesFilter(
-  queriesArray: QueriesArray,
+  queries: QueriesArray,
   selector: number[] | undefined,
   index: number,
   elemsLength: number,
   autoConfig?: boolean
 ) {
-  const fieldsLength = queriesArray.fields?.length || 0;
-  const tablesLenght = queriesArray.tables?.length || 0;
+  const fieldsLength = queries.fields?.length || 0;
+  const tablesLenght = queries.tables?.length || 0;
   const metricsLength = fieldsLength + tablesLenght;
 
   if (metricsLength === 0) {
@@ -196,12 +184,12 @@ function queriesFilter(
   if (selector && selector.length > 0) {
     const selectorSet = new Set(selector);
 
-    if (queriesArray.fields) {
-      queriesArray.fields = queriesArray.fields.filter((item) => selectorSet.has(item.counter));
+    if (queries.fields) {
+      queries.fields = queries.fields.filter((item) => selectorSet.has(item.counter));
     }
 
-    if (queriesArray.tables) {
-      queriesArray.tables = queriesArray.tables.filter((item) => selectorSet.has(item.counter));
+    if (queries.tables) {
+      queries.tables = queries.tables.filter((item) => selectorSet.has(item.counter));
     }
 
     return;
@@ -227,13 +215,36 @@ function queriesFilter(
       }
     }
 
-    if (queriesArray.fields) {
-      queriesArray.fields = queriesArray.fields.filter((item) => keepCounters.has(item.counter));
+    if (queries.fields) {
+      queries.fields = queries.fields.filter((item) => keepCounters.has(item.counter));
     }
-    if (queriesArray.tables) {
-      queriesArray.tables = queriesArray.tables.filter((item) => keepCounters.has(item.counter));
+    if (queries.tables) {
+      queries.tables = queries.tables.filter((item) => keepCounters.has(item.counter));
     }
 
     return;
   }
+}
+
+function svgOperation(
+  svgElement: SVGElement,
+  attributes: ConfigRules['attributes'],
+  data: MetricData | TableMetricData
+) {
+  return () => {
+    if (!data) {
+      return;
+    }
+
+    const hasLink = attributes ? 'link' in attributes : false;
+    const hasLabel = attributes ? 'label' in attributes : false;
+    const hasLabelColor = attributes ? 'labelColor' in attributes : false;
+
+    const label = getLabel(data, attributes?.label);
+    const labelColor = getLabelColor(attributes?.labelColor, data?.color);
+    const elementColors = getElementColor(data?.color, data?.filling);
+
+    hasLink && addLinkToElement(svgElement, attributes?.link?.toString());
+    updateSvgElementRecursive(svgElement, [hasLabel, label], [hasLabelColor, labelColor], elementColors);
+  };
 }
