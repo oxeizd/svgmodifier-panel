@@ -22,6 +22,7 @@ export interface PanelOptions {
     firingThreshold: number;
     offsetX: number;
     offsetY: number;
+    hideInEditMode: boolean;
   };
 }
 

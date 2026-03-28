@@ -127,15 +127,17 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         settings: {
           integer: true,
         },
+        showIf: (config) => config.notifyTooltip.enable,
       })
       .addNumberInput({
         category: ['Notify tooltip'],
         path: 'notifyTooltip.offsetX',
         name: 'offset X',
-        defaultValue: 19,
+        defaultValue: 18,
         settings: {
           integer: true,
         },
+        showIf: (config) => config.notifyTooltip.enable,
       })
       .addNumberInput({
         category: ['Notify tooltip'],
@@ -145,6 +147,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         settings: {
           integer: true,
         },
+        showIf: (config) => config.notifyTooltip.enable,
       });
   })
   .useFieldConfig({

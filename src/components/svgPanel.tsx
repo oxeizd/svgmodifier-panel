@@ -10,7 +10,7 @@ import { getCustomTimeSettings } from './core/extractor/timeSettings';
 import { calculateExpressions } from './core/handler/utils';
 import { calculateMetrics } from './core/config/calculateMetrics';
 import { Tooltip } from './ui/tooltip/tooltip';
-import { NotificationTooltip } from './ui/NotifyTooltip/NotifyTooltip';
+import { NotificationTooltip } from './ui/notifyTooltip/tooltip';
 
 interface Props extends PanelProps<PanelOptions> {}
 
@@ -33,9 +33,8 @@ const SvgPanel: React.FC<Props> = (props) => {
     return getCustomTimeSettings(customRelativeTime, fieldsCustomRelativeTime);
   }, [customRelativeTime, fieldsCustomRelativeTime]);
 
-  const { enable, firingThreshold } = useMemo(() => {
-    const { enable, firingThreshold } = options.notifyTooltip;
-    return { enable, firingThreshold };
+  const notifyTooltip = useMemo(() => {
+    return options.notifyTooltip;
   }, [options.notifyTooltip]);
 
   const { svgDoc, mappingArray } = useMemo(() => {
@@ -76,7 +75,7 @@ const SvgPanel: React.FC<Props> = (props) => {
 
       if (isActiveRef.current) {
         await calculateExpressions(expressions, queriesData, timeRange);
-        const result = await calculateMetrics(configMap, queriesData, firingThreshold);
+        const result = await calculateMetrics(configMap, queriesData, notifyTooltip.firingThreshold);
 
         if (result && isActiveRef.current) {
           await updateSvg(result.operations);
@@ -96,9 +95,18 @@ const SvgPanel: React.FC<Props> = (props) => {
       isActiveRef.current = false;
       setTooltipContent([]);
     };
-  }, [svgDoc, mappingArray, configMap, data, timeRange, customTimeSettings, expressions, firingThreshold]);
+  }, [
+    svgDoc,
+    mappingArray,
+    configMap,
+    data,
+    timeRange,
+    customTimeSettings,
+    expressions,
+    notifyTooltip.firingThreshold,
+  ]);
 
-  const showNotifyTooltip = enable && dataSourceNames.length > 0;
+  const showNotifyTooltip = notifyTooltip.enable && dataSourceNames.length > 0;
 
   return (
     <div
@@ -125,7 +133,14 @@ const SvgPanel: React.FC<Props> = (props) => {
         timeRange={timeRange}
       />
 
-      <NotificationTooltip count={dataSourceNames.length} dataSourceNames={dataSourceNames} show={showNotifyTooltip} />
+      {showNotifyTooltip && (
+        <NotificationTooltip
+          count={dataSourceNames.length}
+          dataSourceNames={dataSourceNames}
+          show={showNotifyTooltip}
+          options={options.notifyTooltip}
+        />
+      )}
     </div>
   );
 };

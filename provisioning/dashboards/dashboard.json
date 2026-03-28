@@ -72,7 +72,10 @@
         },
         "notifyTooltip": {
           "enable": true,
-          "firingValue": 50
+          "firingThreshold": 50,
+          "firingValue": 50,
+          "offsetX": 19,
+          "offsetY": 152
         },
         "tooltip": {
           "hideZeros": false,
@@ -180,7 +183,10 @@
         },
         "notifyTooltip": {
           "enable": false,
-          "firingValue": 55
+          "firingThreshold": 500,
+          "firingValue": 55,
+          "offsetX": 19,
+          "offsetY": 152
         },
         "tooltip": {
           "hideZeros": false,
@@ -254,7 +260,10 @@
         },
         "notifyTooltip": {
           "enable": false,
-          "firingValue": 500
+          "firingThreshold": 500,
+          "firingValue": 500,
+          "offsetX": 19,
+          "offsetY": 152
         },
         "tooltip": {
           "hideZeros": false,
@@ -303,7 +312,10 @@
         },
         "notifyTooltip": {
           "enable": false,
-          "firingValue": 500
+          "firingThreshold": 500,
+          "firingValue": 500,
+          "offsetX": 19,
+          "offsetY": 152
         },
         "tooltip": {
           "hideZeros": false,
@@ -358,7 +370,10 @@
         },
         "notifyTooltip": {
           "enable": false,
-          "firingValue": 500
+          "firingThreshold": 500,
+          "firingValue": 500,
+          "offsetX": 19,
+          "offsetY": 152
         },
         "tooltip": {
           "hideZeros": false,
@@ -487,7 +502,10 @@
         },
         "notifyTooltip": {
           "enable": false,
-          "firingValue": 500
+          "firingThreshold": 500,
+          "firingValue": 500,
+          "offsetX": 19,
+          "offsetY": 152
         },
         "tooltip": {
           "hideZeros": false,
@@ -590,7 +608,10 @@
         },
         "notifyTooltip": {
           "enable": false,
-          "firingValue": 500
+          "firingThreshold": 500,
+          "firingValue": 500,
+          "offsetX": 19,
+          "offsetY": 152
         },
         "tooltip": {
           "hideZeros": false,
@@ -644,7 +665,10 @@
         },
         "notifyTooltip": {
           "enable": false,
-          "firingValue": 500
+          "firingThreshold": 500,
+          "firingValue": 500,
+          "offsetX": 19,
+          "offsetY": 152
         },
         "tooltip": {
           "hideZeros": false,
@@ -687,6 +711,6 @@
   "timezone": "browser",
   "title": "Provisioned svg modifier dashboard",
   "uid": "a538aeff-5a8a-42a5-901c-938d896fdd6f",
-  "version": 5,
+  "version": 6,
   "weekStart": ""
 }
