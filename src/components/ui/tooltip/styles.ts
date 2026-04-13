@@ -14,15 +14,16 @@ export const getTooltipContainerStyles = (
   backgroundColor: theme.colors.background.secondary,
   padding: '12px',
   borderRadius: '5px',
-  pointerEvents: 'none',
+  pointerEvents: 'auto',
   boxShadow: '0 3px 12px rgba(0, 0, 0, 0.3)',
   zIndex: 1000,
-  maxWidth: hasTable ? `auto` : `${options.maxWidth}px` || '500px',
+  maxWidth: hasTable ? 'auto' : `${options.maxWidth}px` || '500px',
   overflow: 'auto',
   wordWrap: 'break-word',
   border: `1px solid ${theme.colors.border.weak}`,
   whiteSpace: 'normal',
   fontFamily: theme.typography.fontFamily,
+  userSelect: 'text',
 });
 
 /* Время */
@@ -30,6 +31,17 @@ export const getTimeStyles = (theme: GrafanaTheme2): CSSProperties => ({
   color: theme.colors.text.primary,
   fontSize: '12px',
   marginBottom: '8px',
+});
+
+export const getCloseButtonStyle = (theme: GrafanaTheme2): CSSProperties => ({
+  cursor: 'pointer',
+  fontSize: '10px',
+  lineHeight: 1,
+  marginLeft: '12px',
+  position: 'relative',
+  top: '-2px',
+  display: 'inline-block',
+  padding: '2px',
 });
 
 /* Разделитель */

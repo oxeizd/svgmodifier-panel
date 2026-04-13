@@ -1,11 +1,12 @@
+import React from 'react';
 import ReactDOM from 'react-dom';
-import React, { useRef } from 'react';
 import { useTheme2 } from '@grafana/ui';
 import { TimeRange } from '@grafana/data';
+
 import { PanelOptions } from 'types';
 import { TooltipContent } from 'components/types';
-import { useTooltipLogic } from './hooks';
 import { getTooltipContainerStyles } from './styles';
+import { useTooltipLogic } from './hooks';
 import { TimeSection } from './sections/timeSection';
 import { TextSection } from './sections/textSection';
 import { MetricsSection } from './sections/metricsSection';
@@ -18,46 +19,71 @@ interface Props {
   timeRange: TimeRange;
 }
 
-export const Tooltip: React.FC<Props> = ({ containerRef, tooltipContent, options, timeRange }) => {
+const TooltipContentComponent: React.FC<{
+  content: TooltipContent;
+  timeRange: TimeRange;
+  options: PanelOptions['tooltip'];
+  onClose?: () => void;
+  id: string;
+  coords: { x: number; y: number };
+}> = ({ content, timeRange, options, onClose, id, coords }) => {
   const theme = useTheme2();
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const { tooltipState, adjustedCoords } = useTooltipLogic(tooltipContent, containerRef, options);
-
-  if (!tooltipState.visible || !tooltipState.content) {
-    return null;
-  }
-
   const validCheck = <T,>(arr: T | T[] | undefined | null): T[] | undefined =>
     Array.isArray(arr) && arr.length > 0 ? arr : undefined;
-
-  const metrics = validCheck(tooltipState.content?.queryData);
-  const tableMetrics = validCheck(tooltipState.content?.queryTableData);
-  const textAbove = validCheck(tooltipState.content?.textAbove);
-  const textBelow = validCheck(tooltipState.content?.textBelow);
+  const metrics = validCheck(content.queryData);
+  const tableMetrics = validCheck(content.queryTableData);
+  const textAbove = validCheck(content.textAbove);
+  const textBelow = validCheck(content.textBelow);
 
   if (!Boolean(metrics || tableMetrics || textAbove || textBelow)) {
     return null;
   }
 
-  const containerStyles = getTooltipContainerStyles(theme, options, adjustedCoords, tableMetrics ? true : false);
+  const baseStyles = getTooltipContainerStyles(theme, options, coords, !!tableMetrics);
+  const containerStyles: React.CSSProperties = { ...baseStyles, pointerEvents: 'auto', userSelect: 'text' };
+
+  return (
+    <div data-tooltip-id={id} style={containerStyles}>
+      <TimeSection timeRange={timeRange} onClose={onClose} />
+      {textAbove && <TextSection currentText={textAbove as string[]} />}
+      {metrics && <MetricsSection queryData={metrics} options={options} />}
+      {tableMetrics && <TableSection tables={tableMetrics} />}
+      {textBelow && <TextSection currentText={textBelow as string[]} />}
+    </div>
+  );
+};
+
+export const Tooltip: React.FC<Props> = ({ containerRef, tooltipContent, options, timeRange }) => {
+  const { hoverTooltip, pinnedTooltips, adjustedCoords, unpin } = useTooltipLogic(
+    tooltipContent,
+    containerRef,
+    options
+  );
 
   return ReactDOM.createPortal(
-    <div ref={tooltipRef} data-tooltip="true" style={containerStyles}>
-      {/* time */}
-      <TimeSection timeRange={timeRange} />
+    <>
+      {hoverTooltip && (
+        <TooltipContentComponent
+          id={hoverTooltip.id}
+          content={hoverTooltip.content}
+          timeRange={timeRange}
+          options={options}
+          coords={{ x: hoverTooltip.x, y: hoverTooltip.y }}
+        />
+      )}
 
-      {/* text above */}
-      {textAbove && <TextSection currentText={textAbove as string[]} />}
-
-      {/* metrics */}
-      {metrics && <MetricsSection queryData={metrics} options={options} />}
-
-      {/* tables */}
-      {tableMetrics && <TableSection tables={tableMetrics} />}
-
-      {/* text below */}
-      {textBelow && <TextSection currentText={textBelow as string[]} />}
-    </div>,
+      {pinnedTooltips.map((p) => (
+        <TooltipContentComponent
+          key={p.id}
+          id={p.id}
+          content={p.content}
+          timeRange={timeRange}
+          options={options}
+          onClose={() => unpin(p.id)}
+          coords={adjustedCoords[p.id] || { x: p.x, y: p.y }}
+        />
+      ))}
+    </>,
     document.body
   );
 };
