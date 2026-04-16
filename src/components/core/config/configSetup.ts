@@ -1,5 +1,5 @@
 import { RegexCheck } from '../utils';
-import { applySchema, parseFilter } from './utils';
+import { applySchema, parseFilter } from './parsers';
 import { ConfigRules, DataMap, QueryType, filter } from '../../types';
 
 type ConfigMap = Map<string, DataMap>;

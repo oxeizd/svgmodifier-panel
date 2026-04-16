@@ -3,24 +3,87 @@ import YAML from 'yaml';
 
 /**
  **/
-export function parseYamlConfig(
-  yamlText: string,
-  replaceVariables?: (content: string) => string
-): ConfigRules[] | null {
-  const options = { maxAliasCount: 10000 };
-  try {
-    const yaml = YAML.parse(yamlText, options);
-
-    if (yaml && 'changes' in yaml && Array.isArray(yaml.changes)) {
-      return yaml.changes as ConfigRules[];
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
+interface Page {
+  page: string;
+  code: string;
 }
 
+export function parseYamlConfig(input: Page[] | string | string[] | undefined): ConfigRules[] | null {
+  if (!input) {
+    return null;
+  }
+
+  let pagesCode: string[] = [];
+
+  if (Array.isArray(input) && input.every((item) => typeof item === 'object' && 'code' in item)) {
+    pagesCode = input.map((p) => p.code);
+  } else if (Array.isArray(input) && input.every((item) => typeof item === 'string')) {
+    pagesCode = input;
+  } else if (typeof input === 'string') {
+    pagesCode = [input];
+  } else {
+    return null;
+  }
+
+  pagesCode = pagesCode.filter((code) => code && code.trim().length > 0);
+  if (pagesCode.length === 0) {
+    return null;
+  }
+
+  const wrappedPages = pagesCode.map((code, idx) => {
+    const indented = code
+      .split('\n')
+      .map((line) => `  ${line}`)
+      .join('\n');
+    return `page_${idx}:\n${indented}`;
+  });
+
+  const combinedYaml = wrappedPages.join('\n');
+
+  let root: any;
+
+  try {
+    root = YAML.parse(combinedYaml, { maxAliasCount: 10000 });
+  } catch (err) {
+    console.error('[parseYamlConfig] YAML parse error:', err);
+    return null;
+  }
+
+  if (!root || typeof root !== 'object') {
+    return null;
+  }
+
+  let merged: any = {};
+
+  for (let i = 0; i < pagesCode.length; i++) {
+    const pageKey = `page_${i}`;
+    const pageData = root[pageKey];
+    if (!pageData || typeof pageData !== 'object') {
+      continue;
+    }
+
+    for (const key of Object.keys(pageData)) {
+      if (key === 'changes') {
+        const changesArray = pageData.changes;
+        if (Array.isArray(changesArray)) {
+          if (!merged.changes) {
+            merged.changes = [];
+          }
+          merged.changes.push(...changesArray);
+        }
+      } else {
+        merged[key] = pageData[key];
+      }
+    }
+  }
+
+  if (merged.changes && Array.isArray(merged.changes)) {
+    return merged.changes as ConfigRules[];
+  }
+
+  console.warn('[parseYamlConfig] No "changes" array found in merged config');
+  return null;
+}
 /**
  * Schemas for quick configuration setup
  */

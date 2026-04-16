@@ -1,6 +1,7 @@
+import { GrafanaTheme2 } from '@grafana/data';
 import { MAX_TOOLTIP_WIDTH, INITIAL_TOOLTIP_WIDTH } from './constants';
 
-type Theme = any; // замените на конкретный тип из @grafana/ui
+type Theme = GrafanaTheme2;
 
 export const getContainerStyles = (theme: Theme, tooltipWidth: number): React.CSSProperties => ({
   position: 'relative',
@@ -8,7 +9,7 @@ export const getContainerStyles = (theme: Theme, tooltipWidth: number): React.CS
   padding: '8px 10px',
   borderRadius: '3px',
   border: '1px solid rgba(255, 0, 0, 0.5)',
-  boxShadow: 'inset 0 0 15px rgba(255, 0, 0, 0.4)',
+  boxShadow: 'inset 0 0 10px rgba(255, 0, 0, 0.4)',
   fontFamily: theme.typography.fontFamily,
   pointerEvents: 'none',
   display: 'flex',

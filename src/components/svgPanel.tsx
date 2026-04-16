@@ -1,144 +1,34 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef } from 'react';
 import { PanelOptions } from 'types';
-import { TooltipContent } from './types';
 import { PanelProps } from '@grafana/data';
-import { parseYamlConfig } from './core/config/utils';
-import { initSVG, svgToString, updateSvg } from './core/svg/updater';
-import { initializeConfig } from './core/config/configSetup';
-import { extractFields, getDataSourceNames } from './core/extractor/dataExtractor';
-import { getCustomTimeSettings } from './core/extractor/timeSettings';
-import { calculateExpressions } from './core/handler/utils';
-import { calculateMetrics } from './core/config/calculateMetrics';
-import { Tooltip } from './ui/tooltip/tooltip';
+import { Tooltip } from './ui/tooltip/core/tooltip';
 import { NotificationTooltip } from './ui/notifyTooltip/tooltip';
+import { useSvgPanel } from './core/application/useSvgPanel';
 
 interface Props extends PanelProps<PanelOptions> {}
 
 const SvgPanel: React.FC<Props> = (props) => {
-  const { data, timeRange, height, width, options } = props;
-  const { expressions } = options.transformations;
+  const { data, timeRange, options, height, width } = props;
+  const { notifyTooltip, tooltip } = options;
 
-  const { svgCode, metricsMapping, svgAspectRatio } = options.jsonData;
-  const { customRelativeTime, fieldsCustomRelativeTime } = options.jsonData;
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const isActiveRef = useRef(true);
-  const countQueries = useRef<number>(0);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const { svgString, tooltipContent, dataSourceNames } = useSvgPanel(data, timeRange, options);
 
-  const [svgString, setSvgString] = useState<string>('');
-  const [tooltipContent, setTooltipContent] = useState<TooltipContent[]>([]);
-  const [dataSourceNames, setDataSourceNames] = useState<string[]>([]);
-
-  const customTimeSettings = useMemo(() => {
-    return getCustomTimeSettings(customRelativeTime, fieldsCustomRelativeTime);
-  }, [customRelativeTime, fieldsCustomRelativeTime]);
-
-  const notifyTooltip = useMemo(() => {
-    return options.notifyTooltip;
-  }, [options.notifyTooltip]);
-
-  const { svgDoc, mappingArray } = useMemo(() => {
-    const mappingArray = parseYamlConfig(metricsMapping);
-    const svgDoc = initSVG(svgCode, svgAspectRatio);
-
-    return { svgDoc, mappingArray };
-  }, [svgCode, svgAspectRatio, metricsMapping]);
-
-  const configMap = useMemo(() => {
-    if (svgDoc && mappingArray) {
-      return initializeConfig(svgDoc, mappingArray);
-    }
-    return new Map();
-  }, [svgDoc, mappingArray]);
-
-  useEffect(() => {
-    isActiveRef.current = true;
-
-    if (!svgDoc) {
-      setSvgString('');
-      return;
-    }
-
-    if (!mappingArray) {
-      setSvgString(svgToString(svgDoc));
-      setTooltipContent([]);
-      return;
-    }
-
-    const processSvg = async () => {
-      const queriesData = await extractFields(data, customTimeSettings, timeRange);
-
-      if (queriesData.size !== countQueries.current) {
-        await getDataSourceNames(data, queriesData);
-        countQueries.current = queriesData.size;
-      }
-
-      if (isActiveRef.current) {
-        await calculateExpressions(expressions, queriesData, timeRange);
-        const result = await calculateMetrics(configMap, queriesData, notifyTooltip.firingThreshold);
-
-        if (result && isActiveRef.current) {
-          await updateSvg(result.operations);
-          setSvgString(svgToString(svgDoc));
-          setTooltipContent(result.tooltip || []);
-          setDataSourceNames(result.dataSourceNames || []);
-        }
-
-        if (typeof queriesData.clear === 'function') {
-          queriesData.clear();
-        }
-      }
-    };
-
-    processSvg();
-    return () => {
-      isActiveRef.current = false;
-      setTooltipContent([]);
-    };
-  }, [
-    svgDoc,
-    mappingArray,
-    configMap,
-    data,
-    timeRange,
-    customTimeSettings,
-    expressions,
-    notifyTooltip.firingThreshold,
-  ]);
-
-  const showNotifyTooltip = notifyTooltip.enable && dataSourceNames.length > 0;
+  const showNotify = notifyTooltip.enable && dataSourceNames.length > 0;
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        position: 'relative',
-        height: `${height}px`,
-        width: `${width}px`,
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        dangerouslySetInnerHTML={{ __html: svgString }}
-        style={{
-          display: 'block',
-          height: `${height}px`,
-          width: `${width}px`,
-        }}
-      />
-      <Tooltip
-        containerRef={containerRef}
-        tooltipContent={tooltipContent}
-        options={options.tooltip}
-        timeRange={timeRange}
-      />
+    <div ref={containerRef} style={{ position: 'relative', height, width, overflow: 'hidden' }}>
+      <div dangerouslySetInnerHTML={{ __html: svgString }} style={{ display: 'block', height, width }} />
 
-      {showNotifyTooltip && (
+      <Tooltip containerRef={containerRef} tooltipContent={tooltipContent} options={tooltip} timeRange={timeRange} />
+
+      {showNotify && (
         <NotificationTooltip
           count={dataSourceNames.length}
           dataSourceNames={dataSourceNames}
-          show={showNotifyTooltip}
-          options={options.notifyTooltip}
+          show={showNotify}
+          options={notifyTooltip}
         />
       )}
     </div>

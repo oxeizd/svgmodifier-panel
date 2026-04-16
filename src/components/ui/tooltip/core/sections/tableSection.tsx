@@ -2,7 +2,7 @@ import React from 'react';
 import { GrafanaTheme2 } from '@grafana/data';
 import { useTheme2 } from '@grafana/ui';
 import { TooltipContent } from 'components/types';
-import { getTableContainerStyles, getTableCellStyles, getTableHeaderRowStyles } from '../styles';
+import { getTableContainerStyles, getTableCellStyles, getTableHeaderRowStyles } from '../../styles';
 
 interface TableSectionProps {
   tables: NonNullable<TooltipContent['queryTableData']>;

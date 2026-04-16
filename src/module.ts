@@ -95,6 +95,15 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
           integer: true,
         },
       })
+      .addNumberInput({
+        category: ['Tooltip'],
+        path: 'tooltip.maxHeight',
+        name: 'Max Height',
+        defaultValue: 500,
+        settings: {
+          integer: true,
+        },
+      })
       .addRadio({
         category: ['Tooltip'],
         path: 'tooltip.valuePosition',

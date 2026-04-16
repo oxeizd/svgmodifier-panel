@@ -1,8 +1,7 @@
 import { DataFrameMap } from '../extractor/dataExtractor';
 import { getMetricsData, QueriesArray } from '../handler/dataHandler';
-import { getElementColor, getLabel, getLabelColor } from '../svg/helpers';
-import { addLinkToElement, updateSvgElementRecursive } from '../svg/updater';
 import { ConfigRules, DataMap, TableMetricData, TooltipContent, MetricData } from '../../types';
+import { createSvgUpdateOperation } from '../svg/operations';
 
 export async function calculateMetrics(
   configMap: Map<string, DataMap>,
@@ -63,7 +62,7 @@ export async function calculateMetrics(
       }
     }
 
-    operations.push(svgOperation(map.SVGElem!, bestGlobalAttributes!, bestGlobalEntry!));
+    operations.push(createSvgUpdateOperation(map.SVGElem!, bestGlobalAttributes!, bestGlobalEntry!));
   }
 
   return { dataSourceNames, tooltip, operations };
@@ -224,27 +223,4 @@ function queriesFilter(
 
     return;
   }
-}
-
-function svgOperation(
-  svgElement: SVGElement,
-  attributes: ConfigRules['attributes'],
-  data: MetricData | TableMetricData
-) {
-  return () => {
-    if (!data) {
-      return;
-    }
-
-    const hasLink = attributes ? 'link' in attributes : false;
-    const hasLabel = attributes ? 'label' in attributes : false;
-    const hasLabelColor = attributes ? 'labelColor' in attributes : false;
-
-    const label = getLabel(data, attributes?.label);
-    const labelColor = getLabelColor(attributes?.labelColor, data?.color);
-    const elementColors = getElementColor(data?.color, data?.filling);
-
-    hasLink && addLinkToElement(svgElement, attributes?.link?.toString());
-    updateSvgElementRecursive(svgElement, [hasLabel, label], [hasLabelColor, labelColor], elementColors);
-  };
 }

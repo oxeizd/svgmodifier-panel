@@ -1,6 +1,6 @@
 import { matchPattern } from '../utils';
-import { formatValues } from './valueTransformer';
 import { defaultConfig, getConfig } from './constants';
+import { formatValues } from '../formatters/valueTransformer';
 import { DataFrameEntry, DataFrameMap } from '../extractor/dataExtractor';
 import { processLegacyMetric, getMappingMatch, calculateValue, getMetricColor, checkFilter } from './utils';
 import { QuerySpecificSettings, Metrics, ValueMapping, QueryType, MetricData, TableMetricData } from '../../types';

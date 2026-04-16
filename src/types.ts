@@ -1,7 +1,10 @@
 export interface PanelOptions {
   jsonData: {
     svgCode: string;
-    metricsMapping: string;
+    metricsMapping: Array<{
+      page: string;
+      code: string;
+    }>;
     svgAspectRatio: string;
     customRelativeTime: string;
     fieldsCustomRelativeTime: string;
@@ -14,6 +17,7 @@ export interface PanelOptions {
   tooltip: {
     sort: 'none' | 'ascending' | 'descending';
     maxWidth: number;
+    maxHeight: number;
     valuePosition: 'standard' | 'right';
     hideZeros: boolean;
   };

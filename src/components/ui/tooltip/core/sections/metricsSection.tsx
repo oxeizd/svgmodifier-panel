@@ -8,7 +8,7 @@ import {
   getMetricContainerStyles,
   getLabelStyles,
   getValueStyles,
-} from '../styles';
+} from '../../styles';
 
 interface MetricsSectionProps {
   queryData: TooltipContent['queryData'];
