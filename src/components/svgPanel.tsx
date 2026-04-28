@@ -1,106 +1,36 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef } from 'react';
+import { PanelOptions } from 'types';
 import { PanelProps } from '@grafana/data';
-import { Tooltip } from './tooltip/tooltip';
-import { extractFields } from './dataExtractor';
-import { parseYamlConfig } from './utils/helpers';
-import { initSVG, svgToString, updateSvg } from './svgUpdater';
-import { DataMap, PanelOptions, TooltipContent } from '../types';
-import { initializeConfig, calculateMetrics } from './mainProcessor';
-// import { getTemplateSrv } from '@grafana/runtime';
+import { Tooltip } from './ui/tooltip/core/tooltip';
+import { NotificationTooltip } from './ui/notifyTooltip/tooltip';
+import { useSvgPanel } from './core/application/useSvgPanel';
 
 interface Props extends PanelProps<PanelOptions> {}
 
 const SvgPanel: React.FC<Props> = (props) => {
-  const {
-    svgCode,
-    metricsMapping,
-    svgAspectRatio,
-    customRelativeTime: RelativeTime,
-    fieldsCustomRelativeTime: fieldsRelativeTime,
-  } = props.options.jsonData;
+  const { data, timeRange, options, height, width } = props;
+  const { notifyTooltip, tooltip } = options;
 
-  const { data, timeRange, height, width } = props;
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const isActiveRef = useRef(true);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const { svgString, tooltipContent, dataSourceNames } = useSvgPanel(data, timeRange, options);
 
-  const [svgString, setSvgString] = useState<string>('');
-  const [tooltip, setTooltip] = useState<TooltipContent[]>([]);
-  const [configMap, setConfigMap] = useState<Map<string, DataMap>>(new Map());
-
-  const { svgDoc, mappingArray } = useMemo(() => {
-    const mappingArray = parseYamlConfig(metricsMapping);
-    const svgDoc = initSVG(svgCode, svgAspectRatio);
-
-    setConfigMap(svgDoc && mappingArray ? initializeConfig(svgDoc, mappingArray) : new Map());
-
-    return { svgDoc, mappingArray };
-  }, [svgCode, svgAspectRatio, metricsMapping]);
-
-  useEffect(() => {
-    isActiveRef.current = true;
-
-    if (!svgDoc) {
-      setSvgString('');
-      return;
-    }
-
-    if (!mappingArray) {
-      setSvgString(svgToString(svgDoc));
-      setTooltip([]);
-      return;
-    }
-
-    const processSvg = async () => {
-      const queriesData = await extractFields(data.series, RelativeTime, fieldsRelativeTime, timeRange);
-
-      if (isActiveRef.current) {
-        const result = await calculateMetrics(configMap, queriesData);
-
-        if (result && isActiveRef.current) {
-          await updateSvg(configMap);
-
-          setSvgString(svgToString(svgDoc));
-          setTooltip(result || []);
-        }
-
-        if (typeof queriesData.clear === 'function') {
-          queriesData.clear();
-        }
-      }
-    };
-
-    processSvg();
-    return () => {
-      isActiveRef.current = false;
-      setTooltip([]);
-    };
-  }, [svgDoc, mappingArray, configMap, data.series, RelativeTime, fieldsRelativeTime, timeRange]);
+  const showNotify = notifyTooltip.enable && dataSourceNames.length > 0;
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        position: 'relative',
-        height: `${height}px`,
-        width: `${width}px`,
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        dangerouslySetInnerHTML={{ __html: svgString }}
-        style={{
-          display: 'block',
-          height: `${height}px`,
-          width: `${width}px`,
-        }}
-      />
-      <Tooltip
-        containerRef={containerRef}
-        tooltipData={tooltip}
-        options={props.options.tooltip}
-        timeRange={timeRange}
-      />
+    <div ref={containerRef} style={{ position: 'relative', height, width, overflow: 'hidden' }}>
+      <div dangerouslySetInnerHTML={{ __html: svgString }} style={{ display: 'block', height, width }} />
+
+      <Tooltip containerRef={containerRef} tooltipContent={tooltipContent} options={tooltip} timeRange={timeRange} />
+
+      {showNotify && (
+        <NotificationTooltip
+          count={dataSourceNames.length}
+          dataSourceNames={dataSourceNames}
+          show={showNotify}
+          options={notifyTooltip}
+        />
+      )}
     </div>
   );
 };
