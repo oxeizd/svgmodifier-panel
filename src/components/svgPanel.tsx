@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { PanelOptions } from 'types';
 import { PanelProps } from '@grafana/data';
-import { Tooltip } from './ui/tooltip/core/tooltip';
+import { Tooltip } from './ui/tooltip/tooltip';
 import { NotificationTooltip } from './ui/notifyTooltip/tooltip';
 import { useSvgPanel } from './core/application/useSvgPanel';
 
