@@ -6,9 +6,12 @@ import { css } from '@emotion/css';
 export const getTooltipContainerStyles = (
   theme: GrafanaTheme2,
   options: PanelOptions['tooltip'],
+  coords: { x: number; y: number },
   hasTable?: boolean
 ): CSSProperties => ({
   position: 'fixed',
+  left: coords.x,
+  top: coords.y,
   backgroundColor: theme.colors.background.secondary,
   padding: '12px 6px 12px 12px',
   borderRadius: '5px',
@@ -53,6 +56,7 @@ export const getContentClass = css`
   scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
 `;
 
+/* Время */
 export const getTimeStyles = (theme: GrafanaTheme2): CSSProperties => ({
   color: theme.colors.text.primary,
   fontSize: '12px',
@@ -66,34 +70,40 @@ export const getCloseButtonStyle = (theme: GrafanaTheme2): CSSProperties => ({
   fontSize: '10px',
 });
 
+/* Разделитель */
 export const getDividerStyles = (theme: GrafanaTheme2): CSSProperties => ({
   borderBottom: `1px solid ${theme.colors.border.weak}`,
   margin: '0 -12px 8px -12px',
 });
 
+/* Метрики */
 export const getMetricItemStyles = (): CSSProperties => ({
   marginBottom: '2px',
   lineHeight: '1.4',
 });
 
+/* Заголовок  метрики */
 export const getTitleStyles = (theme: GrafanaTheme2): CSSProperties => ({
   color: theme.colors.text.secondary,
   marginBottom: '3px',
   fontSize: '12px',
 });
 
+/* Вид метрик */
 export const getMetricContainerStyles = (options: PanelOptions['tooltip']): CSSProperties => ({
   display: options.valuePosition === 'right' ? 'flex' : 'block',
   justifyContent: options.valuePosition === 'right' ? 'space-between' : 'flex-start',
   alignItems: options.valuePosition === 'right' ? 'center' : 'flex-start',
 });
 
+/* значение лейбла метрики */
 export const getLabelStyles = (theme: GrafanaTheme2, options: PanelOptions['tooltip']): CSSProperties => ({
   color: theme.colors.text.primary,
   marginRight: options.valuePosition === 'right' ? '8px' : '4px',
   fontSize: '13px',
 });
 
+/* значение метрики */
 export const getValueStyles = (
   theme: GrafanaTheme2,
   options: PanelOptions['tooltip'],
@@ -114,6 +124,7 @@ export const getTextBlockStyles = (): CSSProperties => ({
   marginBottom: '8px',
 });
 
+/* Стили для таблицы */
 export const getTableContainerStyles = (): CSSProperties => ({
   marginTop: '12px',
   maxWidth: '100%',

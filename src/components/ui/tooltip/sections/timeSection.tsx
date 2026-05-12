@@ -1,8 +1,8 @@
 import React from 'react';
 import { useTheme2 } from '@grafana/ui';
 import { TimeRange } from '@grafana/data';
-import { formatTimeRange } from '../../utils/formatting';
-import { getTimeStyles, getDividerStyles, getCloseButtonStyle } from '../../styles';
+import { formatTimeRange } from '../utils';
+import { getTimeStyles, getDividerStyles, getCloseButtonStyle } from '../styles';
 
 export const TimeSection: React.FC<{ timeRange: TimeRange; onClose?: () => void }> = ({ timeRange, onClose }) => {
   const theme = useTheme2();

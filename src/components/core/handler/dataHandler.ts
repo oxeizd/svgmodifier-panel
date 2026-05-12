@@ -19,7 +19,7 @@ export function getMetricsData(metrics: Metrics[], data: DataFrameMap, mapping?:
     return queriesArray;
   }
 
-  let counter = 1;
+  let counter = 0;
   for (const metric of metrics) {
     const processedMetric = processLegacyMetric(metric);
 

@@ -206,9 +206,9 @@ function queriesFilter(
     } else {
       const lastIndex = elemsLength - 1;
       if (index < lastIndex) {
-        keepCounters.add(index + 1);
+        keepCounters.add(index);
       } else {
-        for (let c = elemsLength; c <= metricsLength; c++) {
+        for (let c = elemsLength - 1; c < metricsLength; c++) {
           keepCounters.add(c);
         }
       }

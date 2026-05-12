@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTheme2 } from '@grafana/ui';
-import { getTextLineStyles, getTextBlockStyles } from '../../styles';
+import { getTextLineStyles, getTextBlockStyles } from '../styles';
 
 interface TextSectionProps {
   currentText: string[];

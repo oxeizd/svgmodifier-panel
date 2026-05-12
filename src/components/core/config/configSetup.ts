@@ -29,6 +29,10 @@ function prepareConfig(changes: ConfigRules[], elementsMap: Map<string, SVGEleme
     let elemsLength = elements.length;
     let currentIndex = 0;
 
+    if (config.autoConfig) {
+      elemsLength = elements.filter(([, , selector]) => selector.length === 0).length;
+    }
+
     elements.forEach((el, index) => {
       const [id, schema, selector, svgElement] = el;
       let configToUse = config;
@@ -66,19 +70,17 @@ function prepareConfig(changes: ConfigRules[], elementsMap: Map<string, SVGEleme
         attributes: configToUse,
         selector: selector,
         elemIndex: currentIndex,
-        elemsLength,
+        elemsLength: selector.length !== 0 ? 1 : elemsLength,
       };
+
+      if (selector.length === 0) {
+        currentIndex++;
+      }
 
       if (configMap.get(id)) {
         configMap.get(id)?.additional.push(additional);
       } else {
         configMap.set(id, { SVGElem: svgElement, additional: [additional] });
-      }
-
-      if (selector.length === 0) {
-        currentIndex++;
-      } else {
-        elemsLength = elemsLength - 1;
       }
     });
   };
