@@ -35,7 +35,7 @@ function prepareConfig(changes: ConfigRules[], elementsMap: Map<string, SVGEleme
 
     elements.forEach((el, index) => {
       const [id, schema, selector, svgElement] = el;
-      let configToUse = config;
+      let configToUse = { ...config };
       let metrics = configToUse.metrics || undefined;
 
       if (Array.isArray(config.link) && config.link[index] !== undefined) {

@@ -125,6 +125,7 @@ export interface MetricData {
   filling?: string | undefined;
   title?: string | undefined;
   dsName?: string;
+  refId?: string;
 }
 
 export interface TableMetricData {
@@ -143,6 +144,7 @@ export interface TableMetricData {
   color?: string | undefined;
   lvl?: number | undefined;
   dsName?: string;
+  refId?: string;
 }
 
 export interface NotificationTooltip {

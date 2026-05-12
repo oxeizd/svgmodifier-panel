@@ -51,7 +51,7 @@ function getQueriesFromDataFrame(
     }
 
     if (extractedData.type === 'table') {
-      const table = processTable(extractedData, dataFrame, counter, config);
+      const table = processTable(extractedData, dataFrame, counter, config, query.refid);
       if (table) {
         queriesArray.tables?.push(table);
       }
@@ -60,7 +60,7 @@ function getQueriesFromDataFrame(
       for (const [innerKey, values] of extractedData.values) {
         if (checkFilter(innerKey, config.filter)) {
           const value = calculateValue(values.values.map(Number), config.calculation);
-          fields.push({ legend: innerKey, value });
+          fields.push({ legend: innerKey, value, globalKey: query.refid });
         }
       }
       processFields(fields, queriesArray, config, dataFrame, counter);
@@ -95,7 +95,7 @@ function processFields(
     return;
   }
 
-  const addToArray = (value: number, title: string, label: string) => {
+  const addToArray = (value: number, title: string, label: string, refId?: string) => {
     let displayValue = formatValues(value, config.unit, config.decimal);
 
     if (config.mapping) {
@@ -114,6 +114,7 @@ function processFields(
       filling: config.filling,
       title,
       dsName: config.dataSourceName,
+      refId: refId,
     });
   };
 
@@ -130,8 +131,9 @@ function processFields(
     const value = query.value;
     const title = getTitle(config.title, index);
     const label = getLabel(query.legend, config.label) || '';
+    const refId = query.globalKey;
 
-    addToArray(value, title, label);
+    addToArray(value, title, label, refId);
   });
 }
 
@@ -139,7 +141,8 @@ function processTable(
   extractedData: DataFrameEntry,
   dataFrame: DataFrameMap,
   counter: number,
-  config: typeof defaultConfig
+  config: typeof defaultConfig,
+  refId?: string
 ) {
   const headers = Array.from(extractedData.values.keys());
   const colCount = headers.length;
@@ -160,6 +163,7 @@ function processTable(
     label: '',
     metricValue: 0,
     dsName: config.dataSourceName,
+    refId: refId,
   };
 
   let maxLvl = -1;

@@ -142,7 +142,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         category: ['Notify tooltip'],
         path: 'notifyTooltip.offsetX',
         name: 'offset X',
-        defaultValue: 18,
+        defaultValue: 19,
         settings: {
           integer: true,
         },
@@ -152,10 +152,18 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         category: ['Notify tooltip'],
         path: 'notifyTooltip.offsetY',
         name: 'offset Y',
-        defaultValue: 152,
+        defaultValue: 146,
         settings: {
           integer: true,
         },
+        showIf: (config) => config.notifyTooltip.enable,
+      })
+      .addTextInput({
+        category: ['Notify tooltip'],
+        path: 'notifyTooltip.excludeFilter',
+        name: 'Exclude filter',
+        description: 'use ","',
+        defaultValue: '',
         showIf: (config) => config.notifyTooltip.enable,
       });
   })

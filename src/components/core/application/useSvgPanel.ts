@@ -17,8 +17,7 @@ export const useSvgPanel = (data: PanelData, timeRange: TimeRange, options: Pane
 
   const [svgString, setSvgString] = useState('');
   const [tooltipContent, setTooltipContent] = useState<TooltipContent[]>([]);
-  const [dataSourceNames, setDataSourceNames] = useState<string[]>([]);
-
+  const [dataSourceMap, setDataSourceMap] = useState<Map<string, Set<string>>>(new Map());
   const { svgCode, metricsMapping, svgAspectRatio, customRelativeTime, fieldsCustomRelativeTime } = options.jsonData;
 
   const { expressions } = options.transformations;
@@ -66,7 +65,7 @@ export const useSvgPanel = (data: PanelData, timeRange: TimeRange, options: Pane
           await updateSvg(result.operations);
           setSvgString(svgToString(svgDoc));
           setTooltipContent(result.tooltip || []);
-          setDataSourceNames(result.dataSourceNames || []);
+          setDataSourceMap(result.dataSourceMap || []);
         }
 
         if (typeof queriesData.clear === 'function') {
@@ -81,5 +80,5 @@ export const useSvgPanel = (data: PanelData, timeRange: TimeRange, options: Pane
     };
   }, [svgDoc, mappingArray, configMap, data, timeRange, customTimeSettings, expressions, firingThreshold]);
 
-  return { svgString, tooltipContent, dataSourceNames };
+  return { svgString, tooltipContent, dataSourceMap };
 };

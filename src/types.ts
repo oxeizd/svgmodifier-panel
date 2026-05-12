@@ -27,6 +27,7 @@ export interface PanelOptions {
     offsetX: number;
     offsetY: number;
     hideInEditMode: boolean;
+    excludeFilter?: string;
   };
 }
 
