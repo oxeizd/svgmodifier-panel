@@ -95,7 +95,7 @@ function processFields(
     return;
   }
 
-  const addToArray = (value: number, title: string, label: string, refId?: string) => {
+  const addToArray = (value: number, title: string, label: string, refId?: string, refId?: string) => {
     let displayValue = formatValues(value, config.unit, config.decimal);
 
     if (config.mapping) {
@@ -114,7 +114,7 @@ function processFields(
       filling: config.filling,
       title,
       dsName: config.dataSourceName,
-      refId: refId,
+      refId: refId
     });
   };
 
@@ -133,7 +133,7 @@ function processFields(
     const label = getLabel(query.legend, config.label) || '';
     const refId = query.globalKey;
 
-    addToArray(value, title, label, refId);
+    addToArray(value, title, label, refId, refId);
   });
 }
 
@@ -163,7 +163,7 @@ function processTable(
     label: '',
     metricValue: 0,
     dsName: config.dataSourceName,
-    refId: refId,
+    refId: refId
   };
 
   let maxLvl = -1;
