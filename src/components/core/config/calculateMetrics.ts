@@ -10,7 +10,7 @@ export async function calculateMetrics(
 ) {
   const tooltip: TooltipContent[] = [];
   const operations: Array<() => void> = [];
-  const dataSourceNames: string[] = [];
+  const dataSourceMap = new Map<string, Set<string>>();
 
   for (const [id, map] of configMap) {
     if (!map.SVGElem || !map.additional || !Array.isArray(map.additional)) {
@@ -34,7 +34,7 @@ export async function calculateMetrics(
 
       const queriesArray = getMetricsData(attributes.metrics, dataFrame, attributes.valueMapping);
 
-      if (!queriesArray || !queriesArray.fields || !queriesArray.tables) {
+      if (!queriesArray) {
         continue;
       }
 
@@ -48,9 +48,12 @@ export async function calculateMetrics(
         firingThreshold
       );
 
-      for (const name of dsNames) {
-        if (!dataSourceNames.includes(name)) {
-          dataSourceNames.push(name);
+      if (firingThreshold) {
+        for (const [dsName, refId] of dsNames) {
+          if (!dataSourceMap.has(dsName)) {
+            dataSourceMap.set(dsName, new Set<string>());
+          }
+          dataSourceMap.get(dsName)!.add(refId);
         }
       }
 
@@ -65,7 +68,7 @@ export async function calculateMetrics(
     operations.push(createSvgUpdateOperation(map.SVGElem!, bestGlobalAttributes!, bestGlobalEntry!));
   }
 
-  return { dataSourceNames, tooltip, operations };
+  return { dataSourceMap, tooltip, operations };
 }
 
 function metricProcessor(
@@ -79,16 +82,16 @@ function metricProcessor(
   let bestMetric = Number.NEGATIVE_INFINITY;
   let bestEntry: MetricData | TableMetricData | undefined;
   let bestAttributes: ConfigRules['attributes'] | undefined = undefined;
-  let dsNames: string[] = [];
+  const dsNames: Array<[string, string]> = [];
 
   if (queries.fields && queries.fields.length > 0) {
     for (const field of queries.fields) {
       const currentLvl = field.lvl ?? Number.NEGATIVE_INFINITY;
       const currentMetric = field.metricValue ?? Number.NEGATIVE_INFINITY;
 
-      if (firingValue && field.dsName) {
+      if (firingValue && field.dsName && field.refId) {
         if (currentMetric >= firingValue) {
-          dsNames.push(field.dsName);
+          dsNames.push([field.dsName, field.refId]);
         }
       }
 

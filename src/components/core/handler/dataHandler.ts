@@ -114,7 +114,7 @@ function processFields(
       filling: config.filling,
       title,
       dsName: config.dataSourceName,
-      refId: refId
+      refId: refId,
     });
   };
 
@@ -163,7 +163,7 @@ function processTable(
     label: '',
     metricValue: 0,
     dsName: config.dataSourceName,
-    refId: refId
+    refId: refId,
   };
 
   let maxLvl = -1;
