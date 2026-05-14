@@ -4,8 +4,8 @@ import { processTooltipContent } from './utils';
 import { PanelOptions } from 'types';
 
 interface PinnedTooltip {
-  id: string; // уникальный id для React
-  elementId: string; // id элемента DOM, к которому привязан (важно!)
+  id: string;
+  elementId: string;
   content: TooltipContent;
   x: number;
   y: number;
@@ -227,11 +227,12 @@ export const useTooltipLogic = (
     [pinnedTooltips, containerRef, unpinAll]
   );
 
-  const adjustTooltipPosition = useCallback((el: HTMLDivElement | null, x: number, y: number) => {
-    if (!el) {
+  const adjustTooltipPosition = useCallback((tooltipElement: HTMLDivElement | null, x: number, y: number) => {
+    if (!tooltipElement) {
       return { x, y };
     }
-    const rect = el.getBoundingClientRect();
+
+    const rect = tooltipElement.getBoundingClientRect();
     let newX = x;
     let newY = y;
     if (newX + rect.width > window.innerWidth) {
@@ -246,6 +247,7 @@ export const useTooltipLogic = (
     if (newY < 0) {
       newY = 10;
     }
+
     return { x: newX, y: newY };
   }, []);
 
