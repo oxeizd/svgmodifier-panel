@@ -95,7 +95,7 @@ function processFields(
     return;
   }
 
-  const addToArray = (value: number, title: string, label: string, refId?: string, refId?: string) => {
+  const addToArray = (value: number, title: string, label: string, refId?: string) => {
     let displayValue = formatValues(value, config.unit, config.decimal);
 
     if (config.mapping) {
@@ -133,7 +133,7 @@ function processFields(
     const label = getLabel(query.legend, config.label) || '';
     const refId = query.globalKey;
 
-    addToArray(value, title, label, refId, refId);
+    addToArray(value, title, label, refId);
   });
 }
 
