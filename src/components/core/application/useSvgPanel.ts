@@ -21,7 +21,7 @@ export const useSvgPanel = (data: PanelData, timeRange: TimeRange, options: Pane
   const { svgCode, metricsMapping, svgAspectRatio, customRelativeTime, fieldsCustomRelativeTime } = options.jsonData;
 
   const { expressions } = options.transformations;
-  const { firingThreshold } = options.notifyTooltip;
+  const { enable: notifyEnable, firingThreshold } = options.notifyTooltip;
 
   const customTimeSettings = useMemo(
     () => getCustomTimeSettings(customRelativeTime, fieldsCustomRelativeTime),
@@ -52,7 +52,7 @@ export const useSvgPanel = (data: PanelData, timeRange: TimeRange, options: Pane
     const process = async () => {
       const queriesData = await extractFields(data, customTimeSettings, timeRange);
 
-      if (queriesData.size !== countQueries.current) {
+      if (notifyEnable && queriesData.size !== countQueries.current) {
         await getDataSourceNames(data, queriesData);
         countQueries.current = queriesData.size;
       }
@@ -78,7 +78,17 @@ export const useSvgPanel = (data: PanelData, timeRange: TimeRange, options: Pane
       isActiveRef.current = false;
       setTooltipContent([]);
     };
-  }, [svgDoc, mappingArray, configMap, data, timeRange, customTimeSettings, expressions, firingThreshold]);
+  }, [
+    svgDoc,
+    mappingArray,
+    configMap,
+    data,
+    timeRange,
+    customTimeSettings,
+    expressions,
+    firingThreshold,
+    notifyEnable,
+  ]);
 
   return { svgString, tooltipContent, dataSourceMap };
 };
