@@ -201,18 +201,18 @@ function queriesFilter(
     const keepCounters = new Set<number>();
 
     if (metricsLength === elemsLength) {
-      keepCounters.add(index);
+      keepCounters.add(index +1);
     } else if (metricsLength < elemsLength) {
       if (index < metricsLength) {
-        keepCounters.add(index);
+        keepCounters.add(index +1);
       }
     } else {
       const lastIndex = elemsLength - 1;
       if (index < lastIndex) {
-        keepCounters.add(index);
+        keepCounters.add(index +1);
       } else {
         for (let c = elemsLength - 1; c < metricsLength; c++) {
-          keepCounters.add(c);
+          keepCounters.add(c + 1);
         }
       }
     }
