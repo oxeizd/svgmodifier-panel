@@ -199,31 +199,31 @@ function queriesFilter(
 
   if (autoConfig === true) {
     const keepCounters = new Set<number>();
-
+  
     if (metricsLength === elemsLength) {
-      keepCounters.add(index +1);
+      keepCounters.add(index + 1);
     } else if (metricsLength < elemsLength) {
       if (index < metricsLength) {
-        keepCounters.add(index +1);
+        keepCounters.add(index + 1);
       }
     } else {
       const lastIndex = elemsLength - 1;
       if (index < lastIndex) {
-        keepCounters.add(index +1);
+        keepCounters.add(index + 1);
       } else {
         for (let c = elemsLength - 1; c < metricsLength; c++) {
           keepCounters.add(c + 1);
         }
       }
     }
-
+  
     if (queries.fields) {
-      queries.fields = queries.fields.filter((item) => keepCounters.has(item.counter));
+      queries.fields = queries.fields.filter((_, idx) => keepCounters.has(idx + 1));
     }
     if (queries.tables) {
-      queries.tables = queries.tables.filter((item) => keepCounters.has(item.counter));
+      queries.tables = queries.tables.filter((_, idx) => keepCounters.has(idx + 1));
     }
-
+  
     return;
   }
 }
