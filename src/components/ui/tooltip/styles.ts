@@ -24,7 +24,7 @@ export const getTooltipContainerStyles = (
   flexDirection: 'column',
   wordWrap: 'break-word',
   border: `1px solid ${theme.colors.border.weak}`,
-  whiteSpace: 'normal',
+  whiteSpace: 'nowrap',
   fontFamily: theme.typography.fontFamily,
   userSelect: 'text',
   overflow: 'hidden',
