@@ -1,12 +1,73 @@
 import { PanelPlugin, FieldConfigProperty } from '@grafana/data';
 import { PanelOptions } from 'types';
-import SvgPanel from 'components/svgPanel';
-import YamlEditor from 'components/editors/yamlEditor/yamlEditor';
-import { ExpressionsEditor } from 'components/editors/exprEditor/exprEditor';
+
+import SvgPanel from 'components/application/mainPanel';
+import YamlEditor from 'components/presentation/editors/yamlEditor/yamlEditor';
+import { ExpressionsEditor } from 'components/presentation/editors/exprEditor/exprEditor';
 
 export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
   .setPanelOptions((builder) => {
     return builder
+      .addRadio({
+        path: 'displayMode',
+        name: 'Display mode',
+        defaultValue: 'svg',
+        settings: {
+          options: [
+            { label: 'SVG', value: 'svg' },
+            { label: 'Table', value: 'table' },
+            { label: 'Grid', value: 'grid' },
+          ],
+        },
+      })
+      .addBooleanSwitch({
+        category: ['Grid settings'],
+        path: 'grid.showOnlyFiring',
+        name: 'show only firing',
+        defaultValue: false,
+        showIf: (config) => (config.displayMode ?? 'svg') === 'grid',
+      })
+      .addRadio({
+        category: ['Grid settings'],
+        path: 'grid.columnMode',
+        name: 'Columns mode',
+        defaultValue: 'auto',
+        settings: {
+          options: [
+            { label: 'Auto', value: 'auto' },
+            { label: 'Custom', value: 'custom' },
+          ],
+        },
+        showIf: (config) => (config.displayMode ?? 'svg') === 'grid',
+      })
+      .addNumberInput({
+        category: ['Grid settings'],
+        path: 'grid.columns',
+        name: 'Number of columns',
+        defaultValue: 4,
+        settings: { min: 1, max: 12 },
+        showIf: (config) => (config.displayMode ?? 'svg') === 'grid' && config.grid.columnMode === 'custom',
+      })
+      .addRadio({
+        category: ['Grid settings'],
+        path: 'grid.layout',
+        name: 'layout',
+        defaultValue: 'grid',
+        settings: {
+          options: [
+            { label: 'grid', value: 'grid' },
+            { label: 'columns', value: 'columns' },
+          ],
+        },
+        showIf: (config) => (config.displayMode ?? 'svg') === 'grid',
+      })
+      .addBooleanSwitch({
+        category: ['Grid settings'],
+        path: 'grid.equalHeight',
+        name: 'Equal height',
+        defaultValue: false,
+        showIf: (config) => (config.displayMode ?? 'svg') === 'grid' && config.grid.layout === 'grid',
+      })
       .addTextInput({
         category: ['SVG settings'],
         path: 'jsonData.svgCode',
@@ -16,6 +77,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
           rows: 3,
           useTextarea: true,
         },
+        showIf: (config) => (config.displayMode ?? 'svg') === 'svg',
       })
       .addSelect({
         category: ['SVG settings'],
@@ -33,6 +95,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
             { value: 'xMinYMin slice', label: 'Slice' },
           ],
         },
+        showIf: (config) => (config.displayMode ?? 'svg') === 'svg',
       })
       .addCustomEditor({
         category: ['Metrics mapping'],
@@ -136,7 +199,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         settings: {
           integer: true,
         },
-        showIf: (config) => config.notifyTooltip.enable,
+        showIf: (config) => config.notifyTooltip.show,
       })
       .addNumberInput({
         category: ['Notify tooltip'],
@@ -146,7 +209,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         settings: {
           integer: true,
         },
-        showIf: (config) => config.notifyTooltip.enable,
+        showIf: (config) => config.notifyTooltip.show,
       })
       .addNumberInput({
         category: ['Notify tooltip'],
@@ -156,7 +219,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         settings: {
           integer: true,
         },
-        showIf: (config) => config.notifyTooltip.enable,
+        showIf: (config) => config.notifyTooltip.show,
       })
       .addTextInput({
         category: ['Notify tooltip'],
@@ -164,7 +227,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         name: 'Exclude filter',
         description: 'use ","',
         defaultValue: '',
-        showIf: (config) => config.notifyTooltip.enable,
+        showIf: (config) => config.notifyTooltip.show,
       });
   })
   .useFieldConfig({
