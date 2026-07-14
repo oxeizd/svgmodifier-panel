@@ -54,13 +54,11 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
   }
 
   const renderCard = (item: GridContent) => {
-    // Определяем, есть ли firing в самой карточке
     const cardHasFiring =
       item.fields?.some((field) => field.lvl > 0) || item.tables?.some((table) => (table.lvl ?? 0) > 0);
 
     const primaryColor = item.color || 'transparent';
 
-    // ✅ ФИЛЬТРАЦИЯ: если showOnlyFiring, показываем только firing поля
     const visibleFields = showOnlyFiring ? item.fields?.filter((field) => field.lvl > 0) || [] : item.fields || [];
 
     const visibleTables = showOnlyFiring
@@ -95,7 +93,6 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
           {item.title || item.id}
         </div>
 
-        {/* ✅ Рендерим ТОЛЬКО отфильтрованные поля */}
         {visibleFields.map((field, idx) => {
           const color = field.color || 'transparent';
           const isFiring = field.lvl > 0;
@@ -107,17 +104,42 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 padding: '4px 0',
                 borderBottom: idx < visibleFields.length - 1 ? `1px solid ${theme.colors.border.weak}` : 'none',
+                gap: '8px',
               }}
             >
-              <div style={{ fontSize: '13px', color: theme.colors.text.secondary }}>{field.label}</div>
+              {/* ✅ Label: перенос на 2 строки с многоточием */}
+              <div
+                style={{
+                  fontSize: '13px',
+                  color: theme.colors.text.secondary,
+                  flex: 1,
+                  minWidth: 0,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  lineHeight: '1.4',
+                  maxHeight: '2.8em',
+                  wordBreak: 'break-word',
+                }}
+                title={field.label}
+              >
+                {field.label}
+              </div>
+              
+              {/* ✅ Value: всегда видно, не сжимается */}
               <div
                 style={{
                   fontSize: '16px',
                   fontWeight: 'bold',
                   color: isFiring ? color : theme.colors.text.primary,
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                  marginLeft: 'auto',
                 }}
               >
                 {displayValue}
@@ -127,7 +149,6 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
           );
         })}
 
-        {/* ✅ Рендерим ТОЛЬКО отфильтрованные таблицы */}
         {visibleTables.map((table, idx) => (
           <div key={idx} style={{ marginTop: '8px', fontSize: '12px', color: theme.colors.text.secondary }}>
             <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{table.label || 'Table'}</div>
@@ -135,7 +156,6 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
           </div>
         ))}
 
-        {/* Показываем сообщение, если нет видимых данных */}
         {visibleFields.length === 0 && visibleTables.length === 0 && (
           <div style={{ fontSize: '12px', color: theme.colors.text.secondary, fontStyle: 'italic' }}>
             No firing metrics

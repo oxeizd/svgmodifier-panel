@@ -52,7 +52,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         category: ['Grid settings'],
         path: 'grid.layout',
         name: 'layout',
-        defaultValue: 'grid',
+        defaultValue: 'columns',
         settings: {
           options: [
             { label: 'grid', value: 'grid' },

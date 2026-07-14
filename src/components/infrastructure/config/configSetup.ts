@@ -4,27 +4,36 @@ import { ConfigRules, DataMap, QueryType, filter } from 'components/domain/model
 
 export type ConfigMap = Map<string, DataMap>;
 
-export function initializeConfig(svg: Document, config: ConfigRules[]) {
+export function initializeConfig(svg: Document | null, config: ConfigRules[] | null) {
   const configMap: ConfigMap = new Map();
-
   const elementsMap = new Map<string, SVGElement>();
-  const elements = svg.querySelectorAll<SVGElement>('[id^="cell"]');
+  
+  // ✅ Флаг: требуем ли наличие SVG-элемента
+  const requireElement = svg !== null;
 
-  for (const el of elements) {
-    el.id && elementsMap.set(el.id, el);
+  if (svg) {
+    const elements = svg.querySelectorAll<SVGElement>('[id^="cell"]');
+    for (const el of elements) {
+      el.id && elementsMap.set(el.id, el);
+    }
   }
-
-  if (elementsMap.size > 0) {
-    prepareConfig(config, elementsMap, configMap);
+  
+  if (config) {
+    prepareConfig(config, elementsMap, configMap, requireElement);
   }
 
   return configMap;
 }
 
-function prepareConfig(rules: ConfigRules[], elementsMap: Map<string, SVGElement>, configMap: ConfigMap) {
+function prepareConfig(
+  rules: ConfigRules[], 
+  elementsMap: Map<string, SVGElement>, 
+  configMap: ConfigMap,
+  requireElement: boolean 
+) {
   const getRuleConfig = (rule: ConfigRules) => {
     const config = rule.attributes;
-    const elements = getElementsByIdOrRegex(rule.id, elementsMap);
+    const elements = getElementsByIdOrRegex(rule.id, elementsMap, requireElement);
 
     let elemsLength = elements.length;
     let currentIndex = 0;
@@ -80,7 +89,7 @@ function prepareConfig(rules: ConfigRules[], elementsMap: Map<string, SVGElement
       if (configMap.get(id)) {
         configMap.get(id)?.additional.push(additional);
       } else {
-        configMap.set(id, { SVGElem: svgElement, additional: [additional] });
+        configMap.set(id, { SVGElem: svgElement || null, additional: [additional] });
       }
     });
   };
@@ -96,9 +105,10 @@ function prepareConfig(rules: ConfigRules[], elementsMap: Map<string, SVGElement
 
 function getElementsByIdOrRegex(
   id: string | string[],
-  map: Map<string, SVGElement>
-): Array<[string, string, number[], SVGElement]> {
-  const getElement = (currentId: string): Array<[string, string, number[], SVGElement]> => {
+  map: Map<string, SVGElement>,
+  requireElement: boolean
+): Array<[string, string, number[], SVGElement | undefined]> {
+  const getElement = (currentId: string): Array<[string, string, number[], SVGElement | undefined]> => {
     const parsed = idParser(currentId);
     if (!parsed) {
       return [];
@@ -109,13 +119,25 @@ function getElementsByIdOrRegex(
 
     if (!RegexCheck(checkId)) {
       const element = map.get(checkId);
-      return element ? [[checkId, schema, selector, element]] : [];
+      
+      if (!element) {
+        return requireElement ? [] : [[checkId, schema, selector, undefined]];
+      }
+      return [[checkId, schema, selector, element]];
     }
 
     const regex = new RegExp(checkId);
-    return Array.from(map.entries())
+    
+    // ✅ Явно указываем тип для массива
+    const matches: Array<[string, string, number[], SVGElement | undefined]> = Array.from(map.entries())
       .filter(([key]) => regex.test(key))
       .map(([key, element]) => [key, schema, selector, element]);
+    
+    if (matches.length === 0 && !requireElement) {
+      return [[checkId, schema, selector, undefined]];
+    }
+    
+    return matches;
   };
 
   if (Array.isArray(id)) {

@@ -8,7 +8,7 @@ import { initializeConfig } from 'components/infrastructure/config/configSetup';
 import { calculateExpressions } from 'components/domain/utils/calculations';
 import { getCustomTimeSettings } from 'components/domain/utils/timeSettings';
 import { getDataSourceNames } from 'components/infrastructure/services/dataSourceService';
-import { TooltipContent, DataMap } from 'components/domain/models';
+import { TooltipContent } from 'components/domain/models';
 import { processor } from 'components/domain/services/processor';
 import { extractFields } from 'components/infrastructure/data/dataExtractor';
 
@@ -29,16 +29,17 @@ export const usePanelData = (data: PanelData, timeRange: TimeRange, options: Pan
 
   const { svgCode, metricsMapping, svgAspectRatio, customRelativeTime, fieldsCustomRelativeTime } = options.jsonData;
 
-  // Мемоизируем объекты, чтобы они не пересоздавались на каждом рендере
+  const mode = options.displayMode || 'svg';
+
   const calculateOptions = useMemo(
     () => ({
-      mode: options.displayMode,
+      mode,
       notifySettings: {
         show: options.notifyTooltip.show,
         threshold: options.notifyTooltip.threshold,
       },
     }),
-    [options.displayMode, options.notifyTooltip.show, options.notifyTooltip.threshold]
+    [mode, options.notifyTooltip.show, options.notifyTooltip.threshold]
   );
 
   const customTimeSettings = useMemo(
@@ -49,20 +50,18 @@ export const usePanelData = (data: PanelData, timeRange: TimeRange, options: Pan
   const mappingArray = useMemo(() => parseYamlConfig(metricsMapping), [metricsMapping]);
 
   const svgDoc = useMemo(() => {
-    if (svgCode) {
+    if (mode === 'svg' && svgCode) {
       return initSVG(svgCode, svgAspectRatio);
     }
     return null;
-  }, [svgCode, svgAspectRatio]);
+  }, [mode, svgCode, svgAspectRatio]);
 
   const configMap = useMemo(() => {
-    if (svgDoc && mappingArray) {
-      return initializeConfig(svgDoc, mappingArray);
-    }
-    return new Map<string, DataMap>();
+    return initializeConfig(svgDoc, mappingArray);
   }, [svgDoc, mappingArray]);
 
-  // Выносим значения, которые используются внутри useEffect, чтобы ESLint был доволен
+  console.log(mappingArray)
+
   const notifyTooltipShow = options.notifyTooltip.show;
   const transformationsExpressions = options.transformations.expressions;
 

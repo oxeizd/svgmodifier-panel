@@ -33,7 +33,7 @@ export function processor(configMap: Map<string, DataMap>, dataFrame: DataFrameM
   const dataSourceMap: DsMap | undefined = options.notifySettings.show ? new Map<string, Set<string>>() : undefined;
 
   for (const [id, map] of configMap) {
-    if (!map.SVGElem || !map.additional || !Array.isArray(map.additional)) {
+    if (!map.additional || !Array.isArray(map.additional)) {
       continue;
     }
 
@@ -88,7 +88,7 @@ export function processor(configMap: Map<string, DataMap>, dataFrame: DataFrameM
         if (!item) {
           item = {
             id,
-            title: undefined,
+            title: attributes.title,
             color: bestGlobalEntry?.color,
             fields: [],
             tables: [],
