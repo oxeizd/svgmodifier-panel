@@ -1,7 +1,7 @@
 export interface ConfigRules {
   id: string | string[];
   attributes: {
-    title?: string
+    title?: string;
     autoConfig?: boolean;
     link?: string | string[];
     tooltip?: Tooltip;

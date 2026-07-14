@@ -60,7 +60,7 @@ export const usePanelData = (data: PanelData, timeRange: TimeRange, options: Pan
     return initializeConfig(svgDoc, mappingArray);
   }, [svgDoc, mappingArray]);
 
-  console.log(mappingArray)
+  console.log(mappingArray);
 
   const notifyTooltipShow = options.notifyTooltip.show;
   const transformationsExpressions = options.transformations.expressions;

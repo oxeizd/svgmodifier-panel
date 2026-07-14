@@ -7,7 +7,7 @@ export type ConfigMap = Map<string, DataMap>;
 export function initializeConfig(svg: Document | null, config: ConfigRules[] | null) {
   const configMap: ConfigMap = new Map();
   const elementsMap = new Map<string, SVGElement>();
-  
+
   // ✅ Флаг: требуем ли наличие SVG-элемента
   const requireElement = svg !== null;
 
@@ -17,7 +17,7 @@ export function initializeConfig(svg: Document | null, config: ConfigRules[] | n
       el.id && elementsMap.set(el.id, el);
     }
   }
-  
+
   if (config) {
     prepareConfig(config, elementsMap, configMap, requireElement);
   }
@@ -26,10 +26,10 @@ export function initializeConfig(svg: Document | null, config: ConfigRules[] | n
 }
 
 function prepareConfig(
-  rules: ConfigRules[], 
-  elementsMap: Map<string, SVGElement>, 
+  rules: ConfigRules[],
+  elementsMap: Map<string, SVGElement>,
   configMap: ConfigMap,
-  requireElement: boolean 
+  requireElement: boolean
 ) {
   const getRuleConfig = (rule: ConfigRules) => {
     const config = rule.attributes;
@@ -119,7 +119,7 @@ function getElementsByIdOrRegex(
 
     if (!RegexCheck(checkId)) {
       const element = map.get(checkId);
-      
+
       if (!element) {
         return requireElement ? [] : [[checkId, schema, selector, undefined]];
       }
@@ -127,16 +127,16 @@ function getElementsByIdOrRegex(
     }
 
     const regex = new RegExp(checkId);
-    
+
     // ✅ Явно указываем тип для массива
     const matches: Array<[string, string, number[], SVGElement | undefined]> = Array.from(map.entries())
       .filter(([key]) => regex.test(key))
       .map(([key, element]) => [key, schema, selector, element]);
-    
+
     if (matches.length === 0 && !requireElement) {
       return [[checkId, schema, selector, undefined]];
     }
-    
+
     return matches;
   };
 

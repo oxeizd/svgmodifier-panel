@@ -130,7 +130,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
               >
                 {field.label}
               </div>
-              
+
               {/* ✅ Value: всегда видно, не сжимается */}
               <div
                 style={{
