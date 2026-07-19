@@ -13,10 +13,11 @@ export const GridPanel: React.FC<GridPanelProps> = ({ height, width }) => {
 
   const gridOptions = options.grid || {};
   const {
-    columns = 4,
+    columnMode = 'auto',
+    columns = 'auto',
     layout = 'columns',
     showOnlyFiring = false,
-    equalHeight = true,
+    stretch = true,
     sortByFiring = false,
   } = gridOptions;
 
@@ -26,10 +27,10 @@ export const GridPanel: React.FC<GridPanelProps> = ({ height, width }) => {
     <div style={{ height, width, overflow: 'hidden' }}>
       <MetricsGrid
         data={gridContent}
-        columns={columns}
+        columns={columnMode === 'auto' ? 'auto' : columns}
         layout={layout}
         showOnlyFiring={showOnlyFiring}
-        equalHeight={equalHeight}
+        equalHeight={stretch}
       />
     </div>
   );

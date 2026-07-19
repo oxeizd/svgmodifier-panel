@@ -14,6 +14,9 @@ const scrollbarStyles = (theme: any) => `
   .metrics-container {
     scrollbar-width: thin;
     scrollbar-color: ${theme.colors.border.weak} transparent;
+    padding-right: 4px;
+    container-type: inline-size; /* включаем container queries по ширине */
+    container-name: metrics;
   }
   .metrics-container::-webkit-scrollbar {
     width: 6px;
@@ -34,11 +37,70 @@ const scrollbarStyles = (theme: any) => `
   .metrics-container::-webkit-scrollbar-thumb:hover {
     background: ${theme.colors.text.secondary};
   }
+
+  /* Адаптивность на основе РАЗМЕРА ПАНЕЛИ (а не окна браузера) */
+  @container metrics (max-width: 600px) {
+    .card-title {
+      font-size: 13px;
+      max-height: 2.6em;
+      overflow: hidden;
+      word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .metrics-grid-card {
+      padding: 6px;
+      margin-bottom: 6px;
+    }
+  }
+
+  /* Совсем маленькая панель: label сверху, value снизу */
+  @container metrics (max-width: 360px) {
+    .metric-field {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      gap: 2px;
+      margin-bottom: 6px;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      max-height: 2.4em;
+      width: 100%;
+    }
+
+    .metric-value {
+      margin-left: 0 !important;
+      font-size: 11px;
+      width: 100%;
+      text-align: left;
+    }
+
+    .card-title {
+      font-size: 12px;
+    }
+  }
+
+  /* Fallback для браузеров без поддержки container queries */
+  @supports not (container-type: inline-size) {
+    @media (max-width: 600px) {
+      .metric-field {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+      }
+      .metric-value {
+        margin-left: 0;
+      }
+    }
+  }
 `;
 
 export const MetricsGrid: React.FC<MetricsGridProps> = ({
   data,
-  columns = 4,
+  columns,
   showOnlyFiring = false,
   equalHeight = true,
   layout = 'columns',
@@ -47,11 +109,25 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
 
   if (!data.length) {
     return (
-      <div style={{ padding: '16px', color: theme.colors.text.secondary }}>
+      <div style={{ padding: '12px', color: theme.colors.text.secondary }}>
         {showOnlyFiring ? 'No firing metrics' : 'No metrics data'}
       </div>
     );
   }
+
+  const cardBaseStyle = {
+    border: `1px solid ${theme.colors.border.weak}`,
+    borderRadius: '6px',
+    padding: '8px',
+    backgroundColor: theme.colors.background.primary,
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    transition: 'border-color 0.2s',
+    display: 'flex',
+    flexDirection: 'column',
+    breakInside: layout === 'columns' ? 'avoid' : undefined,
+    marginBottom: layout === 'columns' ? '8px' : undefined,
+    alignSelf: equalHeight ? 'stretch' : 'start',
+  } as const;
 
   const renderCard = (item: GridContent) => {
     const cardHasFiring =
@@ -65,29 +141,28 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
       ? item.tables?.filter((table) => (table.lvl ?? 0) > 0) || []
       : item.tables || [];
 
+    const cardStyle = {
+      ...cardBaseStyle,
+      borderColor: cardHasFiring ? primaryColor : theme.colors.border.weak,
+      backgroundColor: cardHasFiring ? `${primaryColor}20` : theme.colors.background.primary,
+    };
+
     return (
-      <div
-        key={item.id}
-        style={{
-          border: `2px solid ${cardHasFiring ? primaryColor : theme.colors.border.weak}`,
-          borderRadius: '8px',
-          padding: '12px',
-          backgroundColor: cardHasFiring ? `${primaryColor}20` : theme.colors.background.primary,
-          boxShadow: theme.shadows.z1,
-          transition: 'border-color 0.2s',
-          display: 'flex',
-          flexDirection: 'column',
-          breakInside: layout === 'columns' ? 'avoid' : undefined,
-          marginBottom: layout === 'columns' ? '12px' : undefined,
-          alignSelf: equalHeight ? 'stretch' : 'start',
-        }}
-      >
+      <div key={item.id} style={cardStyle} className="metrics-grid-card">
         <div
+          className="card-title"
           style={{
             fontWeight: 'bold',
             fontSize: '14px',
             color: theme.colors.text.primary,
-            marginBottom: '8px',
+            marginBottom: '6px',
+            lineHeight: 1.2,
+            overflow: 'hidden',
+            wordBreak: 'break-word',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            maxHeight: '2.4em',
           }}
         >
           {item.title || item.id}
@@ -101,20 +176,21 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
           return (
             <div
               key={idx}
+              className="metric-field"
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'flex-start',
-                padding: '4px 0',
-                borderBottom: idx < visibleFields.length - 1 ? `1px solid ${theme.colors.border.weak}` : 'none',
+                marginBottom: idx < visibleFields.length - 1 ? '4px' : '0',
                 gap: '8px',
+                padding: '2px 0',
               }}
             >
-              {/* ✅ Label: перенос на 2 строки с многоточием */}
               <div
+                className="metric-label"
                 style={{
-                  fontSize: '13px',
-                  color: theme.colors.text.secondary,
+                  fontSize: '12px',
+                  color: theme.colors.text.primary,
                   flex: 1,
                   minWidth: 0,
                   display: '-webkit-box',
@@ -122,8 +198,8 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  lineHeight: '1.4',
-                  maxHeight: '2.8em',
+                  lineHeight: 1.3,
+                  maxHeight: '2.6em',
                   wordBreak: 'break-word',
                 }}
                 title={field.label}
@@ -131,10 +207,10 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
                 {field.label}
               </div>
 
-              {/* ✅ Value: всегда видно, не сжимается */}
               <div
+                className="metric-value"
                 style={{
-                  fontSize: '16px',
+                  fontSize: '12px',
                   fontWeight: 'bold',
                   color: isFiring ? color : theme.colors.text.primary,
                   flexShrink: 0,
@@ -143,15 +219,14 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
                 }}
               >
                 {displayValue}
-                {isFiring && <span style={{ marginLeft: '6px', fontSize: '12px' }}>⚠️</span>}
               </div>
             </div>
           );
         })}
 
         {visibleTables.map((table, idx) => (
-          <div key={idx} style={{ marginTop: '8px', fontSize: '12px', color: theme.colors.text.secondary }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{table.label || 'Table'}</div>
+          <div key={idx} style={{ marginTop: '6px', fontSize: '12px', color: theme.colors.text.secondary }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>{table.label || 'Table'}</div>
             <div>Rows: {table.columnsData?.length ?? 0}</div>
           </div>
         ))}
@@ -184,8 +259,8 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
             style={{
               columnCount,
               columnWidth,
-              columnGap: '12px',
-              padding: '8px',
+              columnGap: '8px',
+              padding: '4px',
               width: '100%',
               boxSizing: 'border-box',
               overflow: 'visible',
@@ -200,7 +275,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
 
   const getGridTemplateColumns = () => {
     if (columns === 'auto') {
-      return 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))';
+      return 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))';
     }
     const colCount = Math.min(columns as number, 12);
     return `repeat(${colCount}, 1fr)`;
@@ -214,8 +289,8 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
         style={{
           display: 'grid',
           gridTemplateColumns: getGridTemplateColumns(),
-          gap: '12px',
-          padding: '8px',
+          gap: '8px',
+          padding: '4px',
           overflowY: 'auto',
           overflowX: 'hidden',
           height: '100%',

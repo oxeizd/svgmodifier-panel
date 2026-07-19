@@ -55,16 +55,16 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         defaultValue: 'columns',
         settings: {
           options: [
-            { label: 'grid', value: 'grid' },
             { label: 'columns', value: 'columns' },
+            { label: 'grid', value: 'grid' },
           ],
         },
         showIf: (config) => (config.displayMode ?? 'svg') === 'grid',
       })
       .addBooleanSwitch({
         category: ['Grid settings'],
-        path: 'grid.equalHeight',
-        name: 'Equal height',
+        path: 'grid.stretch',
+        name: 'stretch',
         defaultValue: false,
         showIf: (config) => (config.displayMode ?? 'svg') === 'grid' && config.grid.layout === 'grid',
       })

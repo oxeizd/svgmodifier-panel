@@ -17,7 +17,7 @@ export interface GridMode {
   columnMode: 'auto' | 'custom';
   columns?: number | 'auto';
   layout?: 'grid' | 'columns';
-  equalHeight?: boolean;
+  stretch?: boolean;
 }
 
 export interface TableMode {
