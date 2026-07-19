@@ -57,7 +57,7 @@ const scrollbarStyles = (theme: any) => `
   }
 
   /* Совсем маленькая панель: label сверху, value снизу */
-  @container metrics (max-width: 360px) {
+  @container metrics (max-width: 110px) {
     .metric-field {
       flex-direction: column !important;
       align-items: flex-start !important;
@@ -180,7 +180,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'flex-start',
+                alignItems: 'center',
                 marginBottom: idx < visibleFields.length - 1 ? '4px' : '0',
                 gap: '8px',
                 padding: '2px 0',
