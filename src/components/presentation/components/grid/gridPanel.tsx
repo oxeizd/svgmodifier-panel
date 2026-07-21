@@ -1,7 +1,7 @@
 import React from 'react';
 import { MetricsGrid } from './MetricsGrid';
 import { usePanelContext } from 'components/application/context/panelContext';
-import { useGridPanel } from 'components/application/hooks/useGridPanel';
+import { useGridPanel } from './hooks/useGridPanel';
 
 interface GridPanelProps {
   height: number;
@@ -19,6 +19,7 @@ export const GridPanel: React.FC<GridPanelProps> = ({ height, width }) => {
     showOnlyFiring = false,
     stretch = true,
     sortByFiring = false,
+    emptyPlaceholder,
   } = gridOptions;
 
   const gridContent = useGridPanel(processedData, showOnlyFiring, sortByFiring);
@@ -30,7 +31,8 @@ export const GridPanel: React.FC<GridPanelProps> = ({ height, width }) => {
         columns={columnMode === 'auto' ? 'auto' : columns}
         layout={layout}
         showOnlyFiring={showOnlyFiring}
-        equalHeight={stretch}
+        stretch={stretch}
+        emptyPlaceholder={emptyPlaceholder}
       />
     </div>
   );

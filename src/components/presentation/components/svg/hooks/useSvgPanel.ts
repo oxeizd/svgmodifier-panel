@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { updateSvg, svgToString } from 'components/infrastructure/svg/updater';
-import { ProcessedData } from './usePanelData';
+import { ProcessedData } from 'components/application/hooks/usePanelData';
 
 export const useSvgPanel = (processedData: ProcessedData | null, svgDoc: any) => {
   const [svgString, setSvgString] = useState('');

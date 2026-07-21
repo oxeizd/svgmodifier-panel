@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { ProcessedData } from './usePanelData';
 import { GridContent } from 'components/domain/models';
+import { ProcessedData } from 'components/application/hooks/usePanelData';
 
 // Проверка firing в fields
 const hasFiringInFields = (item: GridContent): boolean => {

@@ -6,8 +6,9 @@ interface MetricsGridProps {
   data: GridContent[];
   columns?: number | 'auto';
   showOnlyFiring?: boolean;
-  equalHeight?: boolean;
+  stretch?: boolean;
   layout?: 'grid' | 'columns';
+  emptyPlaceholder?: React.ReactNode;
 }
 
 const scrollbarStyles = (theme: any) => `
@@ -15,7 +16,7 @@ const scrollbarStyles = (theme: any) => `
     scrollbar-width: thin;
     scrollbar-color: ${theme.colors.border.weak} transparent;
     padding-right: 4px;
-    container-type: inline-size; /* включаем container queries по ширине */
+    container-type: inline-size;
     container-name: metrics;
   }
   .metrics-container::-webkit-scrollbar {
@@ -38,7 +39,6 @@ const scrollbarStyles = (theme: any) => `
     background: ${theme.colors.text.secondary};
   }
 
-  /* Адаптивность на основе РАЗМЕРА ПАНЕЛИ (а не окна браузера) */
   @container metrics (max-width: 600px) {
     .card-title {
       font-size: 13px;
@@ -49,14 +49,12 @@ const scrollbarStyles = (theme: any) => `
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
-
     .metrics-grid-card {
       padding: 6px;
       margin-bottom: 6px;
     }
   }
 
-  /* Совсем маленькая панель: label сверху, value снизу */
   @container metrics (max-width: 110px) {
     .metric-field {
       flex-direction: column !important;
@@ -64,26 +62,22 @@ const scrollbarStyles = (theme: any) => `
       gap: 2px;
       margin-bottom: 6px;
     }
-
     .metric-label {
       font-size: 11px;
       max-height: 2.4em;
       width: 100%;
     }
-
     .metric-value {
       margin-left: 0 !important;
       font-size: 11px;
       width: 100%;
       text-align: left;
     }
-
     .card-title {
       font-size: 12px;
     }
   }
 
-  /* Fallback для браузеров без поддержки container queries */
   @supports not (container-type: inline-size) {
     @media (max-width: 600px) {
       .metric-field {
@@ -102,16 +96,16 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
   data,
   columns,
   showOnlyFiring = false,
-  equalHeight = true,
+  stretch = true,
   layout = 'columns',
+  emptyPlaceholder,
 }) => {
   const theme = useTheme2();
 
   if (!data.length) {
+    const defaultMessage = showOnlyFiring ? 'No firing metrics' : 'No metrics data';
     return (
-      <div style={{ padding: '12px', color: theme.colors.text.secondary }}>
-        {showOnlyFiring ? 'No firing metrics' : 'No metrics data'}
-      </div>
+      <div style={{ padding: '12px', color: theme.colors.text.secondary }}>{emptyPlaceholder ?? defaultMessage}</div>
     );
   }
 
@@ -126,7 +120,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
     flexDirection: 'column',
     breakInside: layout === 'columns' ? 'avoid' : undefined,
     marginBottom: layout === 'columns' ? '8px' : undefined,
-    alignSelf: equalHeight ? 'stretch' : 'start',
+    alignSelf: stretch ? 'stretch' : 'start',
   } as const;
 
   const renderCard = (item: GridContent) => {
@@ -231,9 +225,10 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
           </div>
         ))}
 
+        {/* 2. Внутри карточки, если после фильтрации ничего не осталось */}
         {visibleFields.length === 0 && visibleTables.length === 0 && (
           <div style={{ fontSize: '12px', color: theme.colors.text.secondary, fontStyle: 'italic' }}>
-            No firing metrics
+            {emptyPlaceholder ?? 'No firing metrics'}
           </div>
         )}
       </div>
@@ -296,7 +291,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
           height: '100%',
           width: '100%',
           boxSizing: 'border-box',
-          alignItems: equalHeight ? 'stretch' : 'start',
+          alignItems: stretch ? 'stretch' : 'start',
         }}
       >
         {data.map((item) => renderCard(item))}

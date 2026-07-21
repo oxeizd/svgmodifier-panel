@@ -18,6 +18,7 @@ export interface GridMode {
   columns?: number | 'auto';
   layout?: 'grid' | 'columns';
   stretch?: boolean;
+  emptyPlaceholder?: string;
 }
 
 export interface TableMode {

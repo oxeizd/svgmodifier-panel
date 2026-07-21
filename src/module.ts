@@ -69,6 +69,16 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         showIf: (config) => (config.displayMode ?? 'svg') === 'grid' && config.grid.layout === 'grid',
       })
       .addTextInput({
+        category: ['Grid settings'],
+        path: 'grid.emptyPlaceholder',
+        name: 'Empty placeholder',
+        description: 'Enter your SVG',
+        settings: {
+          placeholder: 'No firing metrics',
+        },
+        showIf: (config) => (config.displayMode ?? 'svg') === 'grid',
+      })
+      .addTextInput({
         category: ['SVG settings'],
         path: 'jsonData.svgCode',
         name: 'SVG',
@@ -198,16 +208,6 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
       })
       .addNumberInput({
         category: ['Notify tooltip'],
-        path: 'notifyTooltip.threshold',
-        name: 'Firing Threshold',
-        defaultValue: 0,
-        settings: {
-          integer: true,
-        },
-        showIf: (config) => config.notifyTooltip.show,
-      })
-      .addNumberInput({
-        category: ['Notify tooltip'],
         path: 'notifyTooltip.offsetX',
         name: 'offset X',
         defaultValue: 19,
@@ -226,12 +226,26 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         },
         showIf: (config) => config.notifyTooltip.show,
       })
+      .addNumberInput({
+        category: ['Notify tooltip'],
+        path: 'notifyTooltip.threshold',
+        name: 'Firing Threshold',
+        defaultValue: 0,
+        settings: {
+          integer: true,
+        },
+        showIf: (config) => config.notifyTooltip.show,
+      })
       .addTextInput({
         category: ['Notify tooltip'],
         path: 'notifyTooltip.excludeFilter',
         name: 'Exclude filter',
-        description: 'use ","',
         defaultValue: '',
+        settings: {
+          rows: 2,
+          useTextarea: true,
+          placeholder: 'A,B,C,D',
+        },
         showIf: (config) => config.notifyTooltip.show,
       });
   })

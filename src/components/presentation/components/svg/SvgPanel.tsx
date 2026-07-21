@@ -3,7 +3,7 @@ import { Tooltip } from 'components/presentation/tooltips/svgTooltip/tooltip';
 import { NotificationTooltip } from 'components/presentation/tooltips/notifyTooltip/tooltip';
 import { useNotificationData } from 'components/presentation/tooltips/notifyTooltip/useNotificationData';
 import { usePanelContext } from 'components/application/context/panelContext';
-import { useSvgPanel } from 'components/application/hooks/useSvgPanel';
+import { useSvgPanel } from './hooks/useSvgPanel';
 
 interface SvgModePanelProps {
   height: number;
