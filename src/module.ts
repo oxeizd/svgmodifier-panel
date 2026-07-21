@@ -198,9 +198,9 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
       })
       .addNumberInput({
         category: ['Notify tooltip'],
-        path: 'notifyTooltip.firingThreshold',
+        path: 'notifyTooltip.threshold',
         name: 'Firing Threshold',
-        defaultValue: 500,
+        defaultValue: 0,
         settings: {
           integer: true,
         },

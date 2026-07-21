@@ -66,9 +66,9 @@ function collectDataSource(field: MetricData | TableMetricData, threshold: numbe
   const currentLvl = field.lvl ?? Number.NEGATIVE_INFINITY;
 
   if (field.dsName && field.refId) {
-    if (threshold && currentMetric >= threshold) {
+    if (currentLvl > 0) {
       dsNames.push([field.dsName, field.refId]);
-    } else if (currentLvl > 0) {
+    } else if (threshold && threshold > 0 &&  currentMetric >= threshold) {
       dsNames.push([field.dsName, field.refId]);
     }
   }

@@ -62,7 +62,6 @@ export const usePanelData = (data: PanelData, timeRange: TimeRange, options: Pan
     return initializeConfig(svgDoc, mappingArray);
   }, [svgDoc, mappingArray]);
 
-  const notifyTooltipShow = options.notifyTooltip.show;
   const transformationsExpressions = options.transformations.expressions;
 
   useEffect(() => {
@@ -73,7 +72,7 @@ export const usePanelData = (data: PanelData, timeRange: TimeRange, options: Pan
       try {
         const queriesData = await extractFields(data, customTimeSettings, timeRange);
 
-        if (notifyTooltipShow && queriesData.size !== countQueries.current) {
+        if (notifyShow && queriesData.size !== countQueries.current) {
           await getDataSourceNames(data, queriesData);
           countQueries.current = queriesData.size;
         }
@@ -105,7 +104,7 @@ export const usePanelData = (data: PanelData, timeRange: TimeRange, options: Pan
     return () => {
       isActiveRef.current = false;
     };
-  }, [data, timeRange, configMap, customTimeSettings, calculateOptions, notifyTooltipShow, transformationsExpressions]);
+  }, [data, timeRange, configMap, customTimeSettings, calculateOptions, notifyShow, transformationsExpressions]);
 
   return {
     processedData,

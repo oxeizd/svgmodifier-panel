@@ -29,7 +29,6 @@ export function processor(configMap: Map<string, DataMap>, dataFrame: DataFrameM
   const tooltip = options.mode === 'svg' ? ([] as TooltipContent[]) : undefined;
   const operations = options.mode === 'svg' ? ([] as Array<() => void>) : undefined;
   const gridContent = options.mode === 'grid' ? ([] as GridContent[]) : undefined;
-
   const dataSourceMap: DsMap | undefined = options.notifySettings.show ? new Map<string, Set<string>>() : undefined;
 
   for (const [id, map] of configMap) {
