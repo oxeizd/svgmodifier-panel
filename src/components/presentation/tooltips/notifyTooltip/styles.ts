@@ -30,24 +30,6 @@ export const getTitleStyles = (theme: Theme): React.CSSProperties => ({
   flexShrink: 0,
 });
 
-export const absoluteTimerStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: '45%',
-  right: '20px',
-  transform: 'translateY(-50%)',
-  zIndex: 1,
-};
-
-export const getMoreTextStyle = (theme: Theme): React.CSSProperties => ({
-  position: 'absolute',
-  top: 'calc(45% + 13px)',
-  right: '19px',
-  fontSize: '10px',
-  color: theme.colors.text.secondary,
-  zIndex: 1,
-  whiteSpace: 'nowrap',
-});
-
 export const getListStyles = (theme: Theme, hasOverflow: boolean): React.CSSProperties => {
   const base: React.CSSProperties = {
     overflowY: 'auto',

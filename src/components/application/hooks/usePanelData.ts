@@ -30,16 +30,18 @@ export const usePanelData = (data: PanelData, timeRange: TimeRange, options: Pan
   const { svgCode, metricsMapping, svgAspectRatio, customRelativeTime, fieldsCustomRelativeTime } = options.jsonData;
 
   const mode = options.displayMode || 'svg';
+  const notifyShow = options.notifyTooltip.show;
+  const notifyThreshold = options.notifyTooltip.threshold;
 
   const calculateOptions = useMemo(
     () => ({
       mode,
       notifySettings: {
-        show: options.notifyTooltip.show,
-        threshold: options.notifyTooltip.threshold,
+        show: notifyShow,
+        threshold: notifyThreshold,
       },
     }),
-    [mode, options.notifyTooltip.show, options.notifyTooltip.threshold]
+    [mode, notifyShow, notifyThreshold]
   );
 
   const customTimeSettings = useMemo(
@@ -59,8 +61,6 @@ export const usePanelData = (data: PanelData, timeRange: TimeRange, options: Pan
   const configMap = useMemo(() => {
     return initializeConfig(svgDoc, mappingArray);
   }, [svgDoc, mappingArray]);
-
-  console.log(mappingArray);
 
   const notifyTooltipShow = options.notifyTooltip.show;
   const transformationsExpressions = options.transformations.expressions;

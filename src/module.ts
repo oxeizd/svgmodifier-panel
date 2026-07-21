@@ -148,6 +148,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
             { value: 'descending', label: 'Descending' },
           ],
         },
+        showIf: (config) => (config.displayMode ?? 'svg') === 'svg',
       })
       .addNumberInput({
         category: ['Tooltip'],
@@ -157,6 +158,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         settings: {
           integer: true,
         },
+        showIf: (config) => (config.displayMode ?? 'svg') === 'svg',
       })
       .addNumberInput({
         category: ['Tooltip'],
@@ -166,6 +168,7 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
         settings: {
           integer: true,
         },
+        showIf: (config) => (config.displayMode ?? 'svg') === 'svg',
       })
       .addRadio({
         category: ['Tooltip'],
@@ -178,16 +181,18 @@ export const plugin = new PanelPlugin<PanelOptions>(SvgPanel)
             { value: 'right', label: 'Right' },
           ],
         },
+        showIf: (config) => (config.displayMode ?? 'svg') === 'svg',
       })
       .addBooleanSwitch({
         category: ['Tooltip'],
         path: 'tooltip.hideZeros',
         name: 'Hide zeros',
         defaultValue: false,
+        showIf: (config) => (config.displayMode ?? 'svg') === 'svg',
       })
       .addBooleanSwitch({
         category: ['Notify tooltip'],
-        path: 'notifyTooltip.enable',
+        path: 'notifyTooltip.show',
         name: 'enable',
         defaultValue: false,
       })

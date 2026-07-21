@@ -8,7 +8,6 @@ export function initializeConfig(svg: Document | null, config: ConfigRules[] | n
   const configMap: ConfigMap = new Map();
   const elementsMap = new Map<string, SVGElement>();
 
-  // ✅ Флаг: требуем ли наличие SVG-элемента
   const requireElement = svg !== null;
 
   if (svg) {
@@ -128,7 +127,6 @@ function getElementsByIdOrRegex(
 
     const regex = new RegExp(checkId);
 
-    // ✅ Явно указываем тип для массива
     const matches: Array<[string, string, number[], SVGElement | undefined]> = Array.from(map.entries())
       .filter(([key]) => regex.test(key))
       .map(([key, element]) => [key, schema, selector, element]);

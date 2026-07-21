@@ -1,62 +1,31 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
+import { TOOLTIP_Z_INDEX } from './constants';
 
-export const usePortal = () => {
+// Хук для создания портала
+export const usePortal = (zIndex: number = TOOLTIP_Z_INDEX) => {
   const portalRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = document.createElement('div');
     el.setAttribute('data-testid', 'notify-tooltip-portal');
-    el.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;z-index:99999;';
+    el.style.cssText = `position:fixed;top:0;left:0;width:0;height:0;z-index:${zIndex};`;
     portalRef.current = el;
     document.body.appendChild(el);
     return () => {
       portalRef.current?.remove();
       portalRef.current = null;
     };
-  }, []);
+  }, [zIndex]);
   return portalRef;
 };
 
-/** Считает число элементов, не влезающих в видимую область */
-export const useHiddenCount = (
-  containerRef: React.RefObject<HTMLDivElement>,
-  dataSourceNames: string[],
-  tooltipWidth: number
-) => {
-  const [hiddenCount, setHiddenCount] = useState(0);
-
-  const updateHiddenCount = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) {
-      setHiddenCount(0);
-      return;
-    }
-    const children = Array.from(container.children);
-    const containerRect = container.getBoundingClientRect();
-    let hidden = 0;
-    for (const child of children) {
-      const rect = child.getBoundingClientRect();
-      if (rect.top >= containerRect.bottom - 1) {
-        hidden++;
-      }
-    }
-    setHiddenCount(hidden);
-  }, [containerRef]);
-
-  useLayoutEffect(() => {
-    updateHiddenCount();
-    const observer = new ResizeObserver(updateHiddenCount);
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-    return () => observer.disconnect();
-  }, [updateHiddenCount, containerRef, dataSourceNames, tooltipWidth]);
-
-  return hiddenCount;
-};
-
-// ---------- Утилита плавного скролла ----------
-function smoothScrollTo(element: HTMLElement, target: number, duration: number): Promise<void> {
-  return new Promise((resolve) => {
+// Утилита плавного скролла с поддержкой отмены
+function smoothScrollTo(
+  element: HTMLElement,
+  target: number,
+  duration: number,
+  cancelRef: React.MutableRefObject<boolean>
+): Promise<void> {
+  return new Promise((resolve, reject) => {
     const start = element.scrollTop;
     const change = target - start;
     if (Math.abs(change) < 0.5) {
@@ -65,6 +34,10 @@ function smoothScrollTo(element: HTMLElement, target: number, duration: number):
     }
     const startTime = performance.now();
     const step = (now: number) => {
+      if (cancelRef.current) {
+        reject(new Error('cancelled'));
+        return;
+      }
       const elapsed = now - startTime;
       const progress = Math.min(1, elapsed / duration);
       const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
@@ -79,7 +52,7 @@ function smoothScrollTo(element: HTMLElement, target: number, duration: number):
   });
 }
 
-// ---------- Хук автоскролла ----------
+// Хук автоскролла
 export const useAutoScroll = (
   containerRef: React.RefObject<HTMLDivElement>,
   needsScroll: boolean,
@@ -87,6 +60,7 @@ export const useAutoScroll = (
 ) => {
   const autoScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isAutoScrolling = useRef(false);
+  const cancelRef = useRef(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -99,31 +73,42 @@ export const useAutoScroll = (
       return;
     }
 
-    const startDelay = 10000; // 10 секунд ожидания
-    const scrollDownDuration = 1500; // 1.5 секунд вниз
-    const pauseAtBottom = 5000; // 5 секунд стоим внизу
-    const scrollUpDuration = 800; // 0.8 секунды вверх
+    const startDelay = 10000;
+    const scrollDownDuration = 1500;
+    const pauseAtBottom = 5000;
+    const scrollUpDuration = 800;
 
     const timeout = setTimeout(async () => {
-      if (!containerRef.current || isAutoScrolling.current) {
+      if (cancelRef.current || !containerRef.current || isAutoScrolling.current) {
         return;
       }
       isAutoScrolling.current = true;
+      cancelRef.current = false;
 
-      await smoothScrollTo(containerRef.current, maxScroll, scrollDownDuration);
-      await new Promise((resolve) => setTimeout(resolve, pauseAtBottom));
-
-      if (containerRef.current && isAutoScrolling.current) {
-        await smoothScrollTo(containerRef.current, 0, scrollUpDuration);
+      try {
+        await smoothScrollTo(containerRef.current, maxScroll, scrollDownDuration, cancelRef);
+        if (cancelRef.current) {
+          throw new Error('cancelled');
+        }
+        await new Promise((resolve) => setTimeout(resolve, pauseAtBottom));
+        if (cancelRef.current) {
+          throw new Error('cancelled');
+        }
+        if (containerRef.current && !cancelRef.current) {
+          await smoothScrollTo(containerRef.current, 0, scrollUpDuration, cancelRef);
+        }
+      } catch {
+        // игнорируем отмену
+      } finally {
+        isAutoScrolling.current = false;
       }
-
-      isAutoScrolling.current = false;
     }, startDelay);
 
     autoScrollTimerRef.current = timeout;
 
     return () => {
       clearTimeout(timeout);
+      cancelRef.current = true;
       isAutoScrolling.current = false;
     };
   }, [needsScroll, dataSourceNames, containerRef]);
