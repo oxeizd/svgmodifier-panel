@@ -68,7 +68,7 @@ function collectDataSource(field: MetricData | TableMetricData, threshold: numbe
   if (field.dsName && field.refId) {
     if (currentLvl > 0) {
       dsNames.push([field.dsName, field.refId]);
-    } else if (threshold && threshold > 0 &&  currentMetric >= threshold) {
+    } else if (threshold && threshold > 0 && currentMetric >= threshold) {
       dsNames.push([field.dsName, field.refId]);
     }
   }
