@@ -34,6 +34,7 @@ export const SvgModePanel: React.FC<SvgModePanelProps> = ({ height, width }) => 
           dataSourceNames={notificationData.dataSourceNames}
           show={notificationData.show}
           options={options.notifyTooltip}
+          containerRef={containerRef}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useLayoutEffect } from 'react';
+import React, { useRef, useState, useLayoutEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useTheme2 } from '@grafana/ui';
 import { PanelOptions } from 'types';
@@ -21,20 +21,54 @@ export interface NotificationTooltipProps {
   dataSourceNames?: string[];
   show: boolean;
   options?: PanelOptions['notifyTooltip'];
+  containerRef?: React.RefObject<HTMLElement>;
 }
 
 export const NotificationTooltip = React.memo<NotificationTooltipProps>(
-  ({ count = 0, dataSourceNames = [], show, options = {} }) => {
+  ({ count = 0, dataSourceNames = [], show, options = {}, containerRef }) => {
     const theme = useTheme2();
     const { offsetX = 19, offsetY = 146, hideInEditMode = true } = options;
     const isEditing = window.location.search.includes('editPanel=');
 
-    const portalRef = usePortal();
+    const portalRef = usePortal(990);
     const textRef = useRef<HTMLDivElement>(null);
     const [tooltipWidth, setTooltipWidth] = useState(INITIAL_TOOLTIP_WIDTH);
     const [needsScroll, setNeedsScroll] = useState(false);
+    const [position, setPosition] = useState({ left: offsetX, top: offsetY });
 
     useAutoScroll(textRef, needsScroll, dataSourceNames);
+
+    const updatePosition = useCallback(() => {
+      const panelElement = containerRef?.current;
+      if (!panelElement) {
+        setPosition({ left: offsetX, top: offsetY });
+        return;
+      }
+      const rect = panelElement.getBoundingClientRect();
+      setPosition({
+        left: rect.left + offsetX,
+        top: rect.top + offsetY,
+      });
+    }, [containerRef, offsetX, offsetY]);
+
+    useLayoutEffect(() => {
+      if (!show) {
+        return;
+      }
+      updatePosition();
+      const handleScroll = () => updatePosition();
+      const handleResize = () => updatePosition();
+      window.addEventListener('scroll', handleScroll, true);
+      window.addEventListener('resize', handleResize);
+      return () => {
+        window.removeEventListener('scroll', handleScroll, true);
+        window.removeEventListener('resize', handleResize);
+      };
+    }, [show, updatePosition]);
+
+    useLayoutEffect(() => {
+      updatePosition();
+    }, [updatePosition]);
 
     useLayoutEffect(() => {
       if (!show || (hideInEditMode && isEditing)) {
@@ -84,7 +118,7 @@ export const NotificationTooltip = React.memo<NotificationTooltipProps>(
     }
 
     const content = (
-      <div style={{ position: 'fixed', top: offsetY, right: offsetX }}>
+      <div style={{ position: 'fixed', left: position.left, top: position.top, transition: 'none' }}>
         <div style={getContainerStyles(theme, tooltipWidth)}>
           {dataSourceNames.length > 0 && (
             <>
