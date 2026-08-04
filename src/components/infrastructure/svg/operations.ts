@@ -8,10 +8,6 @@ export function createSvgUpdateOperation(
   data: MetricData | TableMetricData
 ) {
   return () => {
-    if (!data) {
-      return;
-    }
-
     const hasLink = attributes ? 'link' in attributes : false;
     const hasLabel = attributes ? 'label' in attributes : false;
     const hasLabelColor = attributes ? 'labelColor' in attributes : false;
